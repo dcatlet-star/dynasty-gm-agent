@@ -1,0 +1,1382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Dynasty GM — MJBrutus</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #080810;
+  --surface: #0f0f1a;
+  --surface2: #161625;
+  --surface3: #1e1e30;
+  --border: #252538;
+  --border2: #2e2e48;
+  --accent: #4f9eff;
+  --accent2: #ff5c5c;
+  --gold: #f0c040;
+  --green: #3ddc84;
+  --purple: #a78bfa;
+  --text: #e2e2f0;
+  --text2: #9898b8;
+  --text3: #5858788;
+  --nav-h: 64px;
+  --header-h: 52px;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;overflow:hidden;}
+body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column;}
+
+/* ── HEADER ── */
+.header{height:var(--header-h);background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 16px;flex-shrink:0;position:relative;z-index:10;}
+.header::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent 0%,var(--accent) 30%,var(--purple) 70%,transparent 100%);opacity:0.6;}
+.logo{display:flex;align-items:center;gap:10px;}
+.logo-icon{width:32px;height:32px;background:linear-gradient(135deg,var(--accent),var(--purple));border-radius:7px;display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue';font-size:16px;color:var(--bg);letter-spacing:0.5px;}
+.logo-text{display:flex;flex-direction:column;line-height:1;}
+.logo-title{font-family:'Bebas Neue';font-size:17px;letter-spacing:2px;color:var(--text);}
+.logo-sub{font-size:9px;color:var(--accent);letter-spacing:1.5px;text-transform:uppercase;font-weight:600;}
+.header-right{display:flex;align-items:center;gap:10px;}
+.live-badge{display:flex;align-items:center;gap:5px;padding:4px 8px;border-radius:20px;background:rgba(61,220,132,0.1);border:1px solid rgba(61,220,132,0.3);}
+.live-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:livePulse 2s infinite;}
+@keyframes livePulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(61,220,132,0.4);}50%{opacity:0.7;box-shadow:0 0 0 4px rgba(61,220,132,0);}}
+.live-text{font-size:10px;color:var(--green);font-weight:700;letter-spacing:1px;}
+.page-title{font-family:'Bebas Neue';font-size:17px;letter-spacing:2px;color:var(--text2);}
+
+/* ── MAIN CONTENT ── */
+.main{flex:1;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;scrollbar-color:var(--border2) transparent;padding-bottom:var(--nav-h);}
+.main::-webkit-scrollbar{width:3px;}
+.main::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
+
+/* ── BOTTOM NAV ── */
+.nav{position:fixed;bottom:0;left:0;right:0;height:var(--nav-h);background:var(--surface);border-top:1px solid var(--border);display:flex;align-items:center;z-index:100;padding-bottom:env(safe-area-inset-bottom);}
+.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;padding:8px 4px;transition:all 0.15s;}
+.nav-icon{font-size:20px;line-height:1;transition:transform 0.15s;}
+.nav-label{font-size:9px;font-weight:700;letter-spacing:0.8px;text-transform:uppercase;color:var(--text2);transition:color 0.15s;}
+.nav-item.active .nav-label{color:var(--accent);}
+.nav-item.active .nav-icon{transform:translateY(-2px);}
+
+/* ── PAGE SYSTEM ── */
+.page{display:none;animation:fadeIn 0.2s ease;}
+.page.active{display:block;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
+
+/* ── SHARED COMPONENTS ── */
+.section{padding:16px;}
+.section-title{font-family:'Bebas Neue';font-size:14px;letter-spacing:2px;color:var(--text2);margin-bottom:12px;display:flex;align-items:center;gap:8px;}
+.section-title::after{content:'';flex:1;height:1px;background:var(--border);}
+.card{background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px;}
+.card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+.tag{padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;letter-spacing:0.8px;text-transform:uppercase;}
+.tag-buy{background:rgba(61,220,132,0.15);color:var(--green);border:1px solid rgba(61,220,132,0.3);}
+.tag-sell{background:rgba(255,92,92,0.15);color:var(--accent2);border:1px solid rgba(255,92,92,0.3);}
+.tag-hold{background:rgba(240,192,64,0.15);color:var(--gold);border:1px solid rgba(240,192,64,0.3);}
+.tag-monitor{background:rgba(167,139,250,0.15);color:var(--purple);border:1px solid rgba(167,139,250,0.3);}
+.tag-warning{background:rgba(255,92,92,0.1);color:var(--accent2);}
+.tag-info{background:rgba(79,158,255,0.1);color:var(--accent);}
+.tag-opportunity{background:rgba(61,220,132,0.1);color:var(--green);}
+.btn{padding:10px 16px;border-radius:10px;border:none;cursor:pointer;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;transition:all 0.15s;letter-spacing:0.5px;}
+.btn-primary{background:var(--accent);color:var(--bg);}
+.btn-primary:hover{background:#6ab0ff;transform:translateY(-1px);}
+.btn-secondary{background:var(--surface3);color:var(--text);border:1px solid var(--border2);}
+.btn-ghost{background:transparent;color:var(--text2);border:1px solid var(--border);}
+.btn-sm{padding:6px 12px;font-size:11px;border-radius:8px;}
+.input{background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:10px 14px;color:var(--text);font-family:'Syne',sans-serif;font-size:14px;width:100%;outline:none;transition:border-color 0.15s;}
+.input:focus{border-color:var(--accent);}
+.input::placeholder{color:var(--text2);}
+.select{background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:10px 14px;color:var(--text);font-family:'Syne',sans-serif;font-size:14px;width:100%;outline:none;appearance:none;}
+.chip{padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;border:1px solid var(--border);background:var(--surface3);color:var(--text2);cursor:pointer;transition:all 0.15s;flex-shrink:0;}
+.chip.active{background:rgba(79,158,255,0.15);border-color:var(--accent);color:var(--accent);}
+.loading{display:flex;align-items:center;justify-content:center;padding:40px;flex-direction:column;gap:12px;}
+.spinner{width:28px;height:28px;border:2px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.loading-text{font-size:12px;color:var(--text2);font-weight:600;letter-spacing:1px;}
+.empty-state{text-align:center;padding:48px 24px;color:var(--text2);}
+.empty-icon{font-size:40px;margin-bottom:12px;}
+.empty-title{font-family:'Bebas Neue';font-size:20px;letter-spacing:2px;margin-bottom:6px;}
+.empty-sub{font-size:13px;line-height:1.5;}
+.divider{height:1px;background:var(--border);margin:12px 0;}
+.stat-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;}
+.stat-label{font-size:12px;color:var(--text2);}
+.stat-value{font-size:13px;font-weight:700;font-family:'JetBrains Mono';}
+.pos-badge{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;letter-spacing:0.5px;flex-shrink:0;}
+.pos-QB{background:rgba(79,158,255,0.2);color:var(--accent);}
+.pos-RB{background:rgba(61,220,132,0.2);color:var(--green);}
+.pos-WR{background:rgba(167,139,250,0.2);color:var(--purple);}
+.pos-TE{background:rgba(240,192,64,0.2);color:var(--gold);}
+
+/* ── HOME / DASHBOARD ── */
+#page-home{padding-bottom:8px;}
+.home-hero{padding:20px 16px 12px;background:linear-gradient(180deg,var(--surface) 0%,transparent 100%);border-bottom:1px solid var(--border);}
+.home-greeting{font-family:'Bebas Neue';font-size:28px;letter-spacing:3px;background:linear-gradient(135deg,var(--text),var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.home-date{font-size:11px;color:var(--text2);letter-spacing:1px;margin-top:2px;}
+.home-refresh{display:flex;gap:8px;margin-top:12px;}
+.dashboard-loading{padding:24px;text-align:center;}
+.alert-card{border-radius:10px;padding:12px;margin-bottom:8px;display:flex;gap:10px;align-items:flex-start;}
+.alert-warning{background:rgba(255,92,92,0.08);border:1px solid rgba(255,92,92,0.2);}
+.alert-info{background:rgba(79,158,255,0.08);border:1px solid rgba(79,158,255,0.2);}
+.alert-opportunity{background:rgba(61,220,132,0.08);border:1px solid rgba(61,220,132,0.2);}
+.alert-icon{font-size:18px;flex-shrink:0;margin-top:1px;}
+.alert-body{flex:1;}
+.alert-league{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text2);margin-bottom:2px;}
+.alert-msg{font-size:13px;color:var(--text);line-height:1.4;}
+.alert-action{font-size:11px;color:var(--accent);margin-top:4px;font-weight:600;}
+.news-card{display:flex;gap:10px;align-items:flex-start;padding:12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;margin-bottom:8px;}
+.news-body{flex:1;}
+.news-player{font-size:14px;font-weight:700;}
+.news-leagues{font-size:10px;color:var(--accent);font-weight:600;letter-spacing:0.5px;margin:2px 0;}
+.news-headline{font-size:12px;color:var(--text2);line-height:1.4;}
+.news-impact{font-size:11px;color:var(--text2);margin-top:4px;font-style:italic;}
+.mover-card{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;margin-bottom:6px;}
+.mover-direction{font-size:18px;}
+.mover-body{flex:1;}
+.mover-player{font-size:13px;font-weight:700;}
+.mover-reason{font-size:11px;color:var(--text2);}
+.mover-change{font-family:'JetBrains Mono';font-size:14px;font-weight:700;}
+.mover-up{color:var(--green);}
+.mover-down{color:var(--accent2);}
+.trade-target-card{padding:12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;margin-bottom:8px;}
+.trade-target-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
+.trade-target-player{font-size:14px;font-weight:700;}
+.trade-target-league{font-size:10px;color:var(--text2);font-weight:600;letter-spacing:0.5px;}
+.trade-offer-text{font-size:12px;color:var(--text2);background:var(--surface3);padding:8px 10px;border-radius:8px;font-family:'JetBrains Mono';margin-top:6px;border-left:2px solid var(--accent);}
+.priority-item{display:flex;gap:10px;align-items:flex-start;padding:8px 0;}
+.priority-num{width:22px;height:22px;border-radius:50%;background:var(--accent);color:var(--bg);font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.priority-text{font-size:13px;line-height:1.4;}
+
+/* ── CHAT ── */
+#page-chat{display:flex;flex-direction:column;height:calc(100vh - var(--header-h) - var(--nav-h));padding:0;}
+.chat-toolbar{padding:8px 12px;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;}
+.chat-toolbar::-webkit-scrollbar{display:none;}
+.chat-messages{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:12px;scrollbar-width:thin;scrollbar-color:var(--border) transparent;}
+.chat-messages::-webkit-scrollbar{width:3px;}
+.chat-welcome{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;text-align:center;padding:32px 24px;gap:16px;}
+.chat-welcome-icon{font-size:44px;}
+.chat-welcome-title{font-family:'Bebas Neue';font-size:28px;letter-spacing:3px;background:linear-gradient(135deg,var(--accent),var(--gold));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.chat-welcome-sub{font-size:13px;color:var(--text2);line-height:1.6;max-width:260px;}
+.league-chips{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;}
+.message{display:flex;flex-direction:column;gap:3px;animation:msgIn 0.25s ease;}
+@keyframes msgIn{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+.message.user{align-items:flex-end;}
+.message.agent{align-items:flex-start;}
+.msg-label{font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;padding:0 4px;}
+.message.user .msg-label{color:var(--accent2);}
+.message.agent .msg-label{color:var(--accent);}
+.bubble{max-width:88%;padding:11px 14px;border-radius:14px;font-size:13.5px;line-height:1.6;word-wrap:break-word;}
+.message.user .bubble{background:var(--surface3);border:1px solid var(--border2);border-bottom-right-radius:3px;}
+.message.agent .bubble{background:var(--surface2);border:1px solid var(--border);border-bottom-left-radius:3px;}
+.bubble img{max-width:100%;border-radius:8px;margin-bottom:6px;display:block;}
+.bubble strong{color:var(--gold);font-weight:700;}
+.bubble em{color:var(--accent);}
+.bubble code{background:rgba(79,158,255,0.1);padding:2px 6px;border-radius:4px;font-family:'JetBrains Mono';font-size:12px;color:var(--accent);}
+.bubble h3{font-family:'Bebas Neue';letter-spacing:1.5px;color:var(--gold);font-size:15px;margin:10px 0 5px;}
+.bubble h3:first-child{margin-top:0;}
+.bubble hr{border:none;border-top:1px solid var(--border);margin:8px 0;}
+.bubble p{margin-bottom:6px;}
+.bubble p:last-child{margin-bottom:0;}
+.bubble ul,.bubble ol{padding-left:16px;margin-bottom:6px;}
+.bubble li{margin-bottom:3px;}
+.typing{display:flex;align-items:center;gap:10px;padding:6px 0;}
+.typing-dots{display:flex;gap:4px;}
+.typing-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:typeBounce 1.2s infinite;}
+.typing-dot:nth-child(2){animation-delay:0.2s;}
+.typing-dot:nth-child(3){animation-delay:0.4s;}
+@keyframes typeBounce{0%,80%,100%{transform:translateY(0);opacity:0.3;}40%{transform:translateY(-5px);opacity:1;}}
+.typing-text{font-size:11px;color:var(--text2);font-style:italic;}
+.image-preview-bar{padding:8px 12px;background:var(--surface);border-top:1px solid var(--border);display:none;flex-shrink:0;}
+.preview-inner{position:relative;display:inline-block;}
+.preview-thumb{height:52px;border-radius:8px;border:1px solid var(--border);}
+.preview-x{position:absolute;top:-6px;right:-6px;width:18px;height:18px;background:var(--accent2);border:none;border-radius:50%;color:white;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.chat-input-area{padding:10px 12px;padding-bottom:max(10px,env(safe-area-inset-bottom));background:var(--surface);border-top:1px solid var(--border);flex-shrink:0;}
+.league-row{display:flex;gap:6px;margin-bottom:8px;overflow-x:auto;scrollbar-width:none;}
+.league-row::-webkit-scrollbar{display:none;}
+.input-row{display:flex;align-items:flex-end;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:8px 8px 8px 12px;transition:border-color 0.15s;}
+.input-row:focus-within{border-color:var(--accent);}
+.chat-textarea{flex:1;background:transparent;border:none;outline:none;color:var(--text);font-family:'Syne',sans-serif;font-size:14px;resize:none;max-height:100px;min-height:22px;line-height:1.5;}
+.chat-textarea::placeholder{color:var(--text2);}
+.icon-btn{width:34px;height:34px;border-radius:9px;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;transition:all 0.15s;}
+.attach-btn{background:var(--surface3);color:var(--text2);}
+.attach-btn:hover{background:var(--border2);color:var(--text);}
+.send-btn{background:linear-gradient(135deg,var(--accent),var(--purple));color:white;}
+.send-btn:disabled{background:var(--border);color:var(--text2);cursor:not-allowed;}
+#file-input{display:none;}
+.search-bar{display:flex;gap:8px;padding:12px;border-bottom:1px solid var(--border);}
+.search-results{padding:12px;}
+.search-result-item{padding:10px;background:var(--surface2);border-radius:8px;margin-bottom:6px;border:1px solid var(--border);}
+.search-result-role{font-size:10px;font-weight:700;letter-spacing:1px;color:var(--text2);text-transform:uppercase;}
+.search-result-text{font-size:12px;margin-top:3px;color:var(--text);}
+.search-result-meta{font-size:10px;color:var(--text2);margin-top:4px;}
+
+/* ── ROSTERS ── */
+.roster-league-tabs{display:flex;gap:8px;padding:12px;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid var(--border);}
+.roster-league-tabs::-webkit-scrollbar{display:none;}
+.roster-tab{padding:6px 14px;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;transition:all 0.15s;border:1px solid var(--border);background:var(--surface2);color:var(--text2);}
+.roster-tab.active{background:rgba(79,158,255,0.15);border-color:var(--accent);color:var(--accent);}
+.roster-content{padding:12px;}
+.player-row{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;margin-bottom:6px;cursor:pointer;transition:border-color 0.15s;}
+.player-row:hover{border-color:var(--border2);}
+.player-info{flex:1;}
+.player-name{font-size:14px;font-weight:700;}
+.player-meta{font-size:11px;color:var(--text2);margin-top:2px;}
+.player-value{font-family:'JetBrains Mono';font-size:13px;font-weight:700;color:var(--accent);}
+.player-status{font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;}
+.status-lock{background:rgba(240,192,64,0.15);color:var(--gold);}
+.status-core{background:rgba(79,158,255,0.15);color:var(--accent);}
+.status-sell{background:rgba(255,92,92,0.15);color:var(--accent2);}
+.sync-btn-row{padding:12px;display:flex;gap:8px;}
+
+/* ── RANKINGS ── */
+.rankings-tabs{display:flex;border-bottom:1px solid var(--border);}
+.rankings-tab{flex:1;padding:12px;text-align:center;font-size:12px;font-weight:700;color:var(--text2);cursor:pointer;letter-spacing:0.5px;transition:all 0.15s;border-bottom:2px solid transparent;}
+.rankings-tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+.rankings-content{padding:12px;}
+.matchup-card{background:var(--surface2);border:1px solid var(--border);border-radius:16px;padding:20px;text-align:center;margin-bottom:12px;}
+.matchup-title{font-family:'Bebas Neue';font-size:13px;letter-spacing:2px;color:var(--text2);margin-bottom:16px;}
+.matchup-vs{display:flex;align-items:stretch;gap:10px;margin-bottom:16px;}
+.matchup-player{flex:1;background:var(--surface3);border:2px solid var(--border);border-radius:12px;padding:14px 10px;cursor:pointer;transition:all 0.2s;display:flex;flex-direction:column;align-items:center;gap:6px;}
+.matchup-player:hover,.matchup-player:active{border-color:var(--accent);background:rgba(79,158,255,0.1);transform:scale(1.02);}
+.matchup-pos{font-size:10px;font-weight:800;letter-spacing:1px;}
+.matchup-name{font-size:14px;font-weight:800;line-height:1.2;}
+.matchup-team{font-size:11px;color:var(--text2);}
+.vs-divider{display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue';font-size:16px;color:var(--text2);flex-shrink:0;}
+.matchup-progress{margin-bottom:10px;}
+.progress-label{font-size:11px;color:var(--text2);margin-bottom:6px;}
+.progress-bar{height:4px;background:var(--border);border-radius:2px;overflow:hidden;}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--purple));border-radius:2px;transition:width 0.5s ease;}
+.skip-btn{background:transparent;border:1px solid var(--border);color:var(--text2);padding:8px 20px;border-radius:8px;font-size:12px;cursor:pointer;font-family:'Syne';font-weight:600;}
+.rankings-list{display:flex;flex-direction:column;gap:6px;}
+.rank-item{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;}
+.rank-num{font-family:'JetBrains Mono';font-size:13px;font-weight:700;color:var(--text2);width:28px;text-align:center;flex-shrink:0;}
+.rank-info{flex:1;}
+.rank-name{font-size:13px;font-weight:700;}
+.rank-meta{font-size:11px;color:var(--text2);margin-top:2px;}
+.rank-elo{font-family:'JetBrains Mono';font-size:12px;color:var(--text2);}
+.add-player-form{background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:12px;}
+.add-player-form h4{font-size:13px;font-weight:700;margin-bottom:10px;}
+.form-row{display:flex;gap:8px;flex-wrap:wrap;}
+.form-row .input{flex:1;min-width:100px;}
+
+/* ── TRADE CALCULATOR ── */
+.trade-calc{padding:12px;}
+.trade-side{background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px;}
+.trade-side-title{font-size:12px;font-weight:700;color:var(--text2);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;}
+.asset-list{display:flex;flex-direction:column;gap:6px;margin-bottom:10px;}
+.asset-item{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--surface3);border-radius:8px;}
+.asset-name{font-size:13px;font-weight:600;}
+.asset-remove{background:none;border:none;color:var(--accent2);cursor:pointer;font-size:16px;padding:0 4px;}
+.add-asset-row{display:flex;gap:8px;}
+.trade-result{background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:10px;}
+.result-verdict{font-family:'Bebas Neue';font-size:28px;letter-spacing:3px;margin-bottom:10px;}
+.verdict-ACCEPT{color:var(--green);}
+.verdict-DECLINE{color:var(--accent2);}
+.verdict-COUNTER{color:var(--gold);}
+.result-values{display:flex;gap:12px;margin-bottom:12px;}
+.result-val-item{flex:1;text-align:center;padding:10px;background:var(--surface3);border-radius:8px;}
+.result-val-label{font-size:10px;color:var(--text2);font-weight:700;text-transform:uppercase;letter-spacing:0.5px;}
+.result-val-num{font-family:'JetBrains Mono';font-size:20px;font-weight:700;color:var(--text);}
+.result-surplus{font-size:11px;font-weight:700;margin-top:2px;}
+.surplus-pos{color:var(--green);}
+.surplus-neg{color:var(--accent2);}
+.result-analysis{font-size:13px;color:var(--text2);line-height:1.5;margin-bottom:10px;}
+.result-perspectives{display:flex;flex-direction:column;gap:8px;margin-bottom:10px;}
+.perspective-item{padding:10px;background:var(--surface3);border-radius:8px;}
+.perspective-label{font-size:10px;font-weight:700;color:var(--text2);letter-spacing:0.5px;text-transform:uppercase;margin-bottom:4px;}
+.perspective-text{font-size:12px;color:var(--text);line-height:1.4;}
+.trade-message-box{background:var(--surface3);border-left:3px solid var(--accent);padding:10px 12px;border-radius:0 8px 8px 0;font-family:'JetBrains Mono';font-size:13px;margin-bottom:10px;}
+.copy-msg-btn{display:flex;align-items:center;gap:6px;background:none;border:1px solid var(--border);border-radius:8px;padding:6px 12px;color:var(--text2);cursor:pointer;font-size:11px;font-family:'Syne';font-weight:600;transition:all 0.15s;}
+.copy-msg-btn:hover{border-color:var(--accent);color:var(--accent);}
+
+/* ── DRAFT BOARD ── */
+.draft-board{padding:12px;}
+.chart-header{background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:12px;}
+.chart-title{font-family:'Bebas Neue';font-size:18px;letter-spacing:2px;margin-bottom:4px;}
+.chart-sub{font-size:12px;color:var(--text2);}
+.pick-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;margin-bottom:12px;}
+.pick-cell{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 4px;text-align:center;cursor:pointer;transition:all 0.15s;}
+.pick-cell:hover{border-color:var(--accent);background:rgba(79,158,255,0.1);}
+.pick-cell.my-pick{border-color:var(--gold);background:rgba(240,192,64,0.1);}
+.pick-slot{font-family:'JetBrains Mono';font-size:10px;color:var(--text2);font-weight:600;}
+.pick-value{font-family:'JetBrains Mono';font-size:13px;font-weight:700;color:var(--text);}
+.pick-cell.my-pick .pick-value{color:var(--gold);}
+.trade-analyzer{background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px;}
+.trade-analyzer h4{font-family:'Bebas Neue';font-size:16px;letter-spacing:1.5px;margin-bottom:12px;}
+.pick-input-row{display:flex;gap:8px;margin-bottom:8px;}
+.pick-result{background:var(--surface3);border-radius:8px;padding:12px;margin-top:8px;}
+
+/* ── PLAYER PROFILE MODAL ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:200;display:none;align-items:flex-end;}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--surface);border-radius:20px 20px 0 0;width:100%;max-height:85vh;overflow-y:auto;padding:20px;animation:slideUp 0.3s ease;}
+@keyframes slideUp{from{transform:translateY(100%);}to{transform:translateY(0);}}
+.modal-handle{width:40px;height:4px;background:var(--border2);border-radius:2px;margin:0 auto 16px;}
+.modal-header{display:flex;align-items:flex-start;gap:12px;margin-bottom:16px;}
+.modal-pos-badge{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;flex-shrink:0;}
+.modal-name{font-family:'Bebas Neue';font-size:22px;letter-spacing:2px;line-height:1;}
+.modal-meta{font-size:12px;color:var(--text2);margin-top:3px;}
+.profile-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;}
+.profile-stat{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;}
+.profile-stat-label{font-size:10px;color:var(--text2);font-weight:700;letter-spacing:0.5px;text-transform:uppercase;}
+.profile-stat-value{font-family:'JetBrains Mono';font-size:18px;font-weight:700;margin-top:3px;}
+.profile-rec{padding:12px;border-radius:10px;margin-bottom:16px;}
+.profile-rec-buy{background:rgba(61,220,132,0.1);border:1px solid rgba(61,220,132,0.3);}
+.profile-rec-sell{background:rgba(255,92,92,0.1);border:1px solid rgba(255,92,92,0.3);}
+.profile-rec-hold{background:rgba(240,192,64,0.1);border:1px solid rgba(240,192,64,0.3);}
+.profile-rec-label{font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;}
+.profile-rec-text{font-size:13px;line-height:1.4;}
+.league-actions{display:flex;flex-direction:column;gap:6px;margin-bottom:16px;}
+.league-action-row{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;}
+.league-action-name{font-size:12px;font-weight:700;}
+.league-action-rec{font-size:12px;font-weight:600;}
+.news-list{display:flex;flex-direction:column;gap:6px;}
+.news-item{font-size:12px;color:var(--text2);padding:8px 10px;background:var(--surface2);border-radius:8px;line-height:1.4;border-left:2px solid var(--border2);}
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar{width:3px;height:3px;}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
+
+@media(min-width:768px){body{max-width:480px;margin:0 auto;}.bubble{max-width:78%;}}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header" id="main-header">
+  <div class="logo">
+    <div class="logo-icon">GM</div>
+    <div class="logo-text">
+      <span class="logo-title">Dynasty GM</span>
+      <span class="logo-sub">MJBrutus War Room</span>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="live-badge"><div class="live-dot"></div><span class="live-text">LIVE</span></div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main" id="main-content">
+
+  <!-- HOME PAGE -->
+  <div class="page active" id="page-home">
+    <div class="home-hero">
+      <div class="home-greeting">War Room</div>
+      <div class="home-date" id="home-date"></div>
+      <div class="home-refresh">
+        <button class="btn btn-primary btn-sm" onclick="loadDashboard()">↻ Refresh Dashboard</button>
+        <button class="btn btn-secondary btn-sm" onclick="syncSleeper()">⟳ Sync Sleeper</button>
+      </div>
+    </div>
+    <div id="dashboard-content">
+      <div class="loading" style="padding:60px 24px;">
+        <div class="spinner"></div>
+        <div class="loading-text">LOADING WAR ROOM...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CHAT PAGE -->
+  <div class="page" id="page-chat" style="display:none;flex-direction:column;height:calc(100vh - 52px - 64px);">
+    <div class="chat-toolbar">
+      <button class="chip" onclick="quickChat('trade')">⚡ Trade Eval</button>
+      <button class="chip" onclick="quickChat('roster')">📋 Roster Audit</button>
+      <button class="chip" onclick="quickChat('buysell')">📈 Buy/Sell</button>
+      <button class="chip" onclick="quickChat('waiver')">🎯 Waivers</button>
+      <button class="chip" onclick="quickChat('rookies')">🏈 Rookies</button>
+      <button class="chip" onclick="quickChat('briefing')">📊 Briefing</button>
+      <button class="chip" onclick="showChatSearch()">🔍 Search</button>
+    </div>
+    <div class="chat-messages" id="chat-messages">
+      <div class="chat-welcome" id="chat-welcome">
+        <div class="chat-welcome-icon">🏈</div>
+        <div class="chat-welcome-title">Ask Anything</div>
+        <div class="chat-welcome-sub">Full league context loaded. Real-time data active.</div>
+        <div class="league-chips">
+          <div class="chip active">Capital Gains</div>
+          <div class="chip active">TRS</div>
+          <div class="chip active">Gentleman's</div>
+          <div class="chip">Velvet Spade</div>
+        </div>
+      </div>
+    </div>
+    <div class="image-preview-bar" id="image-preview-bar">
+      <div class="preview-inner">
+        <img id="preview-thumb" class="preview-thumb" src="" alt="">
+        <button class="preview-x" onclick="removeImage()">×</button>
+      </div>
+    </div>
+    <div class="chat-input-area">
+      <div class="league-row">
+        <button class="chip active" onclick="setLeague(this,'')">All</button>
+        <button class="chip" onclick="setLeague(this,'Capital Gains: ')">CG #430</button>
+        <button class="chip" onclick="setLeague(this,'Twenty Run Savages: ')">TRS #210</button>
+        <button class="chip" onclick="setLeague(this,&quot;Gentleman's Dynasty: &quot;)">Gentleman's</button>
+        <button class="chip" onclick="setLeague(this,'Velvet Spade: ')">Velvet Spade</button>
+      </div>
+      <div class="input-row">
+        <textarea class="chat-textarea" id="chat-input" placeholder="Ask your GM anything..." rows="1"
+          onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <input type="file" id="file-input" accept="image/*,application/pdf" onchange="handleFile(event)">
+          <button class="icon-btn attach-btn" onclick="document.getElementById('file-input').click()">📎</button>
+          <button class="icon-btn send-btn" id="send-btn" onclick="sendChat()">↑</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ROSTERS PAGE -->
+  <div class="page" id="page-rosters">
+    <div class="roster-league-tabs">
+      <div class="roster-tab active" onclick="showRosterTab(this,'CG')">Capital Gains</div>
+      <div class="roster-tab" onclick="showRosterTab(this,'TRS')">TRS</div>
+      <div class="roster-tab" onclick="showRosterTab(this,'GL')">Gentleman's</div>
+      <div class="roster-tab" onclick="showRosterTab(this,'VS')">Velvet Spade</div>
+    </div>
+    <div class="sync-btn-row">
+      <button class="btn btn-secondary btn-sm" onclick="syncSleeper()">⟳ Sync Sleeper Leagues</button>
+      <button class="btn btn-ghost btn-sm" onclick="showUpdateContext()">✎ Update Context</button>
+    </div>
+    <div class="roster-content" id="roster-content"></div>
+  </div>
+
+  <!-- RANKINGS PAGE -->
+  <div class="page" id="page-rankings">
+    <div class="rankings-tabs">
+      <div class="rankings-tab active" onclick="showRankingsTab(this,'matchup')">Head-to-Head</div>
+      <div class="rankings-tab" onclick="showRankingsTab(this,'list')">My Rankings</div>
+      <div class="rankings-tab" onclick="showRankingsTab(this,'add')">Add Players</div>
+    </div>
+    <div class="rankings-content" id="rankings-content"></div>
+  </div>
+
+  <!-- TRADE PAGE -->
+  <div class="page" id="page-trade">
+    <div class="trade-calc">
+      <div class="section-title">Trade Calculator</div>
+      <div class="trade-side">
+        <div class="trade-side-title">I'm Giving</div>
+        <div class="asset-list" id="giving-list"></div>
+        <div class="add-asset-row">
+          <input class="input" id="giving-input" placeholder="Add player or pick..." onkeydown="if(event.key==='Enter')addAsset('giving')">
+          <button class="btn btn-secondary btn-sm" onclick="addAsset('giving')">Add</button>
+        </div>
+      </div>
+      <div class="trade-side">
+        <div class="trade-side-title">I'm Receiving</div>
+        <div class="asset-list" id="receiving-list"></div>
+        <div class="add-asset-row">
+          <input class="input" id="receiving-input" placeholder="Add player or pick..." onkeydown="if(event.key==='Enter')addAsset('receiving')">
+          <button class="btn btn-secondary btn-sm" onclick="addAsset('receiving')">Add</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:10px;">
+        <select class="select" id="trade-league" style="flex:1;">
+          <option value="Capital Gains">Capital Gains</option>
+          <option value="Twenty Run Savages">Twenty Run Savages</option>
+          <option value="Gentleman's Dynasty">Gentleman's Dynasty</option>
+          <option value="Velvet Spade">Velvet Spade</option>
+        </select>
+        <button class="btn btn-primary" onclick="evaluateTrade()">Evaluate</button>
+      </div>
+      <div id="trade-result"></div>
+    </div>
+  </div>
+
+  <!-- DRAFT PAGE -->
+  <div class="page" id="page-draft">
+    <div class="draft-board">
+      <div class="chart-header">
+        <div class="chart-title">Velvet Spade Draft Chart</div>
+        <div class="chart-sub">6pt TD adjusted startup values | Your picks highlighted in gold</div>
+      </div>
+      <div class="section-title">Round 1-4 Pick Values</div>
+      <div class="pick-grid" id="pick-grid"></div>
+      <div class="trade-analyzer">
+        <h4>Trade Up / Down Analyzer</h4>
+        <p style="font-size:12px;color:var(--text2);margin-bottom:12px;">Enter picks to evaluate fairness. Execute if within 15% of fair value.</p>
+        <div class="pick-input-row">
+          <input class="input" id="pick-giving" placeholder="You give (e.g. 2.11 + 3.11)">
+        </div>
+        <div class="pick-input-row">
+          <input class="input" id="pick-receiving" placeholder="You get (e.g. 1.06)">
+        </div>
+        <button class="btn btn-primary" style="width:100%;" onclick="analyzePicks()">Analyze Trade</button>
+        <div id="pick-result"></div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- end main -->
+
+<!-- BOTTOM NAV -->
+<nav class="nav">
+  <div class="nav-item active" onclick="showPage('home',this)">
+    <span class="nav-icon">🏠</span>
+    <span class="nav-label">Home</span>
+  </div>
+  <div class="nav-item" onclick="showPage('chat',this)">
+    <span class="nav-icon">💬</span>
+    <span class="nav-label">Chat</span>
+  </div>
+  <div class="nav-item" onclick="showPage('rosters',this)">
+    <span class="nav-icon">📋</span>
+    <span class="nav-label">Rosters</span>
+  </div>
+  <div class="nav-item" onclick="showPage('rankings',this)">
+    <span class="nav-icon">📊</span>
+    <span class="nav-label">Rankings</span>
+  </div>
+  <div class="nav-item" onclick="showPage('trade',this)">
+    <span class="nav-icon">⚡</span>
+    <span class="nav-label">Trade</span>
+  </div>
+  <div class="nav-item" onclick="showPage('draft',this)">
+    <span class="nav-icon">🏈</span>
+    <span class="nav-label">Draft</span>
+  </div>
+</nav>
+
+<!-- PLAYER PROFILE MODAL -->
+<div class="modal-overlay" id="profile-modal" onclick="closeProfileModal(event)">
+  <div class="modal" id="profile-modal-content">
+    <div class="modal-handle"></div>
+    <div id="profile-modal-body">
+      <div class="loading"><div class="spinner"></div><div class="loading-text">LOADING PROFILE...</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- CONTEXT UPDATE MODAL -->
+<div class="modal-overlay" id="context-modal" onclick="closeContextModal(event)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h3 style="font-family:'Bebas Neue';font-size:20px;letter-spacing:2px;margin-bottom:12px;">Update League Context</h3>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:12px;">Paste roster updates, trades, or any context changes. The agent will incorporate this information.</p>
+    <textarea class="input" id="context-input" rows="6" placeholder="e.g. TRS: traded Mayfield for 2027 2nd. CG: drafted Skyler Bell 4.04..."></textarea>
+    <div style="display:flex;gap:8px;margin-top:10px;">
+      <button class="btn btn-primary" style="flex:1;" onclick="submitContextUpdate()">Update Agent</button>
+      <button class="btn btn-ghost" onclick="document.getElementById('context-modal').classList.remove('open')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── STATE ──
+let selectedLeague = '';
+let selectedImage = null;
+let isLoading = false;
+let givingAssets = [];
+let receivingAssets = [];
+let currentRankingsTab = 'matchup';
+let currentRosterTab = 'CG';
+let totalComparisons = 0;
+
+const ROSTERS = {
+  CG: {
+    name: "Capital Gains #430",
+    strategy: "ACTIVE REBUILD → 2027",
+    players: [
+      {name:"Drake Maye",pos:"QB",team:"NE",status:"lock",ktc:9500},
+      {name:"Drake London",pos:"WR",team:"ATL",status:"lock",ktc:6500},
+      {name:"Sam LaPorta",pos:"TE",team:"DET",status:"core",ktc:5800},
+      {name:"Luther Burden",pos:"WR",team:"CHI",status:"core",ktc:4500},
+      {name:"MHJ",pos:"WR",team:"ARI",status:"core",ktc:5200},
+      {name:"Carnell Tate",pos:"WR",team:"TEN",status:"core",ktc:4567},
+      {name:"Jaxson Dart",pos:"QB",team:"NYG",status:"core",ktc:4500},
+      {name:"Eli Stowers",pos:"TE",team:"PHI",status:"hold",ktc:3932},
+      {name:"Denzel Boston",pos:"WR",team:"CLE",status:"hold",ktc:3457},
+      {name:"Max Klare",pos:"TE",team:"LAR",status:"hold",ktc:2286},
+      {name:"Mike Washington",pos:"RB",team:"LV",status:"hold",ktc:2502},
+      {name:"Malachi Fields",pos:"WR",team:"NYG",status:"hold",ktc:2542},
+      {name:"Skyler Bell",pos:"WR",team:"BUF",status:"hold",ktc:2326},
+      {name:"Tank Bigsby",pos:"RB",team:"PHI",status:"hold",ktc:1800},
+      {name:"Oscar Delp",pos:"TE",team:"NO",status:"hold",ktc:1154},
+      {name:"Carson Beck",pos:"QB",team:"ARI",status:"hold",ktc:993},
+      {name:"Calvin Ridley",pos:"WR",team:"TEN",status:"hold",ktc:1200},
+      {name:"Jalen Milroe",pos:"QB",team:"SEA",status:"sell",ktc:2800},
+      {name:"Dylan Sampson",pos:"RB",team:"CLE",status:"sell",ktc:1200},
+      {name:"Kimani Vidal",pos:"RB",team:"LAC",status:"sell",ktc:1400},
+    ]
+  },
+  TRS: {
+    name: "Twenty Run Savages #210",
+    strategy: "COMPETING NOW",
+    players: [
+      {name:"Drake Maye",pos:"QB",team:"NE",status:"lock",ktc:9500},
+      {name:"Bijan Robinson",pos:"RB",team:"ATL",status:"lock",ktc:8200},
+      {name:"JSN",pos:"WR",team:"SEA",status:"core",ktc:7800},
+      {name:"Colston Loveland",pos:"TE",team:"CHI",status:"core",ktc:6200},
+      {name:"Makai Lemon",pos:"WR",team:"PHI",status:"core",ktc:4978},
+      {name:"KC Concepcion",pos:"WR",team:"CLE",status:"hold",ktc:4452},
+      {name:"Josh Downs",pos:"WR",team:"IND",status:"hold",ktc:3800},
+      {name:"Dallas Goedert",pos:"TE",team:"PHI",status:"hold",ktc:3200},
+      {name:"Mike Evans",pos:"WR",team:"SF",status:"hold",ktc:2100},
+      {name:"Jakobi Meyers",pos:"WR",team:"JAC",status:"hold",ktc:1800},
+      {name:"Adonai Mitchell",pos:"WR",team:"NYJ",status:"hold",ktc:2200},
+      {name:"Zachariah Branch",pos:"WR",team:"ATL",status:"hold",ktc:2563},
+      {name:"Eli Raridon",pos:"TE",team:"NE",status:"hold",ktc:734},
+      {name:"Baker Mayfield",pos:"QB",team:"TB",status:"sell",ktc:2800},
+      {name:"Deshaun Watson",pos:"QB",team:"CLE",status:"sell",ktc:1800},
+      {name:"Rico Dowdle",pos:"RB",team:"PIT",status:"sell",ktc:2200},
+      {name:"Kyle Monangai",pos:"RB",team:"CHI",status:"hold",ktc:1800},
+    ]
+  },
+  GL: {
+    name: "Gentleman's Dynasty",
+    strategy: "REBUILD → 2027-28",
+    players: [
+      {name:"Patrick Mahomes",pos:"QB",team:"KC",status:"lock",ktc:5600},
+      {name:"Brock Bowers",pos:"TE",team:"LV",status:"lock",ktc:8100},
+      {name:"Quinshon Judkins",pos:"RB",team:"CLE",status:"core",ktc:3500},
+      {name:"MHJ",pos:"WR",team:"ARI",status:"core",ktc:2900},
+      {name:"Carnell Tate",pos:"WR",team:"TEN",status:"core",ktc:4567},
+      {name:"JJ McCarthy",pos:"QB",team:"MIN",status:"sell",ktc:3200},
+      {name:"Bhayshul Tuten",pos:"RB",team:"JAX",status:"hold",ktc:1500},
+      {name:"Jayden Higgins",pos:"WR",team:"HOU",status:"hold",ktc:2100},
+      {name:"Chris Bell",pos:"WR",team:"MIA",status:"taxi",ktc:2904},
+      {name:"Max Klare",pos:"TE",team:"LAR",status:"taxi",ktc:2286},
+      {name:"David Njoku",pos:"TE",team:"FA",status:"sell",ktc:1400},
+      {name:"Anthony Richardson",pos:"QB",team:"IND",status:"sell",ktc:2800},
+      {name:"Alvin Kamara",pos:"RB",team:"NO",status:"sell",ktc:1200},
+    ]
+  },
+  VS: {
+    name: "Velvet Spade",
+    strategy: "STARTUP — May 15",
+    players: []
+  }
+};
+
+const PICK_VALUES = {
+  "1.01":10000,"1.02":9500,"1.03":8800,"1.04":7800,"1.05":7000,"1.06":6300,
+  "1.07":5600,"1.08":5000,"1.09":4400,"1.10":3900,"1.11":3400,"1.12":2900,
+  "2.01":2600,"2.02":2400,"2.03":2200,"2.04":2050,"2.05":1900,"2.06":1750,
+  "2.07":1600,"2.08":1450,"2.09":1300,"2.10":1150,"2.11":1000,"2.12":850,
+  "3.01":800,"3.02":750,"3.03":700,"3.04":650,"3.05":600,"3.06":560,
+  "3.07":520,"3.08":480,"3.09":440,"3.10":410,"3.11":380,"3.12":350,
+  "4.01":320,"4.02":300,"4.03":280,"4.04":260,"4.05":245,"4.06":230,
+  "4.07":215,"4.08":200,"4.09":185,"4.10":172,"4.11":160,"4.12":148
+};
+
+const MY_PICKS = ["1.02","2.11","3.11","4.02","5.11","6.02","7.11","8.02"];
+
+// ── NAVIGATION ──
+function showPage(page, el) {
+  document.querySelectorAll('.page').forEach(p => { p.classList.remove('active'); p.style.display = 'none'; });
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  
+  const pageEl = document.getElementById('page-' + page);
+  if (pageEl) {
+    if (page === 'chat') {
+      pageEl.style.display = 'flex';
+    } else {
+      pageEl.style.display = 'block';
+    }
+    pageEl.classList.add('active');
+  }
+  if (el) el.classList.add('active');
+  
+  if (page === 'rosters') renderRoster(currentRosterTab);
+  if (page === 'rankings') renderRankingsTab(currentRankingsTab);
+  if (page === 'draft') renderDraftChart();
+  if (page === 'chat') loadChatHistory();
+}
+
+// ── HOME / DASHBOARD ──
+document.getElementById('home-date').textContent = new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+
+async function loadDashboard() {
+  document.getElementById('dashboard-content').innerHTML = '<div class="loading" style="padding:60px 24px;"><div class="spinner"></div><div class="loading-text">FETCHING LIVE DATA...</div></div>';
+  try {
+    const r = await fetch('/api/dashboard');
+    const data = await r.json();
+    if (data.success) renderDashboard(data.data);
+    else document.getElementById('dashboard-content').innerHTML = '<div class="section"><div class="card"><p style="color:var(--text2);font-size:13px;">Failed to load dashboard. Try refreshing.</p></div></div>';
+  } catch(e) {
+    document.getElementById('dashboard-content').innerHTML = '<div class="section"><div class="card"><p style="color:var(--text2);font-size:13px;">Connection error. Make sure the app is running.</p></div></div>';
+  }
+}
+
+function renderDashboard(d) {
+  let html = '';
+  
+  // Alerts
+  if (d.alerts?.length) {
+    html += '<div class="section"><div class="section-title">🚨 Alerts</div>';
+    d.alerts.forEach(a => {
+      const cls = a.type === 'warning' ? 'alert-warning' : a.type === 'opportunity' ? 'alert-opportunity' : 'alert-info';
+      const icon = a.type === 'warning' ? '⚠️' : a.type === 'opportunity' ? '💡' : 'ℹ️';
+      html += `<div class="alert-card ${cls}"><div class="alert-icon">${icon}</div><div class="alert-body"><div class="alert-league">${a.league}</div><div class="alert-msg">${a.message}</div><div class="alert-action">${a.action}</div></div></div>`;
+    });
+    html += '</div>';
+  }
+
+  // Weekly priorities
+  if (d.weekly_priorities?.length) {
+    html += '<div class="section"><div class="section-title">📌 This Week</div><div class="card">';
+    d.weekly_priorities.forEach((p,i) => {
+      html += `<div class="priority-item"><div class="priority-num">${i+1}</div><div class="priority-text">${p}</div></div>`;
+      if (i < d.weekly_priorities.length-1) html += '<div class="divider"></div>';
+    });
+    html += '</div></div>';
+  }
+
+  // News
+  if (d.news?.length) {
+    html += '<div class="section"><div class="section-title">📰 Roster News</div>';
+    d.news.forEach(n => {
+      const tagCls = `tag-${(n.recommendation||'monitor').toLowerCase()}`;
+      html += `<div class="news-card" onclick="openProfile('${n.player}')">
+        <div class="pos-badge pos-${n.position||'WR'}">${n.position||'?'}</div>
+        <div class="news-body">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+            <div class="news-player">${n.player}</div>
+            <span class="tag ${tagCls}">${n.recommendation||'MONITOR'}</span>
+          </div>
+          <div class="news-leagues">${(n.leagues||[]).join(' · ')}</div>
+          <div class="news-headline">${n.headline}</div>
+          <div class="news-impact">${n.impact}</div>
+        </div>
+      </div>`;
+    });
+    html += '</div>';
+  }
+
+  // Movers
+  if (d.movers?.length) {
+    html += '<div class="section"><div class="section-title">📈 KTC Movers</div>';
+    d.movers.forEach(m => {
+      const up = m.direction === 'up';
+      html += `<div class="mover-card"><div class="mover-direction">${up?'🟢':'🔴'}</div><div class="mover-body"><div class="mover-player">${m.player}</div><div class="mover-reason">${m.reason}</div></div><div class="mover-change ${up?'mover-up':'mover-down'}">${m.change}</div></div>`;
+    });
+    html += '</div>';
+  }
+
+  // Trade targets
+  if (d.trade_targets?.length) {
+    html += '<div class="section"><div class="section-title">🎯 Trade Targets</div>';
+    d.trade_targets.forEach(t => {
+      html += `<div class="trade-target-card">
+        <div class="trade-target-header">
+          <div class="trade-target-player">${t.player} <span style="font-size:11px;color:var(--text2);font-weight:400;">via ${t.owner}</span></div>
+          <span class="tag tag-info">${t.league}</span>
+        </div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:6px;">${t.rationale}</div>
+        <div class="trade-offer-text">"${t.offer}"</div>
+        <button class="btn btn-ghost btn-sm" style="margin-top:8px;" onclick="copyToClipboard('${t.offer}')">📋 Copy Message</button>
+      </div>`;
+    });
+    html += '</div>';
+  }
+
+  if (!html) html = '<div class="section"><div class="empty-state"><div class="empty-icon">🏈</div><div class="empty-title">Dashboard Ready</div><div class="empty-sub">Tap Refresh to load your personalized war room dashboard.</div></div></div>';
+  
+  document.getElementById('dashboard-content').innerHTML = html;
+}
+
+async function syncSleeper() {
+  try {
+    const r = await fetch('/api/sleeper/sync', {method:'POST'});
+    const data = await r.json();
+    if (data.success) alert('Sleeper sync complete! Gentleman\'s and Velvet Spade rosters updated.');
+    else alert('Sync failed. Check connection.');
+  } catch(e) { alert('Sync error: ' + e.message); }
+}
+
+// ── CHAT ──
+let leaguePrefix = '';
+
+function setLeague(btn, prefix) {
+  document.querySelectorAll('.league-row .chip').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  leaguePrefix = prefix;
+}
+
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey && window.innerWidth > 768) { e.preventDefault(); sendChat(); }
+}
+
+function autoResize(t) {
+  t.style.height = 'auto';
+  t.style.height = Math.min(t.scrollHeight, 100) + 'px';
+}
+
+function handleFile(e) {
+  const f = e.target.files[0];
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = ev => {
+    selectedImage = ev.target.result;
+    document.getElementById('preview-thumb').src = selectedImage;
+    document.getElementById('image-preview-bar').style.display = 'block';
+  };
+  r.readAsDataURL(f);
+  e.target.value = '';
+}
+
+function removeImage() {
+  selectedImage = null;
+  document.getElementById('image-preview-bar').style.display = 'none';
+  document.getElementById('preview-thumb').src = '';
+}
+
+function quickChat(type) {
+  const msgs = {
+    trade: 'Evaluate this trade for me: ',
+    roster: `Run a full roster audit for ${leaguePrefix||'Capital Gains'} — strengths, weaknesses, top 3 priorities.`,
+    buysell: 'Give me top 3 buy-low and top 3 sell-high targets across all my leagues right now.',
+    waiver: 'Best waiver wire adds available across all my leagues?',
+    rookies: 'Current top 10 rookie rankings for SuperFlex TE premium with recent movement.',
+    briefing: 'Run my weekly GM briefing — all 4 leagues, roster status, trade opportunities, waiver priorities, action items.'
+  };
+  const input = document.getElementById('chat-input');
+  input.value = msgs[type];
+  autoResize(input);
+  input.focus();
+  if (type !== 'trade') sendChat();
+}
+
+async function loadChatHistory() {
+  try {
+    const r = await fetch('/api/chat/history');
+    const data = await r.json();
+    if (data.success && data.history.length > 0) {
+      const welcome = document.getElementById('chat-welcome');
+      if (welcome) welcome.remove();
+      data.history.forEach(msg => addBubble(msg.role, msg.content, null, msg.has_image));
+    }
+  } catch(e) {}
+}
+
+function addBubble(role, content, imageData=null, hasImage=false) {
+  const welcome = document.getElementById('chat-welcome');
+  if (welcome) welcome.remove();
+  
+  const msgs = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = `message ${role}`;
+  
+  const label = document.createElement('div');
+  label.className = 'msg-label';
+  label.textContent = role === 'user' ? 'You' : 'Dynasty GM';
+  
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  
+  if (imageData) {
+    const img = document.createElement('img');
+    img.src = imageData;
+    bubble.appendChild(img);
+  } else if (hasImage) {
+    bubble.innerHTML += '<em>[Screenshot]</em> ';
+  }
+  
+  if (content) {
+    const fmt = content
+      .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g,'<em>$1</em>')
+      .replace(/`(.+?)`/g,'<code>$1</code>')
+      .replace(/^### (.+)$/gm,'<h3>$1</h3>')
+      .replace(/^---$/gm,'<hr>')
+      .replace(/\n\n/g,'</p><p>')
+      .replace(/\n/g,'<br>');
+    bubble.innerHTML += `<p>${fmt}</p>`;
+  }
+  
+  div.appendChild(label);
+  div.appendChild(bubble);
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function addTyping() {
+  const msgs = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = 'message agent';
+  div.id = 'typing-indicator';
+  const label = document.createElement('div');
+  label.className = 'msg-label';
+  label.textContent = 'Dynasty GM';
+  const typing = document.createElement('div');
+  typing.className = 'typing';
+  typing.innerHTML = '<div class="typing-dots"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div><span class="typing-text">Searching live data...</span>';
+  div.appendChild(label);
+  div.appendChild(typing);
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+async function sendChat() {
+  if (isLoading) return;
+  const input = document.getElementById('chat-input');
+  const rawMsg = input.value.trim();
+  const msg = leaguePrefix + rawMsg;
+  if (!msg && !selectedImage) return;
+  
+  isLoading = true;
+  document.getElementById('send-btn').disabled = true;
+  
+  addBubble('user', rawMsg || 'Screenshot analysis', selectedImage);
+  input.value = '';
+  input.style.height = 'auto';
+  const imgToSend = selectedImage;
+  removeImage();
+  addTyping();
+  
+  try {
+    const r = await fetch('/api/chat', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({message: msg || 'Analyze this screenshot for my dynasty leagues.', image: imgToSend})
+    });
+    const data = await r.json();
+    document.getElementById('typing-indicator')?.remove();
+    addBubble('agent', data.success ? data.response : `❌ ${data.response}`);
+  } catch(e) {
+    document.getElementById('typing-indicator')?.remove();
+    addBubble('agent', '❌ Connection error.');
+  }
+  
+  isLoading = false;
+  document.getElementById('send-btn').disabled = false;
+  input.focus();
+}
+
+async function showChatSearch() {
+  const query = prompt('Search past conversations:');
+  if (!query) return;
+  try {
+    const r = await fetch('/api/chat/search', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({query})});
+    const data = await r.json();
+    if (data.results?.length) {
+      let msg = `Found ${data.results.length} results for "${query}":\n\n`;
+      data.results.slice(0,5).forEach(res => {
+        msg += `[${res.week}] ${res.role.toUpperCase()}: ${res.content.substring(0,200)}...\n\n`;
+      });
+      addBubble('agent', msg);
+    } else {
+      addBubble('agent', `No results found for "${query}".`);
+    }
+  } catch(e) { addBubble('agent', 'Search failed.'); }
+}
+
+function showUpdateContext() {
+  document.getElementById('context-modal').classList.add('open');
+}
+
+async function submitContextUpdate() {
+  const text = document.getElementById('context-input').value.trim();
+  if (!text) return;
+  document.getElementById('context-modal').classList.remove('open');
+  showPage('chat', document.querySelector('.nav-item:nth-child(2)'));
+  document.getElementById('chat-input').value = `Please update your context with the following information: ${text}`;
+  sendChat();
+}
+
+function closeContextModal(e) {
+  if (e.target === document.getElementById('context-modal')) document.getElementById('context-modal').classList.remove('open');
+}
+
+// ── ROSTERS ──
+function showRosterTab(el, tab) {
+  document.querySelectorAll('.roster-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  currentRosterTab = tab;
+  renderRoster(tab);
+}
+
+function renderRoster(tab) {
+  const roster = ROSTERS[tab];
+  if (!roster) return;
+  
+  let html = `<div style="padding:8px 0 12px;"><div style="font-family:'Bebas Neue';font-size:16px;letter-spacing:2px;">${roster.name}</div><div style="font-size:11px;color:var(--text2);margin-top:2px;">${roster.strategy}</div></div>`;
+  
+  if (!roster.players.length) {
+    html += '<div class="empty-state"><div class="empty-icon">🏈</div><div class="empty-title">Draft Pending</div><div class="empty-sub">Startup draft on May 15. Roster will populate after.</div></div>';
+  } else {
+    const positions = ['QB','RB','WR','TE'];
+    positions.forEach(pos => {
+      const players = roster.players.filter(p => p.pos === pos);
+      if (!players.length) return;
+      html += `<div class="section-title">${pos}</div>`;
+      players.forEach(p => {
+        const statusCls = p.status === 'lock' ? 'status-lock' : p.status === 'core' ? 'status-core' : p.status === 'sell' ? 'status-sell' : '';
+        const statusLabel = p.status === 'lock' ? '🔒 LOCK' : p.status === 'core' ? 'CORE' : p.status === 'sell' ? 'SELL' : p.status === 'taxi' ? 'TAXI' : '';
+        html += `<div class="player-row" onclick="openProfile('${p.name}')">
+          <div class="pos-badge pos-${pos}">${pos}</div>
+          <div class="player-info">
+            <div class="player-name">${p.name}</div>
+            <div class="player-meta">${p.team}</div>
+          </div>
+          ${statusLabel ? `<span class="player-status ${statusCls}">${statusLabel}</span>` : ''}
+          <div class="player-value">${p.ktc ? p.ktc.toLocaleString() : '—'}</div>
+        </div>`;
+      });
+    });
+  }
+  
+  document.getElementById('roster-content').innerHTML = html;
+}
+
+// ── PLAYER PROFILE ──
+async function openProfile(playerName) {
+  document.getElementById('profile-modal').classList.add('open');
+  document.getElementById('profile-modal-body').innerHTML = '<div class="loading" style="padding:40px;"><div class="spinner"></div><div class="loading-text">LOADING PROFILE...</div></div>';
+  
+  try {
+    const r = await fetch('/api/player/profile', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({player: playerName, league: 'all'})
+    });
+    const data = await r.json();
+    if (data.success) renderProfile(data.profile);
+    else document.getElementById('profile-modal-body').innerHTML = `<p style="color:var(--text2);">Failed to load profile. Try again.</p>`;
+  } catch(e) {
+    document.getElementById('profile-modal-body').innerHTML = `<p style="color:var(--text2);">Error loading profile.</p>`;
+  }
+}
+
+function renderProfile(p) {
+  const recCls = p.recommendation === 'BUY' ? 'profile-rec-buy' : p.recommendation === 'SELL' ? 'profile-rec-sell' : 'profile-rec-hold';
+  const recColor = p.recommendation === 'BUY' ? 'var(--green)' : p.recommendation === 'SELL' ? 'var(--accent2)' : 'var(--gold)';
+  
+  let html = `
+    <div class="modal-header">
+      <div class="modal-pos-badge pos-${p.position}" style="width:44px;height:44px;border-radius:12px;font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center;">${p.position}</div>
+      <div>
+        <div class="modal-name">${p.name}</div>
+        <div class="modal-meta">${p.team} · Age ${p.age} · ${p.position_rank}</div>
+      </div>
+    </div>
+    <div class="profile-stats">
+      <div class="profile-stat"><div class="profile-stat-label">KTC Value</div><div class="profile-stat-value" style="color:var(--accent);">${(p.ktc_value||0).toLocaleString()}</div></div>
+      <div class="profile-stat"><div class="profile-stat-label">30d Trend</div><div class="profile-stat-value" style="color:${(p.ktc_trend||'').startsWith('+') ? 'var(--green)' : 'var(--accent2)'};">${p.ktc_trend||'—'}</div></div>
+      <div class="profile-stat"><div class="profile-stat-label">PPG 2025</div><div class="profile-stat-value">${p.ppg_2025||'—'}</div></div>
+      <div class="profile-stat"><div class="profile-stat-label">Liquidity</div><div class="profile-stat-value" style="font-size:14px;">${p.trade_liquidity||'—'}</div></div>
+    </div>
+    <div class="profile-rec ${recCls}">
+      <div class="profile-rec-label" style="color:${recColor};">${p.recommendation||'HOLD'}</div>
+      <div class="profile-rec-text">${p.recommendation_reason||''}</div>
+    </div>`;
+
+  if (p.league_specific) {
+    html += '<div class="section-title" style="margin-bottom:8px;">League Actions</div><div class="league-actions">';
+    Object.entries(p.league_specific).forEach(([league, action]) => {
+      if (action) html += `<div class="league-action-row"><div class="league-action-name">${league}</div><div class="league-action-rec" style="color:var(--text2);font-size:12px;">${action}</div></div>`;
+    });
+    html += '</div>';
+  }
+
+  if (p.dynasty_outlook) {
+    html += `<div class="section-title" style="margin-bottom:8px;">Dynasty Outlook</div><div class="card"><p style="font-size:13px;color:var(--text2);line-height:1.5;">${p.dynasty_outlook}</p></div>`;
+  }
+
+  if (p.latest_news?.length) {
+    html += '<div class="section-title" style="margin-bottom:8px;">Latest News</div><div class="news-list">';
+    p.latest_news.forEach(n => { html += `<div class="news-item">${n}</div>`; });
+    html += '</div>';
+  }
+
+  const details = [
+    ['Depth Chart', p.depth_chart],
+    ['Contract', p.contract_status],
+    ['Injury History', p.injury_history],
+    ['Startup ADP', p.startup_adp],
+  ].filter(d => d[1]);
+
+  if (details.length) {
+    html += '<div class="divider"></div>';
+    details.forEach(([label, val]) => {
+      html += `<div class="stat-row"><div class="stat-label">${label}</div><div class="stat-value" style="font-family:'Syne';font-size:12px;text-align:right;max-width:60%;">${val}</div></div>`;
+    });
+  }
+
+  html += '<div style="height:20px;"></div>';
+  document.getElementById('profile-modal-body').innerHTML = html;
+}
+
+function closeProfileModal(e) {
+  if (e.target === document.getElementById('profile-modal')) document.getElementById('profile-modal').classList.remove('open');
+}
+
+// ── RANKINGS ──
+function showRankingsTab(el, tab) {
+  document.querySelectorAll('.rankings-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  currentRankingsTab = tab;
+  renderRankingsTab(tab);
+}
+
+async function renderRankingsTab(tab) {
+  const content = document.getElementById('rankings-content');
+  if (tab === 'matchup') await renderMatchup(content);
+  else if (tab === 'list') await renderRankingsList(content);
+  else renderAddPlayer(content);
+}
+
+async function renderMatchup(content) {
+  try {
+    const r = await fetch('/api/rankings/pair');
+    const data = await r.json();
+    if (!data.success || data.players.length < 2) {
+      content.innerHTML = '<div class="empty-state"><div class="empty-icon">📊</div><div class="empty-title">Loading Players...</div></div>';
+      return;
+    }
+    const [p1, p2] = data.players;
+    const minComparisons = Math.min(p1.comparisons, p2.comparisons);
+    const progress = Math.min((totalComparisons / 100) * 100, 100);
+    
+    content.innerHTML = `
+      <div class="matchup-card">
+        <div class="matchup-title">WHO WOULD YOU RATHER HAVE?</div>
+        <div class="matchup-vs">
+          <div class="matchup-player" onclick="vote('${p1.name}','${p2.name}')">
+            <span class="matchup-pos pos-badge pos-${p1.position||'WR'}" style="font-size:10px;padding:3px 8px;border-radius:6px;">${p1.position||'?'}</span>
+            <span class="matchup-name">${p1.name}</span>
+            <span class="matchup-team">${p1.team||''}</span>
+          </div>
+          <div class="vs-divider">VS</div>
+          <div class="matchup-player" onclick="vote('${p2.name}','${p1.name}')">
+            <span class="matchup-pos pos-badge pos-${p2.position||'WR'}" style="font-size:10px;padding:3px 8px;border-radius:6px;">${p2.position||'?'}</span>
+            <span class="matchup-name">${p2.name}</span>
+            <span class="matchup-team">${p2.team||''}</span>
+          </div>
+        </div>
+        <div class="matchup-progress">
+          <div class="progress-label">${totalComparisons} comparisons · ${Math.round(progress)}% to reliable rankings</div>
+          <div class="progress-bar"><div class="progress-fill" style="width:${progress}%"></div></div>
+        </div>
+        <button class="skip-btn" onclick="renderRankingsTab('matchup')">Skip →</button>
+      </div>
+      <div style="padding:0 0 12px;"><button class="btn btn-ghost" style="width:100%;" onclick="showRankingsTab(document.querySelector('.rankings-tab:nth-child(2)'),'list')">View My Rankings →</button></div>`;
+  } catch(e) {
+    content.innerHTML = '<div class="empty-state"><div class="empty-sub">Error loading comparison.</div></div>';
+  }
+}
+
+async function vote(winner, loser) {
+  totalComparisons++;
+  await fetch('/api/rankings/vote', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({winner, loser})
+  });
+  await renderMatchup(document.getElementById('rankings-content'));
+}
+
+async function renderRankingsList(content) {
+  content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  try {
+    const r = await fetch('/api/rankings/list');
+    const data = await r.json();
+    let html = '<div class="rankings-list">';
+    data.rankings.forEach(p => {
+      html += `<div class="rank-item">
+        <div class="rank-num">${p.rank}</div>
+        <div class="pos-badge pos-${p.position}">${p.position}</div>
+        <div class="rank-info"><div class="rank-name">${p.name}</div><div class="rank-meta">${p.team} · ${p.comparisons} comparisons</div></div>
+        <div class="rank-elo">${p.elo}</div>
+      </div>`;
+    });
+    html += '</div>';
+    content.innerHTML = html || '<div class="empty-state"><div class="empty-sub">No rankings yet. Start comparing!</div></div>';
+  } catch(e) { content.innerHTML = '<div class="empty-state"><div class="empty-sub">Error loading rankings.</div></div>'; }
+}
+
+function renderAddPlayer(content) {
+  content.innerHTML = `
+    <div style="padding:12px;">
+      <div class="add-player-form">
+        <h4>Add Player to Rankings</h4>
+        <div class="form-row" style="margin-bottom:8px;">
+          <input class="input" id="new-player-name" placeholder="Player name" style="flex:2;">
+        </div>
+        <div class="form-row" style="margin-bottom:8px;">
+          <select class="select" id="new-player-pos" style="flex:1;">
+            <option value="QB">QB</option><option value="RB">RB</option>
+            <option value="WR" selected>WR</option><option value="TE">TE</option>
+          </select>
+          <input class="input" id="new-player-team" placeholder="Team" style="flex:1;">
+        </div>
+        <button class="btn btn-primary" style="width:100%;" onclick="addPlayerToRankings()">Add to Rankings</button>
+      </div>
+      <p style="font-size:12px;color:var(--text2);line-height:1.5;">Players start at 1500 ELO. As you make head-to-head comparisons their scores adjust. After 50+ comparisons you'll have meaningful personalized rankings.</p>
+    </div>`;
+}
+
+async function addPlayerToRankings() {
+  const name = document.getElementById('new-player-name').value.trim();
+  const pos = document.getElementById('new-player-pos').value;
+  const team = document.getElementById('new-player-team').value.trim();
+  if (!name) return;
+  await fetch('/api/rankings/add', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name, position:pos, team})});
+  alert(`${name} added to rankings!`);
+  document.getElementById('new-player-name').value = '';
+  document.getElementById('new-player-team').value = '';
+}
+
+// ── TRADE CALCULATOR ──
+function addAsset(side) {
+  const inputId = side + '-input';
+  const val = document.getElementById(inputId).value.trim();
+  if (!val) return;
+  if (side === 'giving') givingAssets.push(val);
+  else receivingAssets.push(val);
+  document.getElementById(inputId).value = '';
+  renderAssets();
+}
+
+function removeAsset(side, idx) {
+  if (side === 'giving') givingAssets.splice(idx, 1);
+  else receivingAssets.splice(idx, 1);
+  renderAssets();
+}
+
+function renderAssets() {
+  ['giving','receiving'].forEach(side => {
+    const assets = side === 'giving' ? givingAssets : receivingAssets;
+    const list = document.getElementById(side + '-list');
+    list.innerHTML = assets.map((a, i) => `<div class="asset-item"><span class="asset-name">${a}</span><button class="asset-remove" onclick="removeAsset('${side}',${i})">×</button></div>`).join('');
+  });
+}
+
+async function evaluateTrade() {
+  if (!givingAssets.length && !receivingAssets.length) { alert('Add assets to evaluate.'); return; }
+  const league = document.getElementById('trade-league').value;
+  document.getElementById('trade-result').innerHTML = '<div class="loading"><div class="spinner"></div><div class="loading-text">EVALUATING...</div></div>';
+  try {
+    const r = await fetch('/api/trade/evaluate', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({league, giving: givingAssets, receiving: receivingAssets})
+    });
+    const data = await r.json();
+    if (data.success) renderTradeResult(data.result);
+    else document.getElementById('trade-result').innerHTML = `<p style="color:var(--accent2);">Error: ${data.error}</p>`;
+  } catch(e) { document.getElementById('trade-result').innerHTML = `<p style="color:var(--accent2);">Connection error.</p>`; }
+}
+
+function renderTradeResult(r) {
+  const surplusPct = r.surplus_pct || ((r.value_receiving - r.value_giving) / r.value_giving * 100);
+  const surplusPos = surplusPct >= 0;
+  
+  let html = `<div class="trade-result">
+    <div class="result-verdict verdict-${r.verdict}">${r.verdict}</div>
+    <div class="result-values">
+      <div class="result-val-item"><div class="result-val-label">Giving</div><div class="result-val-num">${(r.value_giving||0).toLocaleString()}</div></div>
+      <div class="result-val-item"><div class="result-val-label">Receiving</div><div class="result-val-num">${(r.value_receiving||0).toLocaleString()}</div></div>
+      <div class="result-val-item"><div class="result-val-label">Surplus</div><div class="result-val-num ${surplusPos ? 'surplus-pos' : 'surplus-neg'}">${surplusPos?'+':''}${Math.round(surplusPct)}%</div></div>
+    </div>
+    <div class="result-analysis">${r.analysis||''}</div>
+    <div class="result-perspectives">
+      <div class="perspective-item"><div class="perspective-label">Your Side</div><div class="perspective-text">${r.my_perspective||''}</div></div>
+      <div class="perspective-item"><div class="perspective-label">Their Side</div><div class="perspective-text">${r.their_perspective||''}</div></div>
+    </div>`;
+  
+  if (r.trade_message) {
+    html += `<div class="trade-message-box">"${r.trade_message}"</div>
+    <button class="copy-msg-btn" onclick="copyToClipboard('${r.trade_message}')">📋 Copy Message</button>`;
+  }
+  
+  if (r.counter && r.verdict !== 'ACCEPT') {
+    html += `<div class="divider"></div><p style="font-size:12px;color:var(--text2);margin-top:8px;"><strong style="color:var(--gold);">Counter:</strong> ${r.counter}</p>`;
+  }
+  
+  html += '</div>';
+  document.getElementById('trade-result').innerHTML = html;
+}
+
+// ── DRAFT CHART ──
+function renderDraftChart() {
+  const grid = document.getElementById('pick-grid');
+  if (!grid) return;
+  
+  const rounds = ['1','2','3','4'];
+  const picks = ['01','02','03','04','05','06','07','08','09','10','11','12'];
+  
+  let html = '';
+  rounds.forEach(r => {
+    picks.forEach(p => {
+      const key = `${r}.${p}`;
+      const val = PICK_VALUES[key];
+      if (!val) return;
+      const isMine = MY_PICKS.includes(key);
+      html += `<div class="pick-cell ${isMine?'my-pick':''}" onclick="showPickDetail('${key}')">
+        <div class="pick-slot">${key}</div>
+        <div class="pick-value">${val >= 1000 ? (val/1000).toFixed(1)+'k' : val}</div>
+      </div>`;
+    });
+  });
+  grid.innerHTML = html;
+}
+
+function showPickDetail(pick) {
+  const val = PICK_VALUES[pick];
+  const isMine = MY_PICKS.includes(pick);
+  alert(`Pick ${pick}\nValue: ${val}\n${isMine ? '⭐ YOUR PICK' : ''}\n\nFor context:\n1.02 = 9,500\n2.11 = 1,000\n3.11 = 380`);
+}
+
+function parsePicks(str) {
+  const parts = str.split(/[+,\s]+/).map(s => s.trim()).filter(Boolean);
+  let total = 0;
+  const detail = [];
+  parts.forEach(p => {
+    const normalized = p.includes('.') ? p : null;
+    if (normalized && PICK_VALUES[normalized]) {
+      total += PICK_VALUES[normalized];
+      detail.push(`${normalized} (${PICK_VALUES[normalized]})`);
+    } else {
+      total += 2000; // assume mid-range player
+      detail.push(`${p} (~2000 assumed)`);
+    }
+  });
+  return {total, detail};
+}
+
+function analyzePicks() {
+  const giving = document.getElementById('pick-giving').value.trim();
+  const receiving = document.getElementById('pick-receiving').value.trim();
+  if (!giving || !receiving) { alert('Enter both sides of the trade.'); return; }
+  
+  const g = parsePicks(giving);
+  const rec = parsePicks(receiving);
+  const diff = rec.total - g.total;
+  const pct = (diff / g.total) * 100;
+  const execute = Math.abs(pct) <= 15;
+  const verdict = pct > 5 ? 'GOOD FOR YOU' : pct < -5 ? 'BAD FOR YOU' : 'FAIR';
+  const vColor = verdict === 'GOOD FOR YOU' ? 'var(--green)' : verdict === 'BAD FOR YOU' ? 'var(--accent2)' : 'var(--gold)';
+  
+  document.getElementById('pick-result').innerHTML = `
+    <div class="pick-result">
+      <div style="font-family:'Bebas Neue';font-size:22px;letter-spacing:2px;color:${vColor};margin-bottom:8px;">${verdict}</div>
+      <div class="stat-row"><div class="stat-label">You Give</div><div class="stat-value">${g.total.toLocaleString()}</div></div>
+      <div class="stat-row"><div class="stat-label">You Receive</div><div class="stat-value">${rec.total.toLocaleString()}</div></div>
+      <div class="stat-row"><div class="stat-label">Surplus</div><div class="stat-value" style="color:${diff>=0?'var(--green)':'var(--accent2)'};">${diff>=0?'+':''}${Math.round(pct)}%</div></div>
+      <div class="stat-row"><div class="stat-label">Execute?</div><div class="stat-value" style="color:${execute?'var(--green)':'var(--accent2)'};">${execute?'✓ YES':'✗ NO — outside 15% threshold'}</div></div>
+    </div>`;
+}
+
+// ── UTILITIES ──
+function copyToClipboard(text) {
+  navigator.clipboard.writeText(text).then(() => {
+    alert('Copied to clipboard!');
+  }).catch(() => {
+    const el = document.createElement('textarea');
+    el.value = text;
+    document.body.appendChild(el);
+    el.select();
+    document.execCommand('copy');
+    document.body.removeChild(el);
+    alert('Copied!');
+  });
+}
+
+// ── INIT ──
+renderRoster('CG');
+renderDraftChart();
+loadDashboard();
+renderRankingsTab('matchup');
+</script>
+</body>
+</html>
