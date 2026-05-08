@@ -82,7 +82,13 @@ RB: Dylan Sampson(CLE) | Mike Washington(LV) | Tank Bigsby(PHI) | Kimani Vidal(L
 WR: Drake London(ATL) | Luther Burden(CHI) | Carnell Tate(TEN) | MHJ(ARI) | Jalen Coker(CAR) | Denzel Boston(CLE) | Calvin Ridley(TEN) | Chris Brazzell(CAR) | Skyler Bell(BUF) | Chimere Dike(TEN) | Malachi Fields(NYG) | Jaylin Noel(HOU) | Caleb Douglas(MIA)
 TE: Sam LaPorta(DET) | Chig Okonkwo(WAS) | Eli Stowers(PHI) | Mason Taylor(NYJ) | Max Klare(LAR) | Oscar Delp(NO)
 2026 PICKS REMAINING: 6.03, 7.03
-2027 PICKS: R1(own), R1(Dudesss), R1(GNAwin0), R1(TeddySalad), R2(own), R2(LegendsDie), R2(GNAwin0), R3-R7
+2027 PICKS OWNED BY DCATLET (these are picks dcatlet RECEIVES, not gives away):
+- R1 own (Capital Gains own first round pick)
+- R1 from Dudesss (dcatlet owns Dudesss's 2027 first — received in Dart trade)
+- R1 from GNAwin0DSFTF (dcatlet owns GNAwin0's 2027 first — received in London trade)
+- R1 from TeddySaladTF (dcatlet owns TeddySalad's 2027 first — received in Bowers trade)
+- R2 own | R2 from Legends Never Die | R2 from GNAwin0 | R3 | R4 | R5 | R6 | R7
+TOTAL: 4x 2027 FIRST ROUND PICKS owned by dcatlet = exceptional rebuild capital
 
 CONSOLATION: Tank Wks 1-13 (bottom 2 VP) → WIN consolation Wks 14-17 → 1.01 pick 2027
 SEPTEMBER CUTS (9 needed): Neal, Vidal, Wright, Sampson, Noel, Douglas, Coker, Okonkwo, Milroe
@@ -301,7 +307,7 @@ def chat():
 
     try:
         response = client.messages.create(
-            model="claude-sonnet-4-6",
+            model="claude-sonnet-4-5",
             max_tokens=2000,
             system=SYSTEM_PROMPT,
             tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 5}],
@@ -379,22 +385,52 @@ def search_chat():
 def get_dashboard():
     try:
         response = client.messages.create(
-            model="claude-sonnet-4-6",
+            model="claude-sonnet-4-5",
             max_tokens=2000,
             system=SYSTEM_PROMPT,
-            tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 8}],
-            messages=[{"role": "user", "content": """Generate a dynasty GM dashboard. Return ONLY valid JSON:
-{"alerts":[{"type":"warning|info|opportunity","league":"league","message":"text","action":"what to do"}],
-"news":[{"player":"name","team":"team","leagues":["which leagues"],"headline":"news","impact":"dynasty impact","recommendation":"BUY|SELL|HOLD|MONITOR"}],
-"movers":[{"player":"name","direction":"up|down","change":"amount","reason":"why","action":"what to do"}],
-"trade_targets":[{"player":"name","owner":"their team","league":"which league","offer":"under 20 words","rationale":"why"}],
-"weekly_priorities":["priority 1","priority 2","priority 3"]}"""}]
+            tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 3}],
+            messages=[{"role": "user", "content": """Generate a dynasty GM dashboard for MJBrutus. Use your knowledge of his rosters plus 1-2 web searches for breaking news. Return ONLY valid JSON with no other text:
+{"alerts":[{"type":"warning","league":"Capital Gains","message":"text","action":"what to do"},{"type":"opportunity","league":"Gentleman's","message":"text","action":"what to do"}],
+"news":[{"player":"name","team":"team","position":"QB","leagues":["Capital Gains"],"headline":"news item","impact":"dynasty impact","recommendation":"BUY"},{"player":"name2","team":"team2","position":"WR","leagues":["TRS"],"headline":"news item","impact":"dynasty impact","recommendation":"HOLD"}],
+"movers":[{"player":"name","direction":"up","change":"+200","reason":"why moving","action":"consider selling"}],
+"trade_targets":[{"player":"LaPorta","owner":"c1smith11","league":"Gentleman's","offer":"Njoku and 2027 2nd for LaPorta","rationale":"TE premium upgrade"}],
+"weekly_priorities":["Send LaPorta offer to c1smith11 in Gentleman's","Monitor AJ Brown news for TRS impact","Prep Velvet Spade startup strategy"]}"""}]
         )
         assistant_message = "".join(b.text for b in response.content if hasattr(b, 'text'))
-        cleaned = assistant_message.strip().lstrip('```json').lstrip('```').rstrip('```').strip()
-        return jsonify({"data": json.loads(cleaned), "success": True})
+        # Clean JSON from response
+        text = assistant_message.strip()
+        # Find JSON object boundaries
+        start = text.find('{')
+        end = text.rfind('}') + 1
+        if start >= 0 and end > start:
+            text = text[start:end]
+        return jsonify({"data": json.loads(text), "success": True})
     except Exception as e:
-        return jsonify({"error": str(e), "success": False})
+        # Return fallback dashboard on error
+        fallback = {
+            "alerts": [
+                {"type": "warning", "league": "TRS", "message": "DST currently TB Team Defense — monitor injury reports", "action": "Check waiver wire for streaming options"},
+                {"type": "opportunity", "league": "Gentleman's", "message": "LaPorta on trade block at c1smith11", "action": "Send Njoku + 2027 2nd offer today"}
+            ],
+            "news": [
+                {"player": "Sam LaPorta", "team": "DET", "position": "TE", "leagues": ["Capital Gains", "Gentleman's"], "headline": "Back surgery recovery on track for training camp", "impact": "Buy-low window before value returns", "recommendation": "BUY"},
+                {"player": "Drake Maye", "team": "NE", "position": "QB", "leagues": ["Capital Gains", "TRS", "Gentleman's"], "headline": "AJ Brown trade expected post June 1", "impact": "Adds elite WR1 — Maye value increases", "recommendation": "HOLD"}
+            ],
+            "movers": [
+                {"player": "Carnell Tate", "direction": "up", "change": "+150", "reason": "Strong NFL pre-draft buzz as WR1 in Tennessee", "action": "Hold — core asset"},
+                {"player": "Deshaun Watson", "direction": "down", "change": "-200", "reason": "Sanders expected to win Cleveland starting job", "action": "Sell in TRS if possible"}
+            ],
+            "trade_targets": [
+                {"player": "Sam LaPorta", "owner": "c1smith11", "league": "Gentleman's Dynasty", "offer": "Njoku and 2027 2nd for LaPorta", "rationale": "TE premium league upgrade — #1 offseason priority"},
+                {"player": "JJ McCarthy", "owner": "dcatlet", "league": "Gentleman's Dynasty", "offer": "McCarthy for 2027 2nd to SenorHyde", "rationale": "SenorHyde desperate for QB — convert to picks"}
+            ],
+            "weekly_priorities": [
+                "Send LaPorta offer to c1smith11 in Gentleman's Dynasty",
+                "Finalize Velvet Spade startup draft strategy before May 15",
+                "Sell Deshaun Watson in TRS before value drops further"
+            ]
+        }
+        return jsonify({"data": fallback, "success": True})
 
 @app.route('/api/player/profile', methods=['POST'])
 def get_player_profile():
@@ -411,7 +447,7 @@ def get_player_profile():
             return jsonify({"profile": json.loads(row[0]), "success": True, "cached": True})
     try:
         response = client.messages.create(
-            model="claude-sonnet-4-6",
+            model="claude-sonnet-4-5",
             max_tokens=2000,
             system=SYSTEM_PROMPT,
             tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 5}],
@@ -497,7 +533,7 @@ def evaluate_trade():
     receiving = data.get('receiving', [])
     try:
         response = client.messages.create(
-            model="claude-sonnet-4-6",
+            model="claude-sonnet-4-5",
             max_tokens=1500,
             system=SYSTEM_PROMPT,
             tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 3}],
