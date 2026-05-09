@@ -1537,11 +1537,15 @@ async function refreshKB() {
     const data = await r.json();
     if (data.success) {
       const res = data.results;
-      alert(`Done! Processed ${res.processed} videos, skipped ${res.skipped} already seen, ${res.errors} errors.`);
-      loadKB();
+      let msg = `Processed ${res.processed} videos, skipped ${res.skipped} already seen, ${res.errors} errors.`;
+      if (res.error_details && res.error_details.length > 0) {
+        msg += '\n\nError details:\n' + res.error_details.join('\n');
+      }
+      alert(msg);
+      if (res.processed > 0) loadKB();
     }
   } catch(e) {
-    document.getElementById('kb-content').innerHTML = '<div class="empty-state"><div class="empty-sub">Error fetching content. Check connection.</div></div>';
+    document.getElementById('kb-content').innerHTML = '<div class="empty-state"><div class="empty-sub">Error fetching content: ' + e.message + '</div></div>';
   }
 }
 
