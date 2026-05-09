@@ -1069,18 +1069,17 @@ def get_video_content(video_id, title):
     import re
     content_parts = []
 
-    # Method 1: Scrape YouTube page for description and chapters
+    # Method 1: Scrape YouTube page for description
     try:
-        url = f"https://www.youtube.com/watch?v={video_id}"
+        url = "https://www.youtube.com/watch?v=" + video_id
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
             "Accept-Language": "en-US,en;q=0.9",
         }
         r = requests.get(url, headers=headers, timeout=15)
         if r.status_code == 200:
             html = r.text
-
-            # Extract description - dynasty channels write detailed descriptions listing players and topics
+            # Extract description
             for pattern in [
                 r'"description":{"simpleText":"(.*?)"}',
                 r'"shortDescription":"(.*?)"',
@@ -1089,22 +1088,18 @@ def get_video_content(video_id, title):
                 matches = re.findall(pattern, html, re.DOTALL)
                 if matches:
                     desc = matches[0][:3000]
-                    desc = desc.replace("\n", "
-").replace("\u0026", "&").replace('\"', "'")
+                    desc = desc.replace("\\n", "\n").replace("\\u0026", "&").replace("\\u2019", "'").replace('\\"'  , "'")
                     if len(desc.strip()) > 80:
-                        content_parts.append(f"DESCRIPTION:
-{desc}")
+                        content_parts.append("DESCRIPTION:\n" + desc)
                         break
-
             # Extract keywords
             kw = re.search(r'"keywords":\[(.*?)\]', html)
             if kw:
                 kws = kw.group(1)[:400].replace('"', "").replace(",", ", ")
                 if kws.strip():
-                    content_parts.append(f"KEYWORDS: {kws}")
-
+                    content_parts.append("KEYWORDS: " + kws)
     except Exception as e:
-        print(f"Page scrape error {video_id}: {e}")
+        print("Page scrape error " + video_id + ": " + str(e))
 
     # Method 2: Try transcript (works ~20% of time from datacenter IPs)
     try:
@@ -1112,15 +1107,12 @@ def get_video_content(video_id, title):
         tlist = YouTubeTranscriptApi.get_transcript(video_id, languages=["en", "en-US"])
         text = " ".join([t["text"] for t in tlist if t.get("text")])
         if text and len(text.strip()) > 200:
-            content_parts.append(f"TRANSCRIPT:
-{text[:5000]}")
-            print(f"Transcript SUCCESS {video_id}")
+            content_parts.append("TRANSCRIPT:\n" + text[:5000])
+            print("Transcript SUCCESS " + video_id)
     except Exception as e:
-        print(f"Transcript blocked {video_id}: {type(e).__name__}")
+        print("Transcript blocked " + video_id + ": " + type(e).__name__)
 
-    return "
-
-".join(content_parts) if content_parts else None
+    return "\n\n".join(content_parts) if content_parts else None
 
 
 def summarize_video_via_search(title, source, video_id):
