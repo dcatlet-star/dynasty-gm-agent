@@ -465,36 +465,6 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);displa
     </div>
   </div>
 
-  <!-- KNOWLEDGE BASE -->
-  <div class="page" id="page-kb">
-    <div style="padding:12px;">
-      <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
-        <button class="btn btn-primary btn-sm" onclick="refreshKB()">↻ Refresh Intel</button>
-        <button class="btn btn-secondary btn-sm" onclick="searchKB()">🔍 Search</button>
-      </div>
-      <div style="font-size:10px;color:var(--text2);margin-bottom:10px;padding:8px;background:var(--surface2);border-radius:8px;border:1px solid var(--border);line-height:1.6;">
-        Pulls daily YouTube transcripts from: Dynasty Domain · Pure Potential · FF Dynasty · Dynasty Nerds · Dynasty Points · Dynasty Life · Fantasy Football Today · Fantasy Footballers · Matthew Berry · PFF Fantasy
-      </div>
-      <div style="display:flex;gap:6px;margin-bottom:10px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px;">
-        <button class="chip active" onclick="filterKBSource(this,'all')">All</button>
-        <button class="chip" onclick="filterKBSource(this,'Dynasty Domain')">Domain</button>
-        <button class="chip" onclick="filterKBSource(this,'Pure Potential')">Pure Pot.</button>
-        <button class="chip" onclick="filterKBSource(this,'Dynasty Nerds')">Nerds</button>
-        <button class="chip" onclick="filterKBSource(this,'The FF Dynasty')">FFD</button>
-        <button class="chip" onclick="filterKBSource(this,'Dynasty Points')">Points</button>
-        <button class="chip" onclick="filterKBSource(this,'Dynasty Life')">Life</button>
-        <button class="chip" onclick="filterKBSource(this,'Fantasy Footballers')">Footballers</button>
-        <button class="chip" onclick="filterKBSource(this,'Fantasy Football Today')">FFT</button>
-      </div>
-      <div id="kb-content">
-        <div class="empty-state">
-          <div class="empty-icon">🧠</div>
-          <div class="empty-title">Knowledge Base Empty</div>
-          <div class="empty-sub">Tap Refresh Intel to pull the latest content from your target channels. First load takes 60-90 seconds as it fetches and summarizes transcripts.</div>
-        </div>
-      </div>
-    </div>
-  </div>
 
 </div>
 
@@ -503,7 +473,6 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);displa
   <div class="nav-item" onclick="showPage('chat',this)"><span class="nav-icon">💬</span><span class="nav-label">Chat</span></div>
   <div class="nav-item" onclick="showPage('rosters',this)"><span class="nav-icon">📋</span><span class="nav-label">Rosters</span></div>
   <div class="nav-item" onclick="showPage('composite',this)"><span class="nav-icon">📊</span><span class="nav-label">Rankings</span></div>
-  <div class="nav-item" onclick="showPage('kb',this)"><span class="nav-icon">🧠</span><span class="nav-label">Intel</span></div>
   <div class="nav-item" onclick="showPage('trade',this)"><span class="nav-icon">⚡</span><span class="nav-label">Trade</span></div>
   <div class="nav-item" onclick="showPage('draft',this)"><span class="nav-icon">🏈</span><span class="nav-label">Draft</span></div>
 </nav>
@@ -1525,98 +1494,6 @@ function renderCompositeTable() {
   });
   html += '</div>';
   document.getElementById('composite-content').innerHTML = html;
-}
-
-// ── KNOWLEDGE BASE ──
-let kbCurrentSource = 'all';
-
-async function refreshKB() {
-  document.getElementById('kb-content').innerHTML = '<div class="loading" style="padding:40px;"><div class="spinner"></div><div class="loading-text">FETCHING TRANSCRIPTS...</div><p style="font-size:11px;color:var(--text2);margin-top:8px;">This takes 60-90 seconds on first run</p></div>';
-  try {
-    const r = await fetch('/api/knowledge/refresh', {method: 'POST'});
-    const data = await r.json();
-    if (data.success) {
-      const res = data.results;
-      let msg = `Processed ${res.processed} videos, skipped ${res.skipped} already seen, ${res.errors} errors.`;
-      if (res.error_details && res.error_details.length > 0) {
-        msg += '\n\nError details:\n' + res.error_details.join('\n');
-      }
-      alert(msg);
-      if (res.processed > 0) loadKB();
-    }
-  } catch(e) {
-    document.getElementById('kb-content').innerHTML = '<div class="empty-state"><div class="empty-sub">Error fetching content: ' + e.message + '</div></div>';
-  }
-}
-
-async function loadKB() {
-  const url = kbCurrentSource === 'all' ? '/api/knowledge/feed' : `/api/knowledge/feed?source=${encodeURIComponent(kbCurrentSource)}`;
-  try {
-    const r = await fetch(url);
-    const data = await r.json();
-    if (data.success) renderKBFeed(data.by_source, data.total);
-  } catch(e) {
-    document.getElementById('kb-content').innerHTML = '<div class="empty-state"><div class="empty-sub">Error loading knowledge base.</div></div>';
-  }
-}
-
-function filterKBSource(btn, source) {
-  document.querySelectorAll('#page-kb .chip').forEach(c => c.classList.remove('active'));
-  btn.classList.add('active');
-  kbCurrentSource = source;
-  loadKB();
-}
-
-function renderKBFeed(bySource, total) {
-  if (!total) {
-    document.getElementById('kb-content').innerHTML = '<div class="empty-state"><div class="empty-icon">🧠</div><div class="empty-title">No Content Yet</div><div class="empty-sub">Tap Refresh Intel to pull latest YouTube content.</div></div>';
-    return;
-  }
-  let html = '';
-  const sources = kbCurrentSource === 'all' ? Object.keys(bySource) : [kbCurrentSource];
-  sources.forEach(src => {
-    const entries = bySource[src] || [];
-    if (!entries.length) return;
-    html += `<div style="margin-bottom:16px;"><div style="font-family:'Bebas Neue';font-size:14px;letter-spacing:2px;color:var(--accent);margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;">${src}<span style="font-size:10px;color:var(--text2);font-family:'Syne';">${entries.length} videos</span></div>`;
-    entries.forEach(e => {
-      const players = (e.players_mentioned || []).slice(0, 5).join(' · ');
-      html += `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px;">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">
-          <div style="font-size:13px;font-weight:700;line-height:1.3;flex:1;margin-right:8px;">${e.title}</div>
-          <div style="font-size:10px;color:var(--text2);white-space:nowrap;">${e.video_date}</div>
-        </div>
-        <div style="font-size:12px;color:var(--text2);line-height:1.4;margin-bottom:8px;">${e.summary}</div>
-        ${e.key_insights?.length ? `<div style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px;">${e.key_insights.map(i => `<div style="font-size:11px;padding:5px 8px;background:var(--surface3);border-radius:6px;border-left:2px solid var(--accent);color:var(--text);">💡 ${i}</div>`).join('')}</div>` : ''}
-        ${players ? `<div style="font-size:10px;color:var(--accent);font-weight:600;">📋 ${players}</div>` : ''}
-        <a href="${e.url}" target="_blank" style="font-size:10px;color:var(--text2);text-decoration:none;display:block;margin-top:6px;">▶ Watch on YouTube</a>
-      </div>`;
-    });
-    html += '</div>';
-  });
-  document.getElementById('kb-content').innerHTML = html || '<div class="empty-state"><div class="empty-sub">No content for this source yet.</div></div>';
-}
-
-async function searchKB() {
-  const query = prompt('Search knowledge base (player name, topic):');
-  if (!query) return;
-  try {
-    const r = await fetch('/api/knowledge/search', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({query})});
-    const data = await r.json();
-    if (!data.results?.length) {
-      alert(`No results found for "${query}"`);
-      return;
-    }
-    let html = `<div style="margin-bottom:10px;font-size:12px;color:var(--text2);">${data.results.length} results for "${query}"</div>`;
-    data.results.forEach(e => {
-      html += `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px;">
-        <div style="font-size:10px;color:var(--accent);font-weight:700;margin-bottom:4px;">${e.source}</div>
-        <div style="font-size:13px;font-weight:700;margin-bottom:6px;">${e.title}</div>
-        <div style="font-size:12px;color:var(--text2);">${e.summary}</div>
-        ${e.key_insights?.slice(0,2).map(i => `<div style="font-size:11px;padding:4px 8px;background:var(--surface3);border-radius:6px;margin-top:4px;border-left:2px solid var(--gold);">💡 ${i}</div>`).join('') || ''}
-      </div>`;
-    });
-    document.getElementById('kb-content').innerHTML = html;
-  } catch(e) { alert('Search failed.'); }
 }
 
 // ── LIVE DRAFT ASSISTANT ──
