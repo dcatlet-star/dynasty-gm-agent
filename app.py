@@ -1122,18 +1122,82 @@ Focus on actionable dynasty advice, player values, trade targets, and strategic 
         pass
     return None
 
+@app.route('/api/knowledge/test', methods=['GET'])
+def test_knowledge():
+    """Test a single channel to diagnose issues"""
+    channel_id = request.args.get('channel_id', 'UCJ9EcWZvGWCiD9T-5YGR9sA')
+    video_id = request.args.get('video_id', '')
+
+    result = {'channel_id': channel_id, 'steps': []}
+
+    # Step 1: Test RSS
+    try:
+        rss_url = f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
+        headers = {'User-Agent': 'Mozilla/5.0 (compatible; DynastyGM/1.0)'}
+        r = requests.get(rss_url, timeout=15, headers=headers)
+        result['steps'].append({
+            'step': 'RSS fetch',
+            'status': r.status_code,
+            'ok': r.status_code == 200,
+            'content_preview': r.text[:200] if r.status_code == 200 else r.text[:100]
+        })
+
+        if r.status_code == 200:
+            videos = get_recent_videos_from_channel(channel_id, max_results=3)
+            result['steps'].append({
+                'step': 'Video parsing',
+                'ok': len(videos) > 0,
+                'videos_found': len(videos),
+                'videos': videos
+            })
+
+            if videos and not video_id:
+                video_id = videos[0]['id']
+    except Exception as e:
+        result['steps'].append({'step': 'RSS fetch', 'ok': False, 'error': str(e)})
+
+    # Step 2: Test transcript
+    if video_id:
+        try:
+            transcript = get_youtube_transcript(video_id)
+            result['steps'].append({
+                'step': 'Transcript fetch',
+                'video_id': video_id,
+                'ok': transcript is not None,
+                'length': len(transcript) if transcript else 0,
+                'preview': transcript[:200] if transcript else None
+            })
+        except Exception as e:
+            result['steps'].append({'step': 'Transcript fetch', 'ok': False, 'error': str(e)})
+
+    # Step 3: Check youtube-transcript-api installed
+    try:
+        import youtube_transcript_api
+        result['youtube_transcript_api'] = f"installed v{youtube_transcript_api.__version__}"
+    except ImportError:
+        result['youtube_transcript_api'] = "NOT INSTALLED"
+
+    return jsonify(result)
+
 @app.route('/api/knowledge/refresh', methods=['POST'])
 def refresh_knowledge_base():
     """Fetch latest videos and extract insights"""
-    results = {'processed': 0, 'errors': 0, 'skipped': 0, 'sources': []}
+    results = {'processed': 0, 'errors': 0, 'skipped': 0, 'sources': [], 'error_details': []}
 
     for source_name, channel in YOUTUBE_CHANNELS.items():
         channel_id = channel['id']
         if not channel_id or len(channel_id) < 10:
-            results['skipped'] += 1
+            results['error_details'].append(f"{source_name}: invalid channel ID '{channel_id}'")
+            results['errors'] += 1
             continue
 
         videos = get_recent_videos_from_channel(channel_id, max_results=2)
+
+        if not videos:
+            results['error_details'].append(f"{source_name}: RSS fetch returned 0 videos (channel_id={channel_id})")
+            results['errors'] += 1
+            continue
+
         source_result = {'source': source_name, 'videos': []}
 
         for video in videos:
@@ -1150,11 +1214,13 @@ def refresh_knowledge_base():
 
             transcript = get_youtube_transcript(video['id'])
             if not transcript:
+                results['error_details'].append(f"{source_name} - '{video['title'][:40]}': no transcript available (video_id={video['id']})")
                 results['errors'] += 1
                 continue
 
             insights = summarize_transcript(video['title'], transcript, source_name)
             if not insights:
+                results['error_details'].append(f"{source_name} - '{video['title'][:40]}': summarization failed")
                 results['errors'] += 1
                 continue
 
