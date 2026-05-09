@@ -1066,28 +1066,81 @@ def get_recent_videos_from_channel(channel_id, max_results=3):
 
 def get_youtube_transcript(video_id):
     """Get YouTube transcript - tries multiple methods"""
-    # Method 1: youtube-transcript-api
+    # Method 1: youtube-transcript-api (works when not blocked)
     try:
         from youtube_transcript_api import YouTubeTranscriptApi
-        transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=['en', 'en-US'])
+        transcript_list = YouTubeTranscriptApi.get_transcript(
+            video_id, languages=['en', 'en-US', 'en-GB']
+        )
         full_text = ' '.join([t['text'] for t in transcript_list])
-        return full_text[:8000]
-    except Exception:
-        pass
+        if full_text and len(full_text) > 100:
+            return full_text[:8000]
+    except Exception as e:
+        print(f"Transcript API error for {video_id}: {e}")
 
-    # Method 2: Direct timedtext API
+    # Method 2: YouTube timedtext endpoint
+    try:
+        for lang in ['en', 'en-US']:
+            url = f"https://www.youtube.com/api/timedtext?lang={lang}&v={video_id}&fmt=json3"
+            headers = {'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15'}
+            r = requests.get(url, timeout=10, headers=headers)
+            if r.status_code == 200 and r.text and len(r.text) > 50:
+                try:
+                    data = r.json()
+                    events = data.get('events', [])
+                    texts = []
+                    for event in events:
+                        segs = event.get('segs', [])
+                        for seg in segs:
+                            t = seg.get('utf8', '').strip()
+                            if t and t != '\n':
+                                texts.append(t)
+                    if texts:
+                        return ' '.join(texts)[:8000]
+                except Exception:
+                    pass
+    except Exception as e:
+        print(f"Timedtext error for {video_id}: {e}")
+
+    # Method 3: XML timedtext
     try:
         url = f"https://www.youtube.com/api/timedtext?lang=en&v={video_id}"
         r = requests.get(url, timeout=10)
-        if r.status_code == 200 and r.text:
+        if r.status_code == 200 and r.content and len(r.content) > 50:
             import xml.etree.ElementTree as ET
-            root = ET.fromstring(r.content)
-            texts = [el.text for el in root.findall('.//text') if el.text]
-            if texts:
-                return ' '.join(texts)[:8000]
-    except Exception:
-        pass
+            try:
+                root = ET.fromstring(r.content)
+                texts = [el.text for el in root.findall('.//text') if el.text]
+                if texts:
+                    return ' '.join(texts)[:8000]
+            except Exception:
+                pass
+    except Exception as e:
+        print(f"XML timedtext error for {video_id}: {e}")
 
+    return None
+
+def summarize_video_via_search(title, source, video_id):
+    """Fallback: use Claude web search to find insights about the video topic"""
+    try:
+        response = client.messages.create(
+            model="claude-sonnet-4-5",
+            max_tokens=600,
+            tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 2}],
+            messages=[{"role": "user", "content": f"""Search for dynasty fantasy football insights related to this video: "{title}" from {source}.
+
+Find the key dynasty topics, player mentions, and advice covered. Return JSON only:
+{{"summary": "2-3 sentence summary", "key_insights": ["insight 1", "insight 2", "insight 3"], "players_mentioned": ["player1", "player2"], "trade_signals": ["signal 1"]}}
+
+Return only valid JSON."""}]
+        )
+        text = "".join(b.text for b in response.content if hasattr(b, 'text'))
+        start = text.find('{')
+        end = text.rfind('}') + 1
+        if start >= 0 and end > start:
+            return json.loads(text[start:end])
+    except Exception as e:
+        print(f"Search summarize error: {e}")
     return None
 
 def summarize_transcript(title, transcript, source):
@@ -1173,7 +1226,11 @@ def test_knowledge():
     # Step 3: Check youtube-transcript-api installed
     try:
         import youtube_transcript_api
-        result['youtube_transcript_api'] = f"installed v{youtube_transcript_api.__version__}"
+        try:
+            ver = youtube_transcript_api.__version__
+        except AttributeError:
+            ver = "installed (version unknown)"
+        result['youtube_transcript_api'] = ver
     except ImportError:
         result['youtube_transcript_api'] = "NOT INSTALLED"
 
@@ -1214,15 +1271,19 @@ def refresh_knowledge_base():
 
             transcript = get_youtube_transcript(video['id'])
             if not transcript:
-                results['error_details'].append(f"{source_name} - '{video['title'][:40]}': no transcript available (video_id={video['id']})")
-                results['errors'] += 1
-                continue
-
-            insights = summarize_transcript(video['title'], transcript, source_name)
-            if not insights:
-                results['error_details'].append(f"{source_name} - '{video['title'][:40]}': summarization failed")
-                results['errors'] += 1
-                continue
+                # Fallback: use web search to find insights about this video topic
+                print(f"No transcript for {video['id']}, trying search fallback...")
+                insights = summarize_video_via_search(video['title'], source_name, video['id'])
+                if not insights:
+                    results['error_details'].append(f"{source_name} - '{video['title'][:40]}': no transcript + search fallback failed")
+                    results['errors'] += 1
+                    continue
+            else:
+                insights = summarize_transcript(video['title'], transcript, source_name)
+                if not insights:
+                    results['error_details'].append(f"{source_name} - '{video['title'][:40]}': summarization failed")
+                    results['errors'] += 1
+                    continue
 
             conn = sqlite3.connect('dynasty.db')
             c = conn.cursor()
