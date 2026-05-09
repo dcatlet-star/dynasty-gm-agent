@@ -239,28 +239,143 @@ Example: "Sending Njoku and a 2027 2nd for LaPorta. Works for both of us."
 PROACTIVE: Surface opportunities unprompted. Flag material situation changes across all leagues. Weekly: 1 specific trade offer per league."""
 
 DEFAULT_PLAYERS = [
-    ("Drake Maye", "QB", "NE"), ("Brock Bowers", "TE", "LV"), ("Bijan Robinson", "RB", "ATL"),
-    ("Ja'Marr Chase", "WR", "CIN"), ("Justin Jefferson", "WR", "MIN"), ("CeeDee Lamb", "WR", "DAL"),
-    ("Breece Hall", "RB", "NYJ"), ("Sam LaPorta", "TE", "DET"), ("Jayden Daniels", "QB", "WAS"),
-    ("Carnell Tate", "WR", "TEN"), ("Makai Lemon", "WR", "PHI"), ("Jordyn Tyson", "WR", "NO"),
-    ("Jadarian Price", "RB", "SEA"), ("Kenyon Sadiq", "TE", "NYJ"), ("KC Concepcion", "WR", "CLE"),
-    ("Patrick Mahomes", "QB", "KC"), ("Josh Allen", "QB", "BUF"), ("Lamar Jackson", "QB", "BAL"),
-    ("Ashton Jeanty", "RB", "LV"), ("Christian McCaffrey", "RB", "SF"), ("Colston Loveland", "TE", "CHI"),
-    ("Quinshon Judkins", "RB", "CLE"), ("Drake London", "WR", "ATL"), ("Luther Burden", "WR", "CHI"),
-    ("Marvin Harrison Jr", "WR", "ARI"), ("Jaxson Dart", "QB", "NYG"), ("Jaxon Smith-Njigba", "WR", "SEA"),
-    ("Malik Nabers", "WR", "NYG"), ("Brian Thomas", "WR", "JAC"), ("Puka Nacua", "WR", "LAR"),
-    ("De'Von Achane", "RB", "MIA"), ("Jahmyr Gibbs", "RB", "DET"), ("Travis Hunter", "WR", "JAC"),
-    ("Amon-Ra St. Brown", "WR", "DET"), ("Zay Flowers", "WR", "BAL"), ("Ladd McConkey", "WR", "LAC"),
-    ("Dallas Goedert", "TE", "PHI"), ("Travis Kelce", "TE", "KC"), ("Mark Andrews", "TE", "BAL"),
-    ("Jeremiyah Love", "RB", "ARI"), ("Fernando Mendoza", "QB", "LV"), ("Eli Stowers", "TE", "PHI"),
+    # QBs
+    ("Josh Allen", "QB", "BUF"), ("Drake Maye", "QB", "NE"), ("Jayden Daniels", "QB", "WAS"),
+    ("Caleb Williams", "QB", "CHI"), ("Lamar Jackson", "QB", "BAL"), ("Joe Burrow", "QB", "CIN"),
+    ("Patrick Mahomes", "QB", "KC"), ("Jaxson Dart", "QB", "NYG"), ("Justin Herbert", "QB", "LAC"),
+    ("Trevor Lawrence", "QB", "JAC"), ("Jalen Hurts", "QB", "PHI"), ("Bo Nix", "QB", "DEN"),
+    ("Brock Purdy", "QB", "SF"), ("Jordan Love", "QB", "GB"), ("Cam Ward", "QB", "TEN"),
+    ("Fernando Mendoza", "QB", "LV"), ("CJ Stroud", "QB", "HOU"), ("Bryce Young", "QB", "CAR"),
+    ("Kyler Murray", "QB", "MIN"), ("Malik Willis", "QB", "MIA"), ("JJ McCarthy", "QB", "MIN"),
+    ("Anthony Richardson", "QB", "IND"), ("Shedeur Sanders", "QB", "CLE"), ("Dak Prescott", "QB", "DAL"),
+    ("Sam Darnold", "QB", "SEA"), ("Baker Mayfield", "QB", "TB"), ("Tyler Shough", "QB", "NO"),
+    ("Deshaun Watson", "QB", "CLE"), ("Will Howard", "QB", "PIT"), ("Jalen Milroe", "QB", "SEA"),
+    # RBs
+    ("Bijan Robinson", "RB", "ATL"), ("Jahmyr Gibbs", "RB", "DET"), ("Jeremiyah Love", "RB", "ARI"),
+    ("Ashton Jeanty", "RB", "LV"), ("De'Von Achane", "RB", "MIA"), ("Christian McCaffrey", "RB", "SF"),
+    ("Omarion Hampton", "RB", "LAC"), ("Jonathan Taylor", "RB", "IND"), ("James Cook", "RB", "BUF"),
+    ("Breece Hall", "RB", "NYJ"), ("TreVeyon Henderson", "RB", "NE"), ("Kenneth Walker", "RB", "KC"),
+    ("Quinshon Judkins", "RB", "CLE"), ("Bucky Irving", "RB", "TB"), ("Saquon Barkley", "RB", "PHI"),
+    ("Chase Brown", "RB", "CIN"), ("Jadarian Price", "RB", "SEA"), ("Kyren Williams", "RB", "LAR"),
+    ("Cam Skattebo", "RB", "NYG"), ("Jaylen Waddle", "RB", "DEN"), ("Josh Jacobs", "RB", "GB"),
+    ("Travis Etienne", "RB", "NO"), ("Javonte Williams", "RB", "DAL"), ("RJ Harvey", "RB", "DEN"),
+    ("Rico Dowdle", "RB", "PIT"), ("Kyle Monangai", "RB", "CHI"), ("D Andre Swift", "RB", "CHI"),
+    ("Jonah Coleman", "RB", "DEN"), ("Zach Charbonnet", "RB", "SEA"), ("Bhayshul Tuten", "RB", "JAC"),
+    ("Jacory Croskey-Merritt", "RB", "WAS"), ("Rhamondre Stevenson", "RB", "NE"), ("Woody Marks", "RB", "HOU"),
+    ("Nicholas Singleton", "RB", "TEN"), ("Tony Pollard", "RB", "TEN"), ("Blake Corum", "RB", "LAR"),
+    ("JK Dobbins", "RB", "DEN"), ("Jordan Mason", "RB", "MIN"), ("Jaylen Warren", "RB", "PIT"),
+    ("Trey Benson", "RB", "ARI"), ("Braelon Allen", "RB", "NYJ"), ("Dylan Sampson", "RB", "CLE"),
+    ("Kaytron Allen", "RB", "WAS"), ("Emmett Johnson", "RB", "KC"), ("Tank Bigsby", "RB", "PHI"),
+    ("Mike Washington Jr", "RB", "LV"), ("Ollie Gordon", "RB", "MIA"), ("LeQuint Allen", "RB", "JAC"),
+    ("Jordan James", "RB", "SF"), ("Kimani Vidal", "RB", "LAC"), ("Jaylen Wright", "RB", "MIA"),
+    # WRs
+    ("Ja Marr Chase", "WR", "CIN"), ("Jaxon Smith-Njigba", "WR", "SEA"), ("Puka Nacua", "WR", "LAR"),
+    ("Malik Nabers", "WR", "NYG"), ("Justin Jefferson", "WR", "MIN"), ("Amon-Ra St. Brown", "WR", "DET"),
+    ("CeeDee Lamb", "WR", "DAL"), ("Drake London", "WR", "ATL"), ("Tetairoa McMillan", "WR", "CAR"),
+    ("Emeka Egbuka", "WR", "TB"), ("George Pickens", "WR", "DAL"), ("Carnell Tate", "WR", "TEN"),
+    ("Garrett Wilson", "WR", "NYJ"), ("Nico Collins", "WR", "HOU"), ("Jordyn Tyson", "WR", "NO"),
+    ("Ladd McConkey", "WR", "LAC"), ("Rashee Rice", "WR", "KC"), ("DeVonta Smith", "WR", "PHI"),
+    ("Luther Burden", "WR", "CHI"), ("Marvin Harrison Jr", "WR", "ARI"), ("Rome Odunze", "WR", "CHI"),
+    ("Makai Lemon", "WR", "PHI"), ("Brian Thomas Jr", "WR", "JAC"), ("Zay Flowers", "WR", "BAL"),
+    ("Tee Higgins", "WR", "CIN"), ("AJ Brown", "WR", "PHI"), ("Jameson Williams", "WR", "DET"),
+    ("Jaylen Waddle", "WR", "DEN"), ("Chris Olave", "WR", "NO"), ("KC Concepcion", "WR", "CLE"),
+    ("Jayden Higgins", "WR", "HOU"), ("Denzel Boston", "WR", "CLE"), ("Travis Hunter", "WR", "JAC"),
+    ("Chris Bell", "WR", "MIA"), ("Germie Bernard", "WR", "PIT"), ("Zachariah Branch", "WR", "ATL"),
+    ("Antonio Williams", "WR", "WAS"), ("Malachi Fields", "WR", "NYG"), ("Dontayvion Wicks", "WR", "PHI"),
+    ("Chimere Dike", "WR", "TEN"), ("Tre Harris", "WR", "LAC"), ("Kyle Williams", "WR", "NE"),
+    ("Troy Franklin", "WR", "DEN"), ("Kayshon Boutte", "WR", "NE"), ("Elijah Sarratt", "WR", "BAL"),
+    ("Chris Brazzell", "WR", "CAR"), ("Skyler Bell", "WR", "BUF"), ("Keon Coleman", "WR", "BUF"),
+    ("Adonai Mitchell", "WR", "NYJ"), ("Xavier Worthy", "WR", "KC"), ("Wan Dale Robinson", "WR", "TEN"),
+    ("Josh Downs", "WR", "IND"), ("Parker Washington", "WR", "JAC"), ("Ricky Pearsall", "WR", "SF"),
+    ("Jayden Reed", "WR", "GB"), ("De Zhaun Stribling", "WR", "SF"), ("Romeo Doubs", "WR", "NE"),
+    ("Terry McLaurin", "WR", "WAS"), ("Matthew Golden", "WR", "GB"), ("Ja Kobi Lane", "WR", "BAL"),
+    ("Mike Evans", "WR", "SF"), ("DK Metcalf", "WR", "PIT"), ("Courtland Sutton", "WR", "DEN"),
+    ("Calvin Ridley", "WR", "TEN"), ("Brandon Aiyuk", "WR", "SF"), ("Tory Horton", "WR", "SEA"),
+    ("Tank Dell", "WR", "HOU"), ("Pat Bryant", "WR", "DEN"), ("Isaac TeSlaa", "WR", "DET"),
+    ("Dont'e Thornton", "WR", "LV"), ("Jalen Coker", "WR", "CAR"), ("Jaylin Noel", "WR", "HOU"),
+    ("Khalil Shakir", "WR", "BUF"), ("Jalen McMillan", "WR", "TB"), ("Quentin Johnston", "WR", "LAC"),
+    ("Xavier Legette", "WR", "CAR"), ("Savion Williams", "WR", "GB"), ("Elic Ayomanor", "WR", "TEN"),
+    # TEs
+    ("Brock Bowers", "TE", "LV"), ("Trey McBride", "TE", "ARI"), ("Colston Loveland", "TE", "CHI"),
+    ("Tyler Warren", "TE", "IND"), ("Tucker Kraft", "TE", "GB"), ("Harold Fannin", "TE", "CLE"),
+    ("Sam LaPorta", "TE", "DET"), ("Kyle Pitts", "TE", "ATL"), ("Oronde Gadsden", "TE", "LAC"),
+    ("Kenyon Sadiq", "TE", "NYJ"), ("Eli Stowers", "TE", "PHI"), ("Isaiah Likely", "TE", "NYG"),
+    ("Gunnar Helm", "TE", "TEN"), ("AJ Barner", "TE", "SEA"), ("TJ Hockenson", "TE", "MIN"),
+    ("Terrance Ferguson", "TE", "LAR"), ("Mark Andrews", "TE", "BAL"), ("Brenton Strange", "TE", "JAC"),
+    ("Max Klare", "TE", "LAR"), ("Elijah Arroyo", "TE", "SEA"), ("Dallas Goedert", "TE", "PHI"),
+    ("Ja Tavion Sanders", "TE", "CAR"), ("Mason Taylor", "TE", "NYJ"), ("Dalton Kincaid", "TE", "BUF"),
+    ("Jake Ferguson", "TE", "DAL"), ("George Kittle", "TE", "SF"), ("Oscar Delp", "TE", "NO"),
+    ("Justin Joly", "TE", "DEN"), ("Eli Raridon", "TE", "NE"), ("Michael Trigg", "TE", "DAL"),
+    ("Darnell Washington", "TE", "PIT"), ("Cole Kmet", "TE", "CHI"), ("Cade Otton", "TE", "TB"),
+    ("Pat Freiermuth", "TE", "PIT"), ("David Njoku", "TE", "FA"), ("Greg Dulcich", "TE", "MIA"),
+    # PICK ASSETS — Dynasty picks (KTC values May 2026)
+    ("2027 Early 1st", "PICK", ""), ("2027 Mid 1st", "PICK", ""), ("2027 Late 1st", "PICK", ""),
+    ("2026 Early 1st", "PICK", ""), ("2028 Early 1st", "PICK", ""), ("2026 Mid 1st", "PICK", ""),
+    ("2027 Early 2nd", "PICK", ""), ("2028 Mid 1st", "PICK", ""), ("2026 Late 1st", "PICK", ""),
+    ("2028 Late 1st", "PICK", ""), ("2027 Mid 2nd", "PICK", ""), ("2027 Late 2nd", "PICK", ""),
+    ("2026 Early 2nd", "PICK", ""), ("2027 Early 3rd", "PICK", ""), ("2028 Early 2nd", "PICK", ""),
+    ("2026 Mid 2nd", "PICK", ""), ("2027 Mid 3rd", "PICK", ""), ("2028 Mid 2nd", "PICK", ""),
+    ("2026 Late 2nd", "PICK", ""), ("2027 Late 3rd", "PICK", ""), ("2028 Late 2nd", "PICK", ""),
+    ("2027 Early 4th", "PICK", ""), ("2026 Early 3rd", "PICK", ""), ("2027 Mid 4th", "PICK", ""),
+    ("2028 Early 3rd", "PICK", ""), ("2026 Mid 3rd", "PICK", ""), ("2027 Late 4th", "PICK", ""),
+    ("2028 Mid 3rd", "PICK", ""), ("2026 Late 3rd", "PICK", ""), ("2028 Late 3rd", "PICK", ""),
+    ("2026 Early 4th", "PICK", ""), ("2026 Mid 4th", "PICK", ""), ("2028 Early 4th", "PICK", ""),
 ]
 
 def seed_players():
+    # KTC-calibrated starting ELO scores based on May 2026 values
+    # Maps player/pick name to starting ELO (scaled from KTC values)
+    KTC_SEED_ELOS = {
+        "Josh Allen": 1980, "Ja Marr Chase": 1978, "Bijan Robinson": 1978,
+        "Jaxon Smith-Njigba": 1970, "Jahmyr Gibbs": 1930, "Drake Maye": 1920,
+        "Brock Bowers": 1850, "Puka Nacua": 1830, "Trey McBride": 1800,
+        "Caleb Williams": 1770, "Malik Nabers": 1760, "Jayden Daniels": 1755,
+        "Justin Jefferson": 1750, "Amon-Ra St. Brown": 1742, "Lamar Jackson": 1740,
+        "Jeremiyah Love": 1738, "Ashton Jeanty": 1730, "Joe Burrow": 1720,
+        "CeeDee Lamb": 1710, "2027 Early 1st": 1705, "De'Von Achane": 1688,
+        "Drake London": 1688, "Justin Herbert": 1682, "Patrick Mahomes": 1681,
+        "Colston Loveland": 1670, "Omarion Hampton": 1669, "Jaxson Dart": 1667,
+        "Tetairoa McMillan": 1655, "Tyler Warren": 1633, "Trevor Lawrence": 1622,
+        "Jalen Hurts": 1620, "Emeka Egbuka": 1618, "Bo Nix": 1614,
+        "Jonathan Taylor": 1606, "James Cook": 1604, "George Pickens": 1596,
+        "Brock Purdy": 1584, "Carnell Tate": 1583, "Garrett Wilson": 1572,
+        "2026 Early 1st": 1572, "Fernando Mendoza": 1567, "Nico Collins": 1567,
+        "Jordan Love": 1564, "2027 Mid 1st": 1560, "Chris Olave": 1557,
+        "Quinshon Judkins": 1547, "Harold Fannin": 1546, "Kenneth Walker": 1546,
+        "TreVeyon Henderson": 1540, "Rome Odunze": 1537, "Tucker Kraft": 1536,
+        "Breece Hall": 1535, "Jordyn Tyson": 1535, "Ladd McConkey": 1535,
+        "Rashee Rice": 1525, "Cam Ward": 1524, "DeVonta Smith": 1521,
+        "Luther Burden": 1520, "Marvin Harrison Jr": 1508, "Sam LaPorta": 1504,
+        "Christian McCaffrey": 1499, "Makai Lemon": 1499, "Dak Prescott": 1498,
+        "2028 Early 1st": 1497, "Brian Thomas Jr": 1493, "Bucky Irving": 1492,
+        "Kyle Pitts": 1492, "Saquon Barkley": 1490, "Chase Brown": 1490,
+        "Tyler Shough": 1490, "2027 Late 1st": 1489, "Tee Higgins": 1488,
+        "AJ Brown": 1487, "CJ Stroud": 1485, "Kyren Williams": 1485,
+        "Jaylen Waddle": 1481, "Sam Darnold": 1475, "Baker Mayfield": 1474,
+        "Jadarian Price": 1471, "Jameson Williams": 1470, "Zay Flowers": 1469,
+        "Jared Goff": 1462, "Kenyon Sadiq": 1462, "2026 Mid 1st": 1460,
+        "Cam Skattebo": 1456, "Bryce Young": 1451, "KC Concepcion": 1449,
+        "Josh Jacobs": 1446, "Travis Etienne": 1445, "Javonte Williams": 1443,
+        "2028 Mid 1st": 1442, "Oronde Gadsden": 1434, "Kyler Murray": 1411,
+        "Eli Stowers": 1397, "Isaiah Likely": 1376, "Bhayshul Tuten": 1394,
+        "2028 Late 1st": 1392, "2027 Early 2nd": 1391, "2026 Late 1st": 1388,
+        "Denzel Boston": 1445, "Trey Benson": 1429, "Tank Bigsby": 1453,
+        "2027 Mid 2nd": 1404, "2027 Late 2nd": 1396, "2026 Early 2nd": 1396,
+        "2027 Early 3rd": 1345, "2028 Early 2nd": 1362, "Travis Hunter": 1330,
+        "Chris Bell": 1346, "Germie Bernard": 1313, "Zachariah Branch": 1314,
+        "Antonio Williams": 1298, "Malachi Fields": 1290, "Skyler Bell": 1309,
+        "2026 Mid 2nd": 1326, "2027 Mid 3rd": 1271, "2028 Mid 2nd": 1293,
+        "2026 Late 2nd": 1277, "Max Klare": 1317, "Kaytron Allen": 1314,
+        "Justin Joly": 1131, "Eli Raridon": 934, "Oscar Delp": 1054,
+        "2027 Early 4th": 1057, "2026 Early 3rd": 1076, "2027 Mid 4th": 1064,
+        "2026 Mid 3rd": 1040, "2026 Late 3rd": 1013, "2026 Early 4th": 998,
+    }
     conn = sqlite3.connect('dynasty.db')
     c = conn.cursor()
     for name, pos, team in DEFAULT_PLAYERS:
-        c.execute("INSERT OR IGNORE INTO player_rankings (player_name, position, team, elo_score, comparisons, last_updated) VALUES (?, ?, ?, 1500, 0, ?)",
-                 (name, pos, team, datetime.now().isoformat()))
+        starting_elo = KTC_SEED_ELOS.get(name, 1500)
+        c.execute("INSERT OR IGNORE INTO player_rankings (player_name, position, team, elo_score, comparisons, last_updated) VALUES (?, ?, ?, ?, 0, ?)",
+                 (name, pos, team, starting_elo, datetime.now().isoformat()))
     conn.commit()
     conn.close()
 
@@ -467,6 +582,17 @@ def get_player_profile():
     except Exception as e:
         return jsonify({"error": str(e), "success": False})
 
+@app.route('/api/rankings/reset', methods=['POST'])
+def reset_rankings():
+    """Reset all rankings and re-seed with full player list"""
+    conn = sqlite3.connect('dynasty.db')
+    c = conn.cursor()
+    c.execute("DELETE FROM player_rankings")
+    conn.commit()
+    conn.close()
+    seed_players()
+    return jsonify({"success": True, "message": f"Rankings reset with {len(DEFAULT_PLAYERS)} players"})
+
 @app.route('/api/rankings/pair', methods=['GET'])
 def get_ranking_pair():
     conn = sqlite3.connect('dynasty.db')
@@ -599,6 +725,592 @@ def sync_sleeper():
         except Exception as e:
             results[league_name] = {"error": str(e)}
     return jsonify({"rosters": results, "success": True})
+
+# ============================================================
+# KTC SYNC — UNOFFICIAL API + MANUAL FALLBACK
+# ============================================================
+
+@app.route('/api/ktc/sync', methods=['POST'])
+def sync_ktc():
+    """Try KTC unofficial API, store values with timestamp"""
+    try:
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15',
+            'Accept': 'application/json',
+            'Referer': 'https://keeptradecut.com/'
+        }
+        r = requests.get(
+            'https://keeptradecut.com/api/players?format=2&limited=false',
+            headers=headers, timeout=15
+        )
+        if r.status_code == 200:
+            players = r.json()
+            conn = sqlite3.connect('dynasty.db')
+            c = conn.cursor()
+            c.execute('''CREATE TABLE IF NOT EXISTS ktc_values
+                        (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                         player_name TEXT NOT NULL, ktc_value INTEGER,
+                         week_key TEXT NOT NULL, synced_at TEXT NOT NULL)''')
+            week_key = get_week_key()
+            count = 0
+            for p in players:
+                name = p.get('playerName', '') or f"{p.get('firstName','')} {p.get('lastName','')}".strip()
+                value = p.get('superflex', p.get('value', 0))
+                if name and value:
+                    c.execute('''INSERT OR REPLACE INTO ktc_values (player_name, ktc_value, week_key, synced_at)
+                                VALUES (?, ?, ?, ?)''',
+                             (name, value, week_key, datetime.now().isoformat()))
+                    count += 1
+            conn.commit()
+            conn.close()
+            return jsonify({"success": True, "source": "ktc_api", "count": count,
+                          "message": f"Synced {count} KTC values from live API"})
+    except Exception as e:
+        pass
+
+    # Fallback — return baseline values from context
+    return jsonify({"success": True, "source": "baseline",
+                   "message": "KTC API unavailable. Using May 2026 baseline values. Paste updated values in chat to override."})
+
+@app.route('/api/ktc/values', methods=['GET'])
+def get_ktc_values():
+    """Get stored KTC values with 4-week trend"""
+    conn = sqlite3.connect('dynasty.db')
+    c = conn.cursor()
+    try:
+        c.execute('''CREATE TABLE IF NOT EXISTS ktc_values
+                    (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                     player_name TEXT NOT NULL, ktc_value INTEGER,
+                     week_key TEXT NOT NULL, synced_at TEXT NOT NULL)''')
+        conn.commit()
+        c.execute('''SELECT player_name, ktc_value, week_key FROM ktc_values
+                    ORDER BY player_name, synced_at DESC''')
+        rows = c.fetchall()
+        conn.close()
+
+        # Build player value history
+        from collections import defaultdict
+        history = defaultdict(list)
+        for name, val, week in rows:
+            history[name].append({'value': val, 'week': week})
+
+        result = {}
+        for name, entries in history.items():
+            latest = entries[0]['value']
+            baseline = entries[-1]['value'] if len(entries) > 1 else latest
+            change = latest - baseline
+            result[name] = {
+                'current': latest,
+                'baseline': baseline,
+                'change': change,
+                'change_pct': round((change / baseline * 100) if baseline else 0, 1),
+                'weeks_tracked': len(entries)
+            }
+        return jsonify({"values": result, "success": True})
+    except Exception as e:
+        conn.close()
+        return jsonify({"values": {}, "success": True})
+
+@app.route('/api/ktc/manual', methods=['POST'])
+def manual_ktc_update():
+    """Allow manual paste of KTC values"""
+    updates = request.json.get('updates', [])
+    week_key = get_week_key()
+    conn = sqlite3.connect('dynasty.db')
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS ktc_values
+                (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 player_name TEXT NOT NULL, ktc_value INTEGER,
+                 week_key TEXT NOT NULL, synced_at TEXT NOT NULL)''')
+    for item in updates:
+        c.execute('''INSERT INTO ktc_values (player_name, ktc_value, week_key, synced_at)
+                    VALUES (?, ?, ?, ?)''',
+                 (item['name'], item['value'], week_key, datetime.now().isoformat()))
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True, "updated": len(updates)})
+
+# ============================================================
+# SLEEPER ADP — FREE PUBLIC API
+# ============================================================
+
+@app.route('/api/sleeper/adp', methods=['GET'])
+def get_sleeper_adp():
+    """Get Sleeper dynasty ADP as ranking source"""
+    try:
+        # Sleeper trending players as ADP proxy
+        r = requests.get('https://api.sleeper.app/v1/players/nfl/trending/add?lookback_hours=168&limit=200',
+                        timeout=10)
+        if r.status_code == 200:
+            data = r.json()
+            adp = {}
+            for i, item in enumerate(data):
+                pid = item.get('player_id', '')
+                adp[pid] = {'rank': i + 1, 'adds': item.get('count', 0)}
+            return jsonify({"adp": adp, "success": True, "count": len(adp)})
+    except Exception as e:
+        pass
+    return jsonify({"adp": {}, "success": False})
+
+# ============================================================
+# COMPOSITE RANKINGS
+# Weights: Personal ELO 40% | KTC 20% | Sleeper ADP 30% | Underdog 10%
+# ============================================================
+
+@app.route('/api/rankings/composite', methods=['GET'])
+def get_composite_rankings():
+    position_filter = request.args.get('position', 'ALL')
+
+    # 1. Get personal ELO rankings
+    conn = sqlite3.connect('dynasty.db')
+    c = conn.cursor()
+    c.execute('''SELECT player_name, position, team, elo_score, comparisons
+                FROM player_rankings ORDER BY elo_score DESC''')
+    personal_rows = c.fetchall()
+    conn.close()
+
+    personal_ranks = {}
+    for i, (name, pos, team, elo, comps) in enumerate(personal_rows):
+        personal_ranks[name] = {
+            'position': pos, 'team': team, 'elo': elo,
+            'comparisons': comps, 'personal_rank': i + 1
+        }
+
+    # 2. Get KTC values from DB
+    conn = sqlite3.connect('dynasty.db')
+    c = conn.cursor()
+    ktc_ranks = {}
+    try:
+        c.execute('''CREATE TABLE IF NOT EXISTS ktc_values
+                    (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                     player_name TEXT NOT NULL, ktc_value INTEGER,
+                     week_key TEXT NOT NULL, synced_at TEXT NOT NULL)''')
+        c.execute('''SELECT player_name, MAX(ktc_value) as val FROM ktc_values
+                    GROUP BY player_name ORDER BY val DESC''')
+        ktc_rows = c.fetchall()
+        for i, (name, val) in enumerate(ktc_rows):
+            ktc_ranks[name] = {'value': val, 'rank': i + 1}
+    except:
+        pass
+    conn.close()
+
+    # 3. Sleeper ADP from trending
+    sleeper_ranks = {}
+    try:
+        r = requests.get('https://api.sleeper.app/v1/players/nfl/trending/add?lookback_hours=168&limit=300',
+                        timeout=8)
+        if r.status_code == 200:
+            # Also get player names
+            players_r = requests.get('https://api.sleeper.app/v1/players/nfl', timeout=15)
+            if players_r.status_code == 200:
+                players_db = players_r.json()
+                for i, item in enumerate(r.json()):
+                    pid = item.get('player_id', '')
+                    if pid in players_db:
+                        p = players_db[pid]
+                        name = f"{p.get('first_name','')} {p.get('last_name','')}".strip()
+                        sleeper_ranks[name] = i + 1
+    except:
+        pass
+
+    # 4. Build composite scores
+    all_players = set(personal_ranks.keys())
+    total = len(all_players)
+
+    composite = []
+    for name in all_players:
+        p = personal_ranks[name]
+        pos = p['position']
+
+        if position_filter != 'ALL' and pos != position_filter:
+            continue
+
+        personal_rank = p['personal_rank']
+        personal_score = (total - personal_rank + 1) / total
+
+        # KTC score
+        if name in ktc_ranks:
+            ktc_rank = ktc_ranks[name]['rank']
+            ktc_total = len(ktc_ranks)
+            ktc_score = (ktc_total - ktc_rank + 1) / ktc_total
+        else:
+            ktc_score = personal_score * 0.7  # estimate from personal
+
+        # Sleeper ADP score
+        if name in sleeper_ranks:
+            sl_rank = sleeper_ranks[name]
+            sl_total = max(len(sleeper_ranks), 200)
+            sleeper_score = (sl_total - sl_rank + 1) / sl_total
+        else:
+            sleeper_score = personal_score * 0.7
+
+        # Composite: Personal 40%, KTC 20%, Sleeper 30%, buffer 10%
+        composite_score = (
+            personal_score * 0.40 +
+            ktc_score * 0.20 +
+            sleeper_score * 0.30 +
+            personal_score * 0.10  # buffer uses personal as proxy
+        )
+
+        # Market rank (KTC-weighted)
+        market_rank_score = ktc_score * 0.50 + sleeper_score * 0.50
+        market_rank = 0  # will be assigned after sorting
+
+        composite.append({
+            'name': name,
+            'position': pos,
+            'team': p['team'],
+            'elo': round(p['elo']),
+            'comparisons': p['comparisons'],
+            'personal_rank': personal_rank,
+            'ktc_value': ktc_ranks.get(name, {}).get('value', 0),
+            'ktc_rank': ktc_ranks.get(name, {}).get('rank', 0),
+            'sleeper_rank': sleeper_ranks.get(name, 0),
+            'composite_score': composite_score,
+            'market_score': market_rank_score,
+        })
+
+    # Sort by composite score
+    composite.sort(key=lambda x: x['composite_score'], reverse=True)
+
+    # Assign market ranks
+    market_sorted = sorted(composite, key=lambda x: x['market_score'], reverse=True)
+    market_rank_map = {p['name']: i + 1 for i, p in enumerate(market_sorted)}
+
+    for i, p in enumerate(composite):
+        p['composite_rank'] = i + 1
+        p['market_rank'] = market_rank_map[p['name']]
+        delta = p['market_rank'] - p['personal_rank']
+        p['delta'] = delta  # positive = you rank higher than market (buy signal)
+        if abs(delta) >= 26:
+            p['signal'] = 'MAJOR BUY' if delta > 0 else 'MAJOR SELL'
+            p['signal_strength'] = 3
+        elif abs(delta) >= 16:
+            p['signal'] = 'BUY' if delta > 0 else 'SELL'
+            p['signal_strength'] = 2
+        elif abs(delta) >= 5:
+            p['signal'] = 'SLIGHT BUY' if delta > 0 else 'SLIGHT SELL'
+            p['signal_strength'] = 1
+        else:
+            p['signal'] = 'HOLD'
+            p['signal_strength'] = 0
+
+    return jsonify({
+        "rankings": composite,
+        "total": len(composite),
+        "success": True,
+        "weights": {"personal": "40%", "ktc": "20%", "sleeper": "30%", "buffer": "10%"}
+    })
+
+# ============================================================
+# KNOWLEDGE BASE — YOUTUBE TRANSCRIPTS
+# ============================================================
+
+YOUTUBE_CHANNELS = {
+    "Dynasty Domain": {"handle": "thedynastydomain", "id": "UCxxx1"},
+    "Pure Potential": {"handle": "UCJ9EcWZvGWCiD9T-5YGR9sA", "id": "UCJ9EcWZvGWCiD9T-5YGR9sA"},
+    "The FF Dynasty": {"handle": "UCxdIF1wU7jX-htzVCDmDu8A", "id": "UCxdIF1wU7jX-htzVCDmDu8A"},
+    "Dynasty Nerds": {"handle": "UCyMng_8VKXye0ObmRX7Occw", "id": "UCyMng_8VKXye0ObmRX7Occw"},
+    "Dynasty Points": {"handle": "UCpKe4bQ8bFQ5LZlOP1CHKRg", "id": "UCpKe4bQ8bFQ5LZlOP1CHKRg"},
+    "Dynasty Life": {"handle": "UCGW37K5apqmzbVWMEe_TDkg", "id": "UCGW37K5apqmzbVWMEe_TDkg"},
+    "Fantasy Football Today": {"handle": "fantasyfootballtoday", "id": "UC8UBHgHqjxhDFKvLNYGHbkQ"},
+    "Fantasy Footballers": {"handle": "thefantasyfootballers", "id": "UCeHOKbPNIoMaLBxCRl0NJFg"},
+    "Matthew Berry": {"handle": "matthewberry", "id": "UCIRiiqCOpCLlpGTNE0zMDgw"},
+    "PFF Fantasy": {"handle": "PFF", "id": "UCOYbSbHGxEMxJePL0dIBm3g"},
+}
+
+def init_kb_db():
+    conn = sqlite3.connect('dynasty.db')
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS knowledge_base
+                (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 source TEXT NOT NULL, video_id TEXT UNIQUE,
+                 title TEXT, summary TEXT, key_insights TEXT,
+                 players_mentioned TEXT, fetched_at TEXT NOT NULL,
+                 video_date TEXT)''')
+    conn.commit()
+    conn.close()
+
+init_kb_db()
+
+def get_recent_videos_from_channel(channel_id, max_results=3):
+    """Get recent video IDs from a YouTube channel via RSS feed (no API key needed)"""
+    try:
+        rss_url = f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
+        r = requests.get(rss_url, timeout=10)
+        if r.status_code != 200:
+            return []
+
+        import xml.etree.ElementTree as ET
+        root = ET.fromstring(r.content)
+        ns = {'atom': 'http://www.w3.org/2005/Atom',
+              'yt': 'http://www.youtube.com/xml/schemas/2015',
+              'media': 'http://search.yahoo.com/mrss/'}
+
+        videos = []
+        entries = root.findall('atom:entry', ns)[:max_results]
+        for entry in entries:
+            vid_id = entry.find('yt:videoId', ns)
+            title = entry.find('atom:title', ns)
+            published = entry.find('atom:published', ns)
+            if vid_id is not None and title is not None:
+                videos.append({
+                    'id': vid_id.text,
+                    'title': title.text,
+                    'date': published.text[:10] if published is not None else ''
+                })
+        return videos
+    except Exception as e:
+        return []
+
+def get_youtube_transcript(video_id):
+    """Get YouTube transcript without any API key using youtube-transcript-api"""
+    try:
+        from youtube_transcript_api import YouTubeTranscriptApi
+        transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=['en'])
+        full_text = ' '.join([t['text'] for t in transcript_list])
+        # Limit to first 8000 chars to avoid token overload
+        return full_text[:8000]
+    except Exception as e:
+        return None
+
+def summarize_transcript(title, transcript, source):
+    """Use Claude to extract dynasty insights from transcript"""
+    try:
+        response = client.messages.create(
+            model="claude-sonnet-4-5",
+            max_tokens=800,
+            messages=[{"role": "user", "content": f"""You are analyzing a dynasty fantasy football video transcript.
+
+Source: {source}
+Title: {title}
+Transcript (partial): {transcript[:4000]}
+
+Extract and return JSON only:
+{{
+  "summary": "2-3 sentence summary of main topics",
+  "key_insights": ["insight 1", "insight 2", "insight 3"],
+  "players_mentioned": ["player1", "player2", "player3"],
+  "trade_signals": ["buy signal 1", "sell signal 2"],
+  "dynasty_themes": ["theme 1", "theme 2"]
+}}
+
+Focus on actionable dynasty advice, player values, trade targets, and strategic insights. Return only valid JSON."""}]
+        )
+        text = response.content[0].text.strip()
+        start = text.find('{')
+        end = text.rfind('}') + 1
+        if start >= 0 and end > start:
+            return json.loads(text[start:end])
+    except Exception as e:
+        pass
+    return None
+
+@app.route('/api/knowledge/refresh', methods=['POST'])
+def refresh_knowledge_base():
+    """Fetch latest videos and extract insights"""
+    results = {'processed': 0, 'errors': 0, 'skipped': 0, 'sources': []}
+
+    for source_name, channel in YOUTUBE_CHANNELS.items():
+        channel_id = channel['id']
+        if not channel_id or channel_id == 'UCxxx1':
+            results['skipped'] += 1
+            continue
+
+        videos = get_recent_videos_from_channel(channel_id, max_results=2)
+        source_result = {'source': source_name, 'videos': []}
+
+        for video in videos:
+            # Check if already processed
+            conn = sqlite3.connect('dynasty.db')
+            c = conn.cursor()
+            c.execute("SELECT id FROM knowledge_base WHERE video_id=?", (video['id'],))
+            existing = c.fetchone()
+            conn.close()
+
+            if existing:
+                results['skipped'] += 1
+                continue
+
+            transcript = get_youtube_transcript(video['id'])
+            if not transcript:
+                results['errors'] += 1
+                continue
+
+            insights = summarize_transcript(video['title'], transcript, source_name)
+            if not insights:
+                results['errors'] += 1
+                continue
+
+            conn = sqlite3.connect('dynasty.db')
+            c = conn.cursor()
+            c.execute('''INSERT OR IGNORE INTO knowledge_base
+                        (source, video_id, title, summary, key_insights, players_mentioned, fetched_at, video_date)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
+                     (source_name, video['id'],
+                      video['title'],
+                      insights.get('summary', ''),
+                      json.dumps(insights.get('key_insights', [])),
+                      json.dumps(insights.get('players_mentioned', [])),
+                      datetime.now().isoformat(),
+                      video['date']))
+            conn.commit()
+            conn.close()
+
+            results['processed'] += 1
+            source_result['videos'].append({
+                'title': video['title'],
+                'insights_count': len(insights.get('key_insights', []))
+            })
+
+        if source_result['videos']:
+            results['sources'].append(source_result)
+
+    return jsonify({"results": results, "success": True})
+
+@app.route('/api/knowledge/feed', methods=['GET'])
+def get_knowledge_feed():
+    """Get knowledge base entries organized by source"""
+    source_filter = request.args.get('source', None)
+    conn = sqlite3.connect('dynasty.db')
+    c = conn.cursor()
+
+    if source_filter:
+        c.execute('''SELECT source, video_id, title, summary, key_insights, players_mentioned, fetched_at, video_date
+                    FROM knowledge_base WHERE source=? ORDER BY fetched_at DESC LIMIT 20''',
+                 (source_filter,))
+    else:
+        c.execute('''SELECT source, video_id, title, summary, key_insights, players_mentioned, fetched_at, video_date
+                    FROM knowledge_base ORDER BY fetched_at DESC LIMIT 50''')
+
+    rows = c.fetchall()
+    conn.close()
+
+    entries = []
+    for row in rows:
+        source, vid_id, title, summary, key_insights, players, fetched_at, vid_date = row
+        entries.append({
+            'source': source,
+            'video_id': vid_id,
+            'title': title,
+            'summary': summary,
+            'key_insights': json.loads(key_insights) if key_insights else [],
+            'players_mentioned': json.loads(players) if players else [],
+            'fetched_at': fetched_at,
+            'video_date': vid_date,
+            'url': f'https://youtube.com/watch?v={vid_id}'
+        })
+
+    # Group by source
+    by_source = {}
+    for e in entries:
+        src = e['source']
+        if src not in by_source:
+            by_source[src] = []
+        by_source[src].append(e)
+
+    return jsonify({"by_source": by_source, "total": len(entries), "success": True})
+
+@app.route('/api/knowledge/search', methods=['POST'])
+def search_knowledge():
+    """Search knowledge base for specific player or topic"""
+    query = request.json.get('query', '').lower()
+    conn = sqlite3.connect('dynasty.db')
+    c = conn.cursor()
+    c.execute('''SELECT source, title, summary, key_insights, players_mentioned, fetched_at, video_id
+                FROM knowledge_base
+                WHERE LOWER(summary) LIKE ? OR LOWER(key_insights) LIKE ? OR LOWER(players_mentioned) LIKE ?
+                ORDER BY fetched_at DESC LIMIT 20''',
+             (f'%{query}%', f'%{query}%', f'%{query}%'))
+    rows = c.fetchall()
+    conn.close()
+
+    results = []
+    for row in rows:
+        source, title, summary, key_insights, players, fetched_at, vid_id = row
+        results.append({
+            'source': source, 'title': title, 'summary': summary,
+            'key_insights': json.loads(key_insights) if key_insights else [],
+            'players_mentioned': json.loads(players) if players else [],
+            'fetched_at': fetched_at,
+            'url': f'https://youtube.com/watch?v={vid_id}'
+        })
+
+    return jsonify({"results": results, "success": True})
+
+# ============================================================
+# STARTUP DRAFT ASSISTANT — VELVET SPADE MODE
+# ============================================================
+
+@app.route('/api/draft/assistant', methods=['POST'])
+def draft_assistant():
+    """Live startup draft assistant for Velvet Spade"""
+    data = request.json
+    picks_made = data.get('picks_made', [])  # list of {pick: "1.01", player: "Josh Allen", team: "pdwyer13"}
+    current_pick = data.get('current_pick', '')
+    my_roster = data.get('my_roster', [])
+    available_input = data.get('available', '')
+
+    # Build context for the agent
+    picks_context = '\n'.join([f"Pick {p['pick']} ({p.get('team','')}): {p['player']}" for p in picks_made])
+    roster_context = ', '.join(my_roster) if my_roster else 'None yet'
+
+    prompt = f"""You are running the Velvet Spade startup draft assistant for MJBrutus (dcatlet).
+
+VELVET SPADE SCORING: 6pt passing TDs | 1.5 TE premium | 1.0 PPR RB/WR | Bonuses: 40yd play +1, 400yd pass +2, 200yd rush/rec +2
+LINEUP: 1QB/2RB/2WR/1TE/3FLEX/1SFLX | 23+5taxi+2IR | 28 rounds snake + 3rd round reversal
+MY PICK SEQUENCE: 1.02, 2.11, 3.11, 4.02, 5.11, 6.02, 7.11, 8.02...
+
+PICKS MADE SO FAR:
+{picks_context if picks_context else 'None yet'}
+
+MY CURRENT ROSTER: {roster_context}
+CURRENT PICK ON CLOCK: {current_pick}
+AVAILABLE PLAYERS: {available_input[:2000] if available_input else 'Not specified'}
+
+Provide:
+1. TOP RECOMMENDATION at this pick with clear reasoning
+2. Next 2 alternatives if top pick is gone
+3. Roster construction note (what positions still needed)
+4. Value remaining alert (any elite players still available that are sliding)
+
+Be decisive. One clear recommendation first. Format for mobile."""
+
+    try:
+        response = client.messages.create(
+            model="claude-sonnet-4-5",
+            max_tokens=1000,
+            system=SYSTEM_PROMPT,
+            tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 2}],
+            messages=[{"role": "user", "content": prompt}]
+        )
+        recommendation = "".join(b.text for b in response.content if hasattr(b, 'text'))
+        return jsonify({"recommendation": recommendation, "success": True})
+    except Exception as e:
+        return jsonify({"error": str(e), "success": False})
+
+@app.route('/api/draft/state', methods=['GET', 'POST'])
+def draft_state():
+    """Save and retrieve draft state"""
+    conn = sqlite3.connect('dynasty.db')
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS draft_state
+                (id INTEGER PRIMARY KEY, state_data TEXT, updated_at TEXT)''')
+
+    if request.method == 'POST':
+        state = request.json.get('state', {})
+        c.execute('''INSERT OR REPLACE INTO draft_state (id, state_data, updated_at)
+                    VALUES (1, ?, ?)''', (json.dumps(state), datetime.now().isoformat()))
+        conn.commit()
+        conn.close()
+        return jsonify({"success": True})
+    else:
+        c.execute("SELECT state_data FROM draft_state WHERE id=1")
+        row = c.fetchone()
+        conn.close()
+        if row:
+            return jsonify({"state": json.loads(row[0]), "success": True})
+        return jsonify({"state": {}, "success": True})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8080, debug=False)
