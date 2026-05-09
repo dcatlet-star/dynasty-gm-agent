@@ -455,6 +455,7 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);displa
         <button class="chip active" id="view-composite" onclick="setRankView(this,'composite')">Composite</button>
         <button class="chip" id="view-signals" onclick="setRankView(this,'signals')">🎯 Trade Signals</button>
         <button class="chip" id="view-personal" onclick="setRankView(this,'personal')">My Rankings</button>
+        <button class="chip" id="view-compare" onclick="setRankView(this,'compare')">Head-to-Head</button>
       </div>
       <div style="font-size:10px;color:var(--text2);margin-bottom:10px;padding:8px;background:var(--surface2);border-radius:8px;border:1px solid var(--border);line-height:1.5;">
         <span style="color:var(--accent);">Personal 40%</span> · <span style="color:var(--gold);">KTC 20%</span> · <span style="color:var(--green);">Sleeper ADP 30%</span> · Buffer 10%<br>
@@ -822,9 +823,19 @@ function handleKey(e){if(e.key==='Enter'&&!e.shiftKey&&window.innerWidth>768){e.
 function autoResize(t){t.style.height='auto';t.style.height=Math.min(t.scrollHeight,100)+'px';}
 function handleFile(e){
   const f=e.target.files[0];if(!f)return;
+  // Check file size - warn if over 4MB
+  if(f.size > 4 * 1024 * 1024){
+    alert('File is large (' + Math.round(f.size/1024/1024) + 'MB). Screenshots work best under 4MB.');
+  }
   const r=new FileReader();
-  r.onload=ev=>{selectedImage=ev.target.result;document.getElementById('preview-thumb').src=selectedImage;document.getElementById('image-preview-bar').style.display='block';};
-  r.readAsDataURL(f);e.target.value='';
+  r.onload=ev=>{
+    selectedImage=ev.target.result;
+    document.getElementById('preview-thumb').src=selectedImage;
+    document.getElementById('image-preview-bar').style.display='block';
+  };
+  r.onerror=()=>{ alert('Error reading file. Try a smaller image.'); };
+  r.readAsDataURL(f);
+  e.target.value='';
 }
 function removeImage(){selectedImage=null;document.getElementById('image-preview-bar').style.display='none';document.getElementById('preview-thumb').src='';}
 
@@ -1352,10 +1363,107 @@ function setPositionFilter(btn, pos) {
 }
 
 function setRankView(btn, view) {
-  document.querySelectorAll('#view-composite,#view-signals,#view-personal').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('#view-composite,#view-signals,#view-personal,#view-compare').forEach(b => { if(b) b.classList.remove('active'); });
   btn.classList.add('active');
   currentRankView = view;
-  renderCompositeTable();
+  if (view === 'compare') {
+    renderMatchupInComposite();
+  } else {
+    renderCompositeTable();
+  }
+}
+
+async function renderMatchupInComposite() {
+  document.getElementById('composite-content').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  try {
+    const r = await fetch('/api/rankings/pair');
+    const data = await r.json();
+    if (!data.success || data.players.length < 2) {
+      document.getElementById('composite-content').innerHTML = '<div class="empty-state"><div class="empty-sub">Need more players. Go to Add Players tab first.</div></div>';
+      return;
+    }
+    const [p1, p2] = data.players;
+    currentMatchupPlayers = [p1, p2];
+    const progress = Math.min((totalComparisons / 100) * 100, 100);
+    document.getElementById('composite-content').innerHTML = `
+      <div class="matchup-card">
+        <div class="matchup-title">WHO WOULD YOU RATHER HAVE?</div>
+        <div class="matchup-vs">
+          <div class="matchup-player" onclick="voteComposite(0)">
+            <span class="matchup-pos-badge pos-${p1.position||'WR'}" style="background:rgba(79,158,255,0.15);color:var(--accent);font-size:10px;padding:3px 8px;border-radius:6px;">${p1.position||'?'}</span>
+            <span class="matchup-name">${p1.name}</span>
+            <span class="matchup-team">${p1.team||''}</span>
+          </div>
+          <div class="vs-divider">VS</div>
+          <div class="matchup-player" onclick="voteComposite(1)">
+            <span class="matchup-pos-badge pos-${p2.position||'WR'}" style="background:rgba(79,158,255,0.15);color:var(--accent);font-size:10px;padding:3px 8px;border-radius:6px;">${p2.position||'?'}</span>
+            <span class="matchup-name">${p2.name}</span>
+            <span class="matchup-team">${p2.team||''}</span>
+          </div>
+        </div>
+        <div class="progress-label">${totalComparisons} comparisons · ${Math.round(progress)}% to reliable rankings</div>
+        <div class="progress-bar"><div class="progress-fill" style="width:${progress}%"></div></div>
+        <div style="display:flex;gap:8px;margin-top:10px;">
+          <button class="skip-btn" style="flex:1;" onclick="renderMatchupInComposite()">Skip →</button>
+          <button class="btn btn-ghost btn-sm" style="flex:1;" onclick="showAddPlayers()">Add Players</button>
+          <button class="btn btn-secondary btn-sm" style="flex:1;" onclick="resetRankings()">↺ Reset Pool</button>
+        </div>
+      </div>`;
+  } catch(e) {
+    document.getElementById('composite-content').innerHTML = '<div class="empty-state"><div class="empty-sub">Error loading comparison.</div></div>';
+  }
+}
+
+async function voteComposite(winnerIdx) {
+  if (currentMatchupPlayers.length < 2) return;
+  const winner = currentMatchupPlayers[winnerIdx].name;
+  const loser = currentMatchupPlayers[1 - winnerIdx].name;
+  totalComparisons++;
+  await fetch('/api/rankings/vote', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({winner, loser})});
+  await renderMatchupInComposite();
+}
+
+function showAddPlayers() {
+  document.getElementById('composite-content').innerHTML = `
+    <div style="padding:4px 0;">
+      <div class="card" style="margin-bottom:12px;">
+        <h4 style="font-size:13px;font-weight:700;margin-bottom:6px;">Reset & Re-seed Full Player Pool</h4>
+        <p style="font-size:12px;color:var(--text2);margin-bottom:10px;">Loads all 250+ players + pick assets with KTC-calibrated starting ELO. Do this once to get the full pool.</p>
+        <button class="btn btn-primary" style="width:100%;" onclick="resetRankings()">↺ Reset to Full 250 Player Pool</button>
+      </div>
+      <div class="card">
+        <h4 style="font-size:13px;font-weight:700;margin-bottom:10px;">Add Individual Player</h4>
+        <input class="input" id="new-player-name2" placeholder="Player name" style="margin-bottom:8px;">
+        <div style="display:flex;gap:8px;margin-bottom:8px;">
+          <select class="select" id="new-player-pos2" style="flex:1;"><option value="QB">QB</option><option value="RB">RB</option><option value="WR" selected>WR</option><option value="TE">TE</option><option value="PICK">PICK</option></select>
+          <input class="input" id="new-player-team2" placeholder="Team" style="flex:1;">
+        </div>
+        <button class="btn btn-secondary" style="width:100%;" onclick="addPlayerQuick()">Add Player</button>
+      </div>
+      <div style="padding:8px 0;font-size:12px;color:var(--text2);line-height:1.5;">After 50+ comparisons you get meaningful rankings. 200-500 comparisons gives a solid top-200. Pick assets are included and ranked against players.</div>
+    </div>`;
+}
+
+async function addPlayerQuick() {
+  const name = document.getElementById('new-player-name2').value.trim();
+  const pos = document.getElementById('new-player-pos2').value;
+  const team = document.getElementById('new-player-team2').value.trim();
+  if (!name) return;
+  await fetch('/api/rankings/add', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name, position: pos, team})});
+  alert(`${name} added to rankings pool!`);
+  document.getElementById('new-player-name2').value = '';
+}
+
+async function resetRankings() {
+  if (!confirm('Reset all rankings? Your comparison history will be lost but you will get the full 250+ player pool.')) return;
+  try {
+    const r = await fetch('/api/rankings/reset', {method:'POST'});
+    const data = await r.json();
+    if (data.success) {
+      alert(`Done! ${data.message}. Start comparing to build your personal rankings.`);
+      renderMatchupInComposite();
+    }
+  } catch(e) { alert('Reset failed.'); }
 }
 
 async function loadComposite() {
