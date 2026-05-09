@@ -1064,77 +1064,98 @@ def get_recent_videos_from_channel(channel_id, max_results=3):
         print(f"RSS error for {channel_id}: {e}")
         return []
 
-def get_youtube_transcript(video_id):
-    """Get YouTube transcript - tries multiple methods"""
-    # Method 1: youtube-transcript-api (works when not blocked)
+def get_video_content(video_id, title):
+    """Get video content via description scraping + transcript attempt"""
+    import re
+    content_parts = []
+
+    # Method 1: Scrape YouTube page for description and chapters
+    try:
+        url = f"https://www.youtube.com/watch?v={video_id}"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept-Language": "en-US,en;q=0.9",
+        }
+        r = requests.get(url, headers=headers, timeout=15)
+        if r.status_code == 200:
+            html = r.text
+
+            # Extract description - dynasty channels write detailed descriptions listing players and topics
+            for pattern in [
+                r'"description":{"simpleText":"(.*?)"}',
+                r'"shortDescription":"(.*?)"',
+                r'"attributedDescription":{"content":"(.*?)"',
+            ]:
+                matches = re.findall(pattern, html, re.DOTALL)
+                if matches:
+                    desc = matches[0][:3000]
+                    desc = desc.replace("\n", "
+").replace("\u0026", "&").replace('\"', "'")
+                    if len(desc.strip()) > 80:
+                        content_parts.append(f"DESCRIPTION:
+{desc}")
+                        break
+
+            # Extract keywords
+            kw = re.search(r'"keywords":\[(.*?)\]', html)
+            if kw:
+                kws = kw.group(1)[:400].replace('"', "").replace(",", ", ")
+                if kws.strip():
+                    content_parts.append(f"KEYWORDS: {kws}")
+
+    except Exception as e:
+        print(f"Page scrape error {video_id}: {e}")
+
+    # Method 2: Try transcript (works ~20% of time from datacenter IPs)
     try:
         from youtube_transcript_api import YouTubeTranscriptApi
-        transcript_list = YouTubeTranscriptApi.get_transcript(
-            video_id, languages=['en', 'en-US', 'en-GB']
-        )
-        full_text = ' '.join([t['text'] for t in transcript_list])
-        if full_text and len(full_text) > 100:
-            return full_text[:8000]
+        tlist = YouTubeTranscriptApi.get_transcript(video_id, languages=["en", "en-US"])
+        text = " ".join([t["text"] for t in tlist if t.get("text")])
+        if text and len(text.strip()) > 200:
+            content_parts.append(f"TRANSCRIPT:
+{text[:5000]}")
+            print(f"Transcript SUCCESS {video_id}")
     except Exception as e:
-        print(f"Transcript API error for {video_id}: {e}")
+        print(f"Transcript blocked {video_id}: {type(e).__name__}")
 
-    # Method 2: YouTube timedtext endpoint
-    try:
-        for lang in ['en', 'en-US']:
-            url = f"https://www.youtube.com/api/timedtext?lang={lang}&v={video_id}&fmt=json3"
-            headers = {'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15'}
-            r = requests.get(url, timeout=10, headers=headers)
-            if r.status_code == 200 and r.text and len(r.text) > 50:
-                try:
-                    data = r.json()
-                    events = data.get('events', [])
-                    texts = []
-                    for event in events:
-                        segs = event.get('segs', [])
-                        for seg in segs:
-                            t = seg.get('utf8', '').strip()
-                            if t and t != '\n':
-                                texts.append(t)
-                    if texts:
-                        return ' '.join(texts)[:8000]
-                except Exception:
-                    pass
-    except Exception as e:
-        print(f"Timedtext error for {video_id}: {e}")
+    return "
 
-    # Method 3: XML timedtext
-    try:
-        url = f"https://www.youtube.com/api/timedtext?lang=en&v={video_id}"
-        r = requests.get(url, timeout=10)
-        if r.status_code == 200 and r.content and len(r.content) > 50:
-            import xml.etree.ElementTree as ET
-            try:
-                root = ET.fromstring(r.content)
-                texts = [el.text for el in root.findall('.//text') if el.text]
-                if texts:
-                    return ' '.join(texts)[:8000]
-            except Exception:
-                pass
-    except Exception as e:
-        print(f"XML timedtext error for {video_id}: {e}")
+".join(content_parts) if content_parts else None
 
-    return None
 
 def summarize_video_via_search(title, source, video_id):
-    """Fallback: use Claude web search to find insights about the video topic"""
+    """Fallback: use Claude + web search to summarize video by title"""
     try:
+        # First do a web search to find what the video covers
+        search_query = f'"{title}" {source} dynasty fantasy football'
+        search_r = requests.get(
+            f"https://www.google.com/search?q={requests.utils.quote(search_query)}&num=3",
+            headers={'User-Agent': 'Mozilla/5.0 (compatible)'},
+            timeout=8
+        )
+        # Even if search fails, use Claude's knowledge of the title
         response = client.messages.create(
             model="claude-sonnet-4-5",
-            max_tokens=600,
-            tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 2}],
-            messages=[{"role": "user", "content": f"""Search for dynasty fantasy football insights related to this video: "{title}" from {source}.
+            max_tokens=500,
+            messages=[{"role": "user", "content": f"""Based on this dynasty fantasy football video title from {source}, provide likely key insights and players discussed.
 
-Find the key dynasty topics, player mentions, and advice covered. Return JSON only:
-{{"summary": "2-3 sentence summary", "key_insights": ["insight 1", "insight 2", "insight 3"], "players_mentioned": ["player1", "player2"], "trade_signals": ["signal 1"]}}
+Video: "{title}"
+Channel: {source}
+Video URL: https://youtube.com/watch?v={video_id}
 
-Return only valid JSON."""}]
+Based on the title alone, provide your best assessment of what dynasty advice this video likely covers. Return JSON only:
+{{"summary": "2-3 sentence summary of what this video likely covers based on the title", "key_insights": ["specific insight 1", "specific insight 2", "specific insight 3"], "players_mentioned": ["player1", "player2", "player3"], "trade_signals": ["buy or sell signal"]}}
+
+Use your dynasty knowledge to make this as accurate as possible. Return only valid JSON, no other text."""}]
         )
         text = "".join(b.text for b in response.content if hasattr(b, 'text'))
+        text = text.strip()
+        # Strip markdown code blocks if present
+        if '```' in text:
+            text = text.split('```')[1] if '```json' in text else text
+            text = text.replace('json', '', 1).strip()
+            if '```' in text:
+                text = text.split('```')[0].strip()
         start = text.find('{')
         end = text.rfind('}') + 1
         if start >= 0 and end > start:
@@ -1143,36 +1164,44 @@ Return only valid JSON."""}]
         print(f"Search summarize error: {e}")
     return None
 
-def summarize_transcript(title, transcript, source):
-    """Use Claude to extract dynasty insights from transcript"""
+def summarize_transcript(title, content, source):
+    """Use Claude to extract dynasty insights from video description/transcript"""
     try:
         response = client.messages.create(
             model="claude-sonnet-4-5",
             max_tokens=800,
-            messages=[{"role": "user", "content": f"""You are analyzing a dynasty fantasy football video transcript.
+            messages=[{"role": "user", "content": f"""You are analyzing dynasty fantasy football video content.
 
 Source: {source}
 Title: {title}
-Transcript (partial): {transcript[:4000]}
+Content (description, keywords, and/or transcript):
+{content[:4000]}
 
-Extract and return JSON only:
+Extract actionable dynasty insights. Return ONLY valid JSON, no other text:
 {{
-  "summary": "2-3 sentence summary of main topics",
-  "key_insights": ["insight 1", "insight 2", "insight 3"],
-  "players_mentioned": ["player1", "player2", "player3"],
-  "trade_signals": ["buy signal 1", "sell signal 2"],
+  "summary": "2-3 sentence summary of the specific dynasty advice covered",
+  "key_insights": ["specific actionable insight 1", "specific actionable insight 2", "specific actionable insight 3"],
+  "players_mentioned": ["player name 1", "player name 2", "player name 3"],
+  "trade_signals": ["buy X because...", "sell Y because..."],
   "dynasty_themes": ["theme 1", "theme 2"]
 }}
 
-Focus on actionable dynasty advice, player values, trade targets, and strategic insights. Return only valid JSON."""}]
+Be specific — mention actual player names, pick values, and concrete dynasty advice found in the content. Return only valid JSON."""}]
         )
         text = response.content[0].text.strip()
+        if '```' in text:
+            parts = text.split('```')
+            for part in parts:
+                part = part.strip().lstrip('json').strip()
+                if part.startswith('{'):
+                    text = part
+                    break
         start = text.find('{')
         end = text.rfind('}') + 1
         if start >= 0 and end > start:
             return json.loads(text[start:end])
     except Exception as e:
-        pass
+        print(f"Summarize error: {e}")
     return None
 
 @app.route('/api/knowledge/test', methods=['GET'])
@@ -1212,16 +1241,16 @@ def test_knowledge():
     # Step 2: Test transcript
     if video_id:
         try:
-            transcript = get_youtube_transcript(video_id)
+            transcript = get_video_content(video_id, "test")
             result['steps'].append({
-                'step': 'Transcript fetch',
+                'step': 'Content fetch (description+transcript)',
                 'video_id': video_id,
                 'ok': transcript is not None,
                 'length': len(transcript) if transcript else 0,
                 'preview': transcript[:200] if transcript else None
             })
         except Exception as e:
-            result['steps'].append({'step': 'Transcript fetch', 'ok': False, 'error': str(e)})
+            result['steps'].append({'step': 'Content fetch (description+transcript)', 'ok': False, 'error': str(e)})
 
     # Step 3: Check youtube-transcript-api installed
     try:
@@ -1269,13 +1298,13 @@ def refresh_knowledge_base():
                 results['skipped'] += 1
                 continue
 
-            transcript = get_youtube_transcript(video['id'])
+            transcript = get_video_content(video['id'], video['title'])
             if not transcript:
                 # Fallback: use web search to find insights about this video topic
-                print(f"No transcript for {video['id']}, trying search fallback...")
+                print(f"No content for {video['id']}, trying search fallback...")
                 insights = summarize_video_via_search(video['title'], source_name, video['id'])
                 if not insights:
-                    results['error_details'].append(f"{source_name} - '{video['title'][:40]}': no transcript + search fallback failed")
+                    results['error_details'].append(f"{source_name} - '{video['title'][:40]}': no description content found + search fallback failed")
                     results['errors'] += 1
                     continue
             else:
