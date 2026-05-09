@@ -1007,16 +1007,16 @@ def get_composite_rankings():
 # ============================================================
 
 YOUTUBE_CHANNELS = {
-    "Dynasty Domain": {"handle": "thedynastydomain", "id": "UCxxx1"},
-    "Pure Potential": {"handle": "UCJ9EcWZvGWCiD9T-5YGR9sA", "id": "UCJ9EcWZvGWCiD9T-5YGR9sA"},
-    "The FF Dynasty": {"handle": "UCxdIF1wU7jX-htzVCDmDu8A", "id": "UCxdIF1wU7jX-htzVCDmDu8A"},
-    "Dynasty Nerds": {"handle": "UCyMng_8VKXye0ObmRX7Occw", "id": "UCyMng_8VKXye0ObmRX7Occw"},
-    "Dynasty Points": {"handle": "UCpKe4bQ8bFQ5LZlOP1CHKRg", "id": "UCpKe4bQ8bFQ5LZlOP1CHKRg"},
-    "Dynasty Life": {"handle": "UCGW37K5apqmzbVWMEe_TDkg", "id": "UCGW37K5apqmzbVWMEe_TDkg"},
-    "Fantasy Football Today": {"handle": "fantasyfootballtoday", "id": "UC8UBHgHqjxhDFKvLNYGHbkQ"},
-    "Fantasy Footballers": {"handle": "thefantasyfootballers", "id": "UCeHOKbPNIoMaLBxCRl0NJFg"},
-    "Matthew Berry": {"handle": "matthewberry", "id": "UCIRiiqCOpCLlpGTNE0zMDgw"},
-    "PFF Fantasy": {"handle": "PFF", "id": "UCOYbSbHGxEMxJePL0dIBm3g"},
+    "Dynasty Domain": {"id": "UCRk2EqEe1iLBdsSBEsZJqkA"},
+    "Pure Potential": {"id": "UCJ9EcWZvGWCiD9T-5YGR9sA"},
+    "The FF Dynasty": {"id": "UCxdIF1wU7jX-htzVCDmDu8A"},
+    "Dynasty Nerds": {"id": "UCyMng_8VKXye0ObmRX7Occw"},
+    "Dynasty Points": {"id": "UCpKe4bQ8bFQ5LZlOP1CHKRg"},
+    "Dynasty Life": {"id": "UCGW37K5apqmzbVWMEe_TDkg"},
+    "Fantasy Football Today": {"id": "UC8UBHgHqjxhDFKvLNYGHbkQ"},
+    "Fantasy Footballers": {"id": "UCeHOKbPNIoMaLBxCRl0NJFg"},
+    "Matthew Berry": {"id": "UCIRiiqCOpCLlpGTNE0zMDgw"},
+    "PFF Fantasy": {"id": "UCOYbSbHGxEMxJePL0dIBm3g"},
 }
 
 def init_kb_db():
@@ -1037,42 +1037,58 @@ def get_recent_videos_from_channel(channel_id, max_results=3):
     """Get recent video IDs from a YouTube channel via RSS feed (no API key needed)"""
     try:
         rss_url = f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
-        r = requests.get(rss_url, timeout=10)
+        headers = {'User-Agent': 'Mozilla/5.0 (compatible; DynastyGM/1.0)'}
+        r = requests.get(rss_url, timeout=15, headers=headers)
         if r.status_code != 200:
             return []
 
         import xml.etree.ElementTree as ET
         root = ET.fromstring(r.content)
         ns = {'atom': 'http://www.w3.org/2005/Atom',
-              'yt': 'http://www.youtube.com/xml/schemas/2015',
-              'media': 'http://search.yahoo.com/mrss/'}
+              'yt': 'http://www.youtube.com/xml/schemas/2015'}
 
         videos = []
         entries = root.findall('atom:entry', ns)[:max_results]
         for entry in entries:
             vid_id = entry.find('yt:videoId', ns)
-            title = entry.find('atom:title', ns)
+            title_el = entry.find('atom:title', ns)
             published = entry.find('atom:published', ns)
-            if vid_id is not None and title is not None:
+            if vid_id is not None and title_el is not None:
                 videos.append({
                     'id': vid_id.text,
-                    'title': title.text,
+                    'title': title_el.text,
                     'date': published.text[:10] if published is not None else ''
                 })
         return videos
     except Exception as e:
+        print(f"RSS error for {channel_id}: {e}")
         return []
 
 def get_youtube_transcript(video_id):
-    """Get YouTube transcript without any API key using youtube-transcript-api"""
+    """Get YouTube transcript - tries multiple methods"""
+    # Method 1: youtube-transcript-api
     try:
         from youtube_transcript_api import YouTubeTranscriptApi
-        transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=['en'])
+        transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=['en', 'en-US'])
         full_text = ' '.join([t['text'] for t in transcript_list])
-        # Limit to first 8000 chars to avoid token overload
         return full_text[:8000]
-    except Exception as e:
-        return None
+    except Exception:
+        pass
+
+    # Method 2: Direct timedtext API
+    try:
+        url = f"https://www.youtube.com/api/timedtext?lang=en&v={video_id}"
+        r = requests.get(url, timeout=10)
+        if r.status_code == 200 and r.text:
+            import xml.etree.ElementTree as ET
+            root = ET.fromstring(r.content)
+            texts = [el.text for el in root.findall('.//text') if el.text]
+            if texts:
+                return ' '.join(texts)[:8000]
+    except Exception:
+        pass
+
+    return None
 
 def summarize_transcript(title, transcript, source):
     """Use Claude to extract dynasty insights from transcript"""
@@ -1113,7 +1129,7 @@ def refresh_knowledge_base():
 
     for source_name, channel in YOUTUBE_CHANNELS.items():
         channel_id = channel['id']
-        if not channel_id or channel_id == 'UCxxx1':
+        if not channel_id or len(channel_id) < 10:
             results['skipped'] += 1
             continue
 
