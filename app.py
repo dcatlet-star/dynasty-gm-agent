@@ -323,57 +323,78 @@ DEFAULT_PLAYERS = [
 ]
 
 def seed_players():
-    # KTC-calibrated starting ELO scores based on May 2026 values
-    # Maps player/pick name to starting ELO (scaled from KTC values)
+    """
+    ELO scale maps to KTC tiers with proper separation:
+    Tier 1 (9000+ KTC):    2800-3000 ELO
+    Tier 2 (7500-8999):    2400-2799 ELO
+    Tier 3 (6000-7499):    2000-2399 ELO
+    Tier 4 (4500-5999):    1600-1999 ELO
+    Tier 5 (3000-4499):    1200-1599 ELO
+    Tier 6 (1500-2999):     800-1199 ELO
+    Tier 7 (under 1500):    400-799  ELO
+    """
     KTC_SEED_ELOS = {
-        "Josh Allen": 1980, "Ja Marr Chase": 1978, "Bijan Robinson": 1978,
-        "Jaxon Smith-Njigba": 1970, "Jahmyr Gibbs": 1930, "Drake Maye": 1920,
-        "Brock Bowers": 1850, "Puka Nacua": 1830, "Trey McBride": 1800,
-        "Caleb Williams": 1770, "Malik Nabers": 1760, "Jayden Daniels": 1755,
-        "Justin Jefferson": 1750, "Amon-Ra St. Brown": 1742, "Lamar Jackson": 1740,
-        "Jeremiyah Love": 1738, "Ashton Jeanty": 1730, "Joe Burrow": 1720,
-        "CeeDee Lamb": 1710, "2027 Early 1st": 1705, "De'Von Achane": 1688,
-        "Drake London": 1688, "Justin Herbert": 1682, "Patrick Mahomes": 1681,
-        "Colston Loveland": 1670, "Omarion Hampton": 1669, "Jaxson Dart": 1667,
-        "Tetairoa McMillan": 1655, "Tyler Warren": 1633, "Trevor Lawrence": 1622,
-        "Jalen Hurts": 1620, "Emeka Egbuka": 1618, "Bo Nix": 1614,
-        "Jonathan Taylor": 1606, "James Cook": 1604, "George Pickens": 1596,
-        "Brock Purdy": 1584, "Carnell Tate": 1583, "Garrett Wilson": 1572,
-        "2026 Early 1st": 1572, "Fernando Mendoza": 1567, "Nico Collins": 1567,
-        "Jordan Love": 1564, "2027 Mid 1st": 1560, "Chris Olave": 1557,
-        "Quinshon Judkins": 1547, "Harold Fannin": 1546, "Kenneth Walker": 1546,
-        "TreVeyon Henderson": 1540, "Rome Odunze": 1537, "Tucker Kraft": 1536,
-        "Breece Hall": 1535, "Jordyn Tyson": 1535, "Ladd McConkey": 1535,
-        "Rashee Rice": 1525, "Cam Ward": 1524, "DeVonta Smith": 1521,
-        "Luther Burden": 1520, "Marvin Harrison Jr": 1508, "Sam LaPorta": 1504,
-        "Christian McCaffrey": 1499, "Makai Lemon": 1499, "Dak Prescott": 1498,
-        "2028 Early 1st": 1497, "Brian Thomas Jr": 1493, "Bucky Irving": 1492,
-        "Kyle Pitts": 1492, "Saquon Barkley": 1490, "Chase Brown": 1490,
-        "Tyler Shough": 1490, "2027 Late 1st": 1489, "Tee Higgins": 1488,
-        "AJ Brown": 1487, "CJ Stroud": 1485, "Kyren Williams": 1485,
-        "Jaylen Waddle": 1481, "Sam Darnold": 1475, "Baker Mayfield": 1474,
-        "Jadarian Price": 1471, "Jameson Williams": 1470, "Zay Flowers": 1469,
-        "Jared Goff": 1462, "Kenyon Sadiq": 1462, "2026 Mid 1st": 1460,
-        "Cam Skattebo": 1456, "Bryce Young": 1451, "KC Concepcion": 1449,
-        "Josh Jacobs": 1446, "Travis Etienne": 1445, "Javonte Williams": 1443,
-        "2028 Mid 1st": 1442, "Oronde Gadsden": 1434, "Kyler Murray": 1411,
-        "Eli Stowers": 1397, "Isaiah Likely": 1376, "Bhayshul Tuten": 1394,
-        "2028 Late 1st": 1392, "2027 Early 2nd": 1391, "2026 Late 1st": 1388,
-        "Denzel Boston": 1445, "Trey Benson": 1429, "Tank Bigsby": 1453,
-        "2027 Mid 2nd": 1404, "2027 Late 2nd": 1396, "2026 Early 2nd": 1396,
-        "2027 Early 3rd": 1345, "2028 Early 2nd": 1362, "Travis Hunter": 1330,
-        "Chris Bell": 1346, "Germie Bernard": 1313, "Zachariah Branch": 1314,
-        "Antonio Williams": 1298, "Malachi Fields": 1290, "Skyler Bell": 1309,
-        "2026 Mid 2nd": 1326, "2027 Mid 3rd": 1271, "2028 Mid 2nd": 1293,
-        "2026 Late 2nd": 1277, "Max Klare": 1317, "Kaytron Allen": 1314,
-        "Justin Joly": 1131, "Eli Raridon": 934, "Oscar Delp": 1054,
-        "2027 Early 4th": 1057, "2026 Early 3rd": 1076, "2027 Mid 4th": 1064,
-        "2026 Mid 3rd": 1040, "2026 Late 3rd": 1013, "2026 Early 4th": 998,
+        # TIER 1: 9000+ KTC → 2800-3000
+        "Josh Allen": 3000, "Ja Marr Chase": 2980, "Bijan Robinson": 2980,
+        "Jaxon Smith-Njigba": 2950,
+        # TIER 2: 7500-8999 → 2400-2799
+        "Jahmyr Gibbs": 2780, "Drake Maye": 2750, "Brock Bowers": 2700,
+        "Puka Nacua": 2660, "Trey McBride": 2600, "Caleb Williams": 2560,
+        "Malik Nabers": 2530, "Jayden Daniels": 2520, "Justin Jefferson": 2510,
+        "Amon-Ra St. Brown": 2490, "Lamar Jackson": 2480, "Jeremiyah Love": 2470,
+        "Ashton Jeanty": 2450, "Joe Burrow": 2430,
+        # TIER 3: 6000-7499 → 2000-2399
+        "CeeDee Lamb": 2380, "2027 Early 1st": 2360, "De'Von Achane": 2340,
+        "Drake London": 2340, "Justin Herbert": 2320, "Patrick Mahomes": 2310,
+        "Colston Loveland": 2290, "Omarion Hampton": 2280, "Jaxson Dart": 2270,
+        "Tetairoa McMillan": 2250, "Tyler Warren": 2220, "Trevor Lawrence": 2200,
+        "Jalen Hurts": 2190, "Emeka Egbuka": 2180, "Bo Nix": 2160,
+        "Jonathan Taylor": 2150, "James Cook": 2140, "George Pickens": 2110,
+        "Brock Purdy": 2080, "Carnell Tate": 2070, "Garrett Wilson": 2040,
+        "2026 Early 1st": 2040, "Fernando Mendoza": 2030, "Nico Collins": 2020,
+        "Jordan Love": 2010,
+        # TIER 4: 4500-5999 → 1600-1999
+        "2027 Mid 1st": 1990, "Chris Olave": 1975, "Quinshon Judkins": 1960,
+        "Harold Fannin": 1950, "Kenneth Walker": 1950, "TreVeyon Henderson": 1940,
+        "Rome Odunze": 1930, "Tucker Kraft": 1920, "Breece Hall": 1910,
+        "Jordyn Tyson": 1900, "Ladd McConkey": 1890, "Rashee Rice": 1880,
+        "Cam Ward": 1870, "DeVonta Smith": 1860, "Luther Burden": 1850,
+        "Marvin Harrison Jr": 1840, "Sam LaPorta": 1820, "Christian McCaffrey": 1810,
+        "Makai Lemon": 1800, "Dak Prescott": 1790, "2028 Early 1st": 1780,
+        "Brian Thomas Jr": 1770, "Bucky Irving": 1760, "Kyle Pitts": 1750,
+        "Saquon Barkley": 1740, "Chase Brown": 1730, "Tyler Shough": 1720,
+        "2027 Late 1st": 1710, "Tee Higgins": 1700, "AJ Brown": 1695,
+        "CJ Stroud": 1685, "Kyren Williams": 1675, "Jaylen Waddle": 1665,
+        "Sam Darnold": 1655, "Baker Mayfield": 1645, "Jadarian Price": 1640,
+        "Jameson Williams": 1630, "Zay Flowers": 1620, "Jared Goff": 1615,
+        "Kenyon Sadiq": 1610, "2026 Mid 1st": 1605,
+        # TIER 5: 3000-4499 → 1200-1599
+        "Cam Skattebo": 1595, "Bryce Young": 1580, "KC Concepcion": 1570,
+        "Josh Jacobs": 1560, "Travis Etienne": 1550, "Javonte Williams": 1540,
+        "2028 Mid 1st": 1530, "Oronde Gadsden": 1510, "Kyler Murray": 1490,
+        "Eli Stowers": 1480, "Isaiah Likely": 1460, "Bhayshul Tuten": 1450,
+        "2028 Late 1st": 1440, "2027 Early 2nd": 1430, "2026 Late 1st": 1420,
+        "Denzel Boston": 1410, "Trey Benson": 1400, "Tank Bigsby": 1390,
+        "2027 Mid 2nd": 1380, "2027 Late 2nd": 1370, "2026 Early 2nd": 1360,
+        "Travis Hunter": 1340, "Chris Bell": 1330, "Germie Bernard": 1310,
+        "Zachariah Branch": 1300, "Antonio Williams": 1290, "Malachi Fields": 1280,
+        "Skyler Bell": 1270, "2026 Mid 2nd": 1260, "Max Klare": 1250,
+        "Kaytron Allen": 1240, "2027 Early 3rd": 1230, "2028 Early 2nd": 1220,
+        "2027 Mid 3rd": 1210,
+        # TIER 6: 1500-2999 → 800-1199
+        "2028 Mid 2nd": 1190, "2026 Late 2nd": 1170, "2027 Late 3rd": 1150,
+        "2028 Late 2nd": 1130, "2026 Early 3rd": 1110, "2027 Early 4th": 1090,
+        "2026 Mid 3rd": 1070, "2027 Mid 4th": 1050, "2026 Late 3rd": 1030,
+        "2028 Early 3rd": 1010, "Oscar Delp": 990, "2028 Mid 3rd": 970,
+        "2026 Early 4th": 950, "2026 Mid 4th": 930, "2028 Late 3rd": 910,
+        "2027 Late 4th": 890, "2028 Early 4th": 870,
+        # TIER 7: under 1500 → 400-799
+        "Justin Joly": 780, "Eli Raridon": 650,
     }
     conn = sqlite3.connect('dynasty.db')
     c = conn.cursor()
     for name, pos, team in DEFAULT_PLAYERS:
-        starting_elo = KTC_SEED_ELOS.get(name, 1500)
+        starting_elo = KTC_SEED_ELOS.get(name, 1400)  # default to Tier 5 bottom
         c.execute("INSERT OR IGNORE INTO player_rankings (player_name, position, team, elo_score, comparisons, last_updated) VALUES (?, ?, ?, ?, 0, ?)",
                  (name, pos, team, starting_elo, datetime.now().isoformat()))
     conn.commit()
@@ -496,56 +517,95 @@ def search_chat():
             break
     return jsonify({"results": results, "success": True})
 
+@app.route('/api/dashboard/static', methods=['GET'])
+def get_static_dashboard():
+    """Instant-loading static dashboard from known context — no AI calls"""
+    data = {
+        "roster_summary": [
+            {"league": "Capital Gains", "strategy": "REBUILD → 2027", "priority": "#3",
+             "top_assets": ["Drake Maye 9,412", "Drake London 6,887", "Sam LaPorta 5,042"],
+             "picks": "4x 2027 R1 · R1(own) + R1(Dudesss) + R1(GNAwin0) + R1(TeddySalad)",
+             "alert": "29 players — cut to 20 by September"},
+            {"league": "Twenty Run Savages", "strategy": "COMPETING NOW", "priority": "#2",
+             "top_assets": ["Drake Maye 9,412", "Bijan Robinson 9,987", "JSN 9,918"],
+             "picks": "2027 R1(Stinky) + R1(own)",
+             "alert": "Draft still ongoing — picks 3.07, 4.03, 4.07 remaining"},
+            {"league": "Gentleman's Dynasty", "strategy": "REBUILD → 2027-28", "priority": "#4",
+             "top_assets": ["Brock Bowers 8,765", "Patrick Mahomes 6,814", "Carnell Tate 5,830"],
+             "picks": "2027 R1(own) · 2028 R1+R2+R3+R4",
+             "alert": "Acquire LaPorta from c1smith11 — #1 priority"},
+            {"league": "Velvet Spade", "strategy": "STARTUP — May 15", "priority": "#1",
+             "top_assets": ["Pick 1.02 overall", "2.11", "3.11"],
+             "picks": "28-round startup — pick #2 overall",
+             "alert": "Draft in 7 days — finalize strategy"}
+        ],
+        "quick_actions": [
+            {"league": "Gentleman's", "action": "Send LaPorta offer to c1smith11", "message": "Njoku and 2027 2nd for LaPorta. Works for both of us."},
+            {"league": "Gentleman's", "action": "Sell McCarthy to SenorHyde", "message": "McCarthy for your 2027 2nd. You need the QB."},
+            {"league": "TRS", "action": "Add K and backup DST via FAAB", "message": "Streaming K and DST needed before Week 1"},
+            {"league": "Velvet Spade", "action": "Finalize startup draft strategy", "message": "6pt TDs — never leave Round 1 without elite QB"}
+        ],
+        "ktc_baseline_date": "May 8, 2026"
+    }
+    return jsonify({"data": data, "success": True})
+
 @app.route('/api/dashboard', methods=['GET'])
 def get_dashboard():
+    """AI-powered dashboard with live web searches — triggered on demand"""
+    # Check cache first (6 hour TTL)
+    conn = sqlite3.connect('dynasty.db')
+    c = conn.cursor()
+    try:
+        c.execute("SELECT data, last_updated FROM dashboard_cache WHERE cache_key='main'")
+        row = c.fetchone()
+        if row:
+            last_updated = datetime.fromisoformat(row[1])
+            if datetime.now() - last_updated < timedelta(hours=6):
+                conn.close()
+                return jsonify({"data": json.loads(row[0]), "success": True, "cached": True,
+                               "cached_at": row[1]})
+    except Exception:
+        pass
+    conn.close()
+
     try:
         response = client.messages.create(
             model="claude-sonnet-4-5",
             max_tokens=2000,
             system=SYSTEM_PROMPT,
             tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 3}],
-            messages=[{"role": "user", "content": """Generate a dynasty GM dashboard for MJBrutus. Use your knowledge of his rosters plus 1-2 web searches for breaking news. Return ONLY valid JSON with no other text:
-{"alerts":[{"type":"warning","league":"Capital Gains","message":"text","action":"what to do"},{"type":"opportunity","league":"Gentleman's","message":"text","action":"what to do"}],
-"news":[{"player":"name","team":"team","position":"QB","leagues":["Capital Gains"],"headline":"news item","impact":"dynasty impact","recommendation":"BUY"},{"player":"name2","team":"team2","position":"WR","leagues":["TRS"],"headline":"news item","impact":"dynasty impact","recommendation":"HOLD"}],
-"movers":[{"player":"name","direction":"up","change":"+200","reason":"why moving","action":"consider selling"}],
-"trade_targets":[{"player":"LaPorta","owner":"c1smith11","league":"Gentleman's","offer":"Njoku and 2027 2nd for LaPorta","rationale":"TE premium upgrade"}],
-"weekly_priorities":["Send LaPorta offer to c1smith11 in Gentleman's","Monitor AJ Brown news for TRS impact","Prep Velvet Spade startup strategy"]}"""}]
+            messages=[{"role": "user", "content": """Generate a dynasty GM dashboard for MJBrutus. Search for 1-2 breaking news items relevant to his rosters. Return ONLY valid JSON:
+{"alerts":[{"type":"warning|info|opportunity","league":"league name","message":"short alert","action":"what to do"}],
+"news":[{"player":"name","team":"team","position":"QB","leagues":["leagues"],"headline":"news","impact":"dynasty impact","recommendation":"BUY|SELL|HOLD|MONITOR"}],
+"movers":[{"player":"name","direction":"up|down","change":"+/-amount","reason":"why","action":"what to do"}],
+"trade_targets":[{"player":"name","owner":"their team","league":"which league","offer":"under 20 words","rationale":"why"}],
+"weekly_priorities":["priority 1","priority 2","priority 3"]}"""}]
         )
-        assistant_message = "".join(b.text for b in response.content if hasattr(b, 'text'))
-        # Clean JSON from response
-        text = assistant_message.strip()
-        # Find JSON object boundaries
+        text = "".join(b.text for b in response.content if hasattr(b, 'text'))
         start = text.find('{')
         end = text.rfind('}') + 1
         if start >= 0 and end > start:
-            text = text[start:end]
-        return jsonify({"data": json.loads(text), "success": True})
+            data = json.loads(text[start:end])
+            # Cache it
+            conn = sqlite3.connect('dynasty.db')
+            c = conn.cursor()
+            c.execute("INSERT OR REPLACE INTO dashboard_cache (cache_key, data, last_updated) VALUES (?, ?, ?)",
+                     ('main', json.dumps(data), datetime.now().isoformat()))
+            conn.commit()
+            conn.close()
+            return jsonify({"data": data, "success": True, "cached": False})
     except Exception as e:
-        # Return fallback dashboard on error
-        fallback = {
-            "alerts": [
-                {"type": "warning", "league": "TRS", "message": "DST currently TB Team Defense — monitor injury reports", "action": "Check waiver wire for streaming options"},
-                {"type": "opportunity", "league": "Gentleman's", "message": "LaPorta on trade block at c1smith11", "action": "Send Njoku + 2027 2nd offer today"}
-            ],
-            "news": [
-                {"player": "Sam LaPorta", "team": "DET", "position": "TE", "leagues": ["Capital Gains", "Gentleman's"], "headline": "Back surgery recovery on track for training camp", "impact": "Buy-low window before value returns", "recommendation": "BUY"},
-                {"player": "Drake Maye", "team": "NE", "position": "QB", "leagues": ["Capital Gains", "TRS", "Gentleman's"], "headline": "AJ Brown trade expected post June 1", "impact": "Adds elite WR1 — Maye value increases", "recommendation": "HOLD"}
-            ],
-            "movers": [
-                {"player": "Carnell Tate", "direction": "up", "change": "+150", "reason": "Strong NFL pre-draft buzz as WR1 in Tennessee", "action": "Hold — core asset"},
-                {"player": "Deshaun Watson", "direction": "down", "change": "-200", "reason": "Sanders expected to win Cleveland starting job", "action": "Sell in TRS if possible"}
-            ],
-            "trade_targets": [
-                {"player": "Sam LaPorta", "owner": "c1smith11", "league": "Gentleman's Dynasty", "offer": "Njoku and 2027 2nd for LaPorta", "rationale": "TE premium league upgrade — #1 offseason priority"},
-                {"player": "JJ McCarthy", "owner": "dcatlet", "league": "Gentleman's Dynasty", "offer": "McCarthy for 2027 2nd to SenorHyde", "rationale": "SenorHyde desperate for QB — convert to picks"}
-            ],
-            "weekly_priorities": [
-                "Send LaPorta offer to c1smith11 in Gentleman's Dynasty",
-                "Finalize Velvet Spade startup draft strategy before May 15",
-                "Sell Deshaun Watson in TRS before value drops further"
-            ]
-        }
-        return jsonify({"data": fallback, "success": True})
+        pass
+
+    # Fallback
+    return jsonify({"data": {
+        "alerts": [{"type": "opportunity", "league": "Gentleman's", "message": "LaPorta on block at c1smith11", "action": "Send Njoku + 2027 2nd offer"}],
+        "news": [{"player": "Drake Maye", "team": "NE", "position": "QB", "leagues": ["Capital Gains", "TRS"], "headline": "AJ Brown trade expected post June 1", "impact": "Maye value increases with elite WR1", "recommendation": "HOLD"}],
+        "movers": [{"player": "Carnell Tate", "direction": "up", "change": "+150", "reason": "Strong pre-draft buzz as TEN WR1", "action": "Hold — core asset"}],
+        "trade_targets": [{"player": "Sam LaPorta", "owner": "c1smith11", "league": "Gentleman's Dynasty", "offer": "Njoku and 2027 2nd for LaPorta", "rationale": "TE premium upgrade"}],
+        "weekly_priorities": ["Send LaPorta offer in Gentleman's", "Finalize Velvet Spade startup strategy", "Complete TRS rookie draft picks"]
+    }, "success": True, "cached": False})
+
 
 @app.route('/api/player/profile', methods=['POST'])
 def get_player_profile():
@@ -595,13 +655,126 @@ def reset_rankings():
 
 @app.route('/api/rankings/pair', methods=['GET'])
 def get_ranking_pair():
+    """Get two players for comparison using tier-proximity matching"""
+    position_filter = request.args.get('position', 'ALL')
     conn = sqlite3.connect('dynasty.db')
     c = conn.cursor()
-    c.execute("SELECT player_name, position, team, elo_score, comparisons FROM player_rankings ORDER BY comparisons ASC, RANDOM() LIMIT 2")
+
+    if position_filter != 'ALL':
+        c.execute("""SELECT player_name, position, team, elo_score, comparisons
+                    FROM player_rankings WHERE position=?
+                    ORDER BY comparisons ASC, RANDOM() LIMIT 50""", (position_filter,))
+    else:
+        c.execute("""SELECT player_name, position, team, elo_score, comparisons
+                    FROM player_rankings ORDER BY comparisons ASC, RANDOM() LIMIT 80""")
+
     rows = c.fetchall()
     conn.close()
+
+    if len(rows) < 2:
+        return jsonify({"players": [], "success": False, "error": "Not enough players"})
+
     players = [{"name": r[0], "position": r[1], "team": r[2], "elo": r[3], "comparisons": r[4]} for r in rows]
-    return jsonify({"players": players, "success": True})
+
+    # Assign KTC tiers based on ELO (maps to KTC value ranges)
+    def get_tier(elo):
+        if elo >= 2800: return 1   # 9000+ KTC
+        if elo >= 2400: return 2   # 7500-8999
+        if elo >= 2000: return 3   # 6000-7499
+        if elo >= 1600: return 4   # 4500-5999
+        if elo >= 1200: return 5   # 3000-4499
+        if elo >= 800:  return 6   # 1500-2999
+        return 7                   # under 1500
+
+    import random
+    # Pick first player with fewest comparisons from top 20
+    pool = sorted(players, key=lambda x: x['comparisons'])
+    p1 = pool[random.randint(0, min(9, len(pool)-1))]
+    p1_tier = get_tier(p1['elo'])
+
+    # Decide tier proximity: 60% same tier, 30% 1 tier apart, 10% up to 3 tiers apart
+    rand = random.random()
+    if rand < 0.60:
+        target_tiers = [p1_tier]
+    elif rand < 0.90:
+        target_tiers = [p1_tier - 1, p1_tier + 1]
+    else:
+        target_tiers = [p1_tier - 3, p1_tier - 2, p1_tier - 1,
+                       p1_tier + 1, p1_tier + 2, p1_tier + 3]
+    target_tiers = [t for t in target_tiers if 1 <= t <= 7]
+
+    # Find p2 candidates in target tiers (excluding p1)
+    p2_candidates = [p for p in players
+                    if p['name'] != p1['name'] and get_tier(p['elo']) in target_tiers]
+
+    if not p2_candidates:
+        # Fallback: any player in adjacent tiers
+        p2_candidates = [p for p in players if p['name'] != p1['name']]
+
+    # Prefer candidates with fewer comparisons
+    p2_candidates.sort(key=lambda x: x['comparisons'])
+    p2 = p2_candidates[random.randint(0, min(9, len(p2_candidates)-1))]
+
+    return jsonify({"players": [p1, p2], "success": True})
+
+@app.route('/api/rankings/adjust', methods=['POST'])
+def adjust_ranking():
+    """Manually adjust a player's ELO up or down"""
+    name = request.json.get('name', '')
+    direction = request.json.get('direction', 'up')  # 'up' or 'down'
+    positions = request.json.get('positions', 5)  # how many spots to move
+
+    conn = sqlite3.connect('dynasty.db')
+    c = conn.cursor()
+
+    # Get current rank
+    c.execute("SELECT elo_score FROM player_rankings WHERE player_name=?", (name,))
+    row = c.fetchone()
+    if not row:
+        conn.close()
+        return jsonify({"success": False, "error": "Player not found"})
+
+    current_elo = row[0]
+
+    # Get the ELO of the player N positions above/below
+    c.execute("""SELECT elo_score FROM player_rankings
+                ORDER BY elo_score DESC""")
+    all_elos = [r[0] for r in c.fetchall()]
+
+    # Find current position
+    try:
+        curr_pos = next(i for i, e in enumerate(all_elos) if abs(e - current_elo) < 0.01)
+    except StopIteration:
+        curr_pos = len(all_elos) // 2
+
+    if direction == 'up':
+        target_pos = max(0, curr_pos - positions)
+    else:
+        target_pos = min(len(all_elos) - 1, curr_pos + positions)
+
+    if target_pos == curr_pos:
+        conn.close()
+        return jsonify({"success": True, "new_elo": current_elo})
+
+    # Set new ELO midpoint between surrounding players
+    if direction == 'up' and target_pos > 0:
+        above_elo = all_elos[target_pos - 1]
+        at_elo = all_elos[target_pos]
+        new_elo = (above_elo + at_elo) / 2
+    elif direction == 'down' and target_pos < len(all_elos) - 1:
+        at_elo = all_elos[target_pos]
+        below_elo = all_elos[target_pos + 1]
+        new_elo = (at_elo + below_elo) / 2
+    else:
+        new_elo = all_elos[target_pos]
+
+    c.execute("UPDATE player_rankings SET elo_score=?, last_updated=? WHERE player_name=?",
+             (new_elo, datetime.now().isoformat(), name))
+    conn.commit()
+    conn.close()
+
+    return jsonify({"success": True, "new_elo": round(new_elo), "moved_to": target_pos + 1})
+
 
 @app.route('/api/rankings/vote', methods=['POST'])
 def submit_vote():
@@ -651,7 +824,145 @@ def add_player():
     conn.close()
     return jsonify({"success": True})
 
-@app.route('/api/trade/evaluate', methods=['POST'])
+@app.route('/api/adp', methods=['GET'])
+def get_adp():
+    """Fetch ADP from Sleeper and Underdog with 6pt TD adjustment option"""
+    adp_type = request.args.get('type', 'dynasty')  # dynasty, startup, redraft
+    scoring = request.args.get('scoring', '4pt')  # 4pt or 6pt
+
+    results = {'players': [], 'source': '', 'type': adp_type, 'scoring': scoring}
+
+    try:
+        if adp_type == 'redraft':
+            # Sleeper trending adds as redraft proxy
+            r = requests.get(
+                'https://api.sleeper.app/v1/players/nfl/trending/add?lookback_hours=168&limit=200',
+                timeout=10)
+            if r.status_code == 200:
+                # Get player names
+                players_r = requests.get('https://api.sleeper.app/v1/players/nfl', timeout=20)
+                if players_r.status_code == 200:
+                    pdb = players_r.json()
+                    adp_list = []
+                    for i, item in enumerate(r.json()):
+                        pid = item.get('player_id', '')
+                        if pid in pdb:
+                            p = pdb[pid]
+                            name = f"{p.get('first_name','')} {p.get('last_name','')}".strip()
+                            pos = p.get('position', '')
+                            team = p.get('team', 'FA') or 'FA'
+                            if pos in ['QB','RB','WR','TE'] and name:
+                                adp_list.append({
+                                    'rank': i + 1, 'name': name,
+                                    'position': pos, 'team': team,
+                                    'adp': i + 1, 'adds': item.get('count', 0)
+                                })
+                    results['players'] = adp_list
+                    results['source'] = 'Sleeper Trending (7-day)'
+
+        elif adp_type == 'startup':
+            # Underdog dynasty startup ADP
+            try:
+                r = requests.get(
+                    'https://api.underdogfantasy.com/v2/player_search?sport=NFL&per_page=200',
+                    headers={'Accept': 'application/json'},
+                    timeout=10)
+                if r.status_code == 200:
+                    data = r.json()
+                    players_raw = data.get('players', data.get('results', []))
+                    adp_list = []
+                    for i, p in enumerate(players_raw[:200]):
+                        name = p.get('full_name') or f"{p.get('first_name','')} {p.get('last_name','')}".strip()
+                        pos = p.get('position', {})
+                        if isinstance(pos, dict):
+                            pos = pos.get('abbreviation', '')
+                        team = p.get('team', {})
+                        if isinstance(team, dict):
+                            team = team.get('abbreviation', 'FA')
+                        if pos in ['QB','RB','WR','TE'] and name:
+                            adp_list.append({
+                                'rank': i + 1, 'name': name,
+                                'position': pos, 'team': team or 'FA',
+                                'adp': i + 1
+                            })
+                    if adp_list:
+                        results['players'] = adp_list
+                        results['source'] = 'Underdog Fantasy ADP'
+            except Exception:
+                pass
+
+            # Fallback to Sleeper trending if Underdog fails
+            if not results['players']:
+                r = requests.get(
+                    'https://api.sleeper.app/v1/players/nfl/trending/add?lookback_hours=720&limit=200',
+                    timeout=10)
+                if r.status_code == 200:
+                    players_r = requests.get('https://api.sleeper.app/v1/players/nfl', timeout=20)
+                    if players_r.status_code == 200:
+                        pdb = players_r.json()
+                        adp_list = []
+                        for i, item in enumerate(r.json()):
+                            pid = item.get('player_id', '')
+                            if pid in pdb:
+                                p = pdb[pid]
+                                name = f"{p.get('first_name','')} {p.get('last_name','')}".strip()
+                                pos = p.get('position', '')
+                                team = p.get('team', 'FA') or 'FA'
+                                if pos in ['QB','RB','WR','TE'] and name:
+                                    adp_list.append({
+                                        'rank': i + 1, 'name': name,
+                                        'position': pos, 'team': team, 'adp': i + 1
+                                    })
+                        results['players'] = adp_list
+                        results['source'] = 'Sleeper Trending (30-day) — Underdog unavailable'
+
+        else:  # dynasty
+            # Sleeper dynasty trending (longer lookback)
+            r = requests.get(
+                'https://api.sleeper.app/v1/players/nfl/trending/add?lookback_hours=720&limit=300',
+                timeout=10)
+            if r.status_code == 200:
+                players_r = requests.get('https://api.sleeper.app/v1/players/nfl', timeout=20)
+                if players_r.status_code == 200:
+                    pdb = players_r.json()
+                    adp_list = []
+                    for i, item in enumerate(r.json()):
+                        pid = item.get('player_id', '')
+                        if pid in pdb:
+                            p = pdb[pid]
+                            name = f"{p.get('first_name','')} {p.get('last_name','')}".strip()
+                            pos = p.get('position', '')
+                            team = p.get('team', 'FA') or 'FA'
+                            if pos in ['QB','RB','WR','TE'] and name:
+                                adp_list.append({
+                                    'rank': i + 1, 'name': name,
+                                    'position': pos, 'team': team, 'adp': i + 1
+                                })
+                    results['players'] = adp_list
+                    results['source'] = 'Sleeper Dynasty Trending (30-day)'
+
+    except Exception as e:
+        results['error'] = str(e)
+
+    # Apply 6pt TD QB adjustment if needed
+    if scoring == '6pt' and results['players']:
+        adjusted = []
+        qbs = [p for p in results['players'] if p['position'] == 'QB']
+        non_qbs = [p for p in results['players'] if p['position'] != 'QB']
+        # Move QBs up ~15% in ranking (multiply rank by 0.85 = move up)
+        for p in qbs:
+            p['adp_adjusted'] = round(p['adp'] * 0.82)
+            p['adp_original'] = p['adp']
+        # Combine and re-sort
+        all_players = qbs + non_qbs
+        all_players.sort(key=lambda x: x.get('adp_adjusted', x['adp']))
+        for i, p in enumerate(all_players):
+            p['rank'] = i + 1
+        results['players'] = all_players
+        results['scoring_note'] = 'QB ranks boosted ~18% for 6pt TD format'
+
+    return jsonify(results)
+
 def evaluate_trade():
     data = request.json
     league = data.get('league', '')
