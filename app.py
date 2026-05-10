@@ -824,105 +824,6 @@ def add_player():
     conn.close()
     return jsonify({"success": True})
 
-@app.route('/api/adp', methods=['GET'])
-def get_adp():
-    """
-    Dynasty rankings from RosterAudit public API (free, no auth required).
-    Docs: https://rosteraudit.com/developers/
-    Returns SuperFlex dynasty values sorted by value descending.
-    """
-    scoring = request.args.get('scoring', '4pt')  # 4pt or 6pt
-    per_page = 200
-
-    try:
-        r = requests.get(
-            f'https://rosteraudit.com/wp-json/ra/v1/rankings?format=sf&per_page={per_page}',
-            headers={'User-Agent': 'DynastyGM/1.0', 'Accept': 'application/json'},
-            timeout=15
-        )
-        if r.status_code == 200:
-            data = r.json()
-            players_raw = data.get('players', data) if isinstance(data, dict) else data
-            if not isinstance(players_raw, list):
-                players_raw = []
-
-            players = []
-            for p in players_raw:
-                name = p.get('name', '')
-                pos = p.get('position', '')
-                team = p.get('team', 'FA') or 'FA'
-                val = p.get('val_sf', p.get('value', 0)) or 0
-                trend7 = p.get('trend_7d', 0) or 0
-                trend30 = p.get('trend_30d', 0) or 0
-                age = p.get('age', 0) or 0
-
-                if pos in ['QB','RB','WR','TE'] and name and val > 0:
-                    players.append({
-                        'name': name, 'position': pos, 'team': team,
-                        'value': val, 'trend_7d': trend7, 'trend_30d': trend30,
-                        'age': round(age, 1) if age else None,
-                    })
-
-            # Sort by value descending
-            players.sort(key=lambda x: x['value'], reverse=True)
-
-            # Apply 6pt TD QB boost if needed
-            if scoring == '6pt':
-                for p in players:
-                    if p['position'] == 'QB':
-                        p['value_adjusted'] = round(p['value'] * 1.18)
-                        p['value_original'] = p['value']
-                        p['value'] = p['value_adjusted']
-                players.sort(key=lambda x: x['value'], reverse=True)
-
-            # Assign final ranks
-            for i, p in enumerate(players):
-                p['rank'] = i + 1
-
-            scoring_note = 'QB values boosted 18% for 6pt TD format' if scoring == '6pt' else ''
-            return jsonify({
-                'players': players,
-                'source': 'RosterAudit (SuperFlex Dynasty)',
-                'scoring': scoring,
-                'scoring_note': scoring_note,
-                'total': len(players),
-                'success': True
-            })
-
-    except Exception as e:
-        print(f"RosterAudit error: {e}")
-
-    return jsonify({
-        'players': [], 'source': 'RosterAudit unavailable',
-        'scoring': scoring, 'success': False,
-        'error': 'Could not fetch rankings. Try again in a moment.'
-    })
-
-
-
-def evaluate_trade():
-    data = request.json
-    league = data.get('league', '')
-    giving = data.get('giving', [])
-    receiving = data.get('receiving', [])
-    try:
-        response = client.messages.create(
-            model="claude-sonnet-4-5",
-            max_tokens=1500,
-            system=SYSTEM_PROMPT,
-            tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 3}],
-            messages=[{"role": "user", "content": f"""Evaluate this trade for {league}:
-GIVING: {', '.join(giving)}
-RECEIVING: {', '.join(receiving)}
-Return ONLY valid JSON:
-{{"verdict":"ACCEPT|DECLINE|COUNTER","value_giving":0,"value_receiving":0,"surplus_pct":0,"within_threshold":true,"analysis":"","my_perspective":"","their_perspective":"","counter":"","trade_message":"under 20 words","positional_fit":"","strategy_fit":""}}"""}]
-        )
-        assistant_message = "".join(b.text for b in response.content if hasattr(b, 'text'))
-        cleaned = assistant_message.strip().lstrip('```json').lstrip('```').rstrip('```').strip()
-        return jsonify({"result": json.loads(cleaned), "success": True})
-    except Exception as e:
-        return jsonify({"error": str(e), "success": False})
-
 @app.route('/api/draft/chart', methods=['GET'])
 def get_draft_chart():
     chart = {
@@ -1142,24 +1043,8 @@ def get_composite_rankings():
         pass
     conn.close()
 
-    # 3. Sleeper ADP from trending
+    # 3. Sleeper ADP placeholder (removed live fetch — unreliable from datacenter)
     sleeper_ranks = {}
-    try:
-        r = requests.get('https://api.sleeper.app/v1/players/nfl/trending/add?lookback_hours=168&limit=300',
-                        timeout=8)
-        if r.status_code == 200:
-            # Also get player names
-            players_r = requests.get('https://api.sleeper.app/v1/players/nfl', timeout=15)
-            if players_r.status_code == 200:
-                players_db = players_r.json()
-                for i, item in enumerate(r.json()):
-                    pid = item.get('player_id', '')
-                    if pid in players_db:
-                        p = players_db[pid]
-                        name = f"{p.get('first_name','')} {p.get('last_name','')}".strip()
-                        sleeper_ranks[name] = i + 1
-    except:
-        pass
 
     # 4. Build composite scores
     all_players = set(personal_ranks.keys())
