@@ -826,142 +826,79 @@ def add_player():
 
 @app.route('/api/adp', methods=['GET'])
 def get_adp():
-    """Fetch ADP from Sleeper and Underdog with 6pt TD adjustment option"""
-    adp_type = request.args.get('type', 'dynasty')  # dynasty, startup, redraft
+    """
+    Dynasty rankings from RosterAudit public API (free, no auth required).
+    Docs: https://rosteraudit.com/developers/
+    Returns SuperFlex dynasty values sorted by value descending.
+    """
     scoring = request.args.get('scoring', '4pt')  # 4pt or 6pt
-
-    results = {'players': [], 'source': '', 'type': adp_type, 'scoring': scoring}
+    per_page = 200
 
     try:
-        if adp_type == 'redraft':
-            # Sleeper trending adds as redraft proxy
-            r = requests.get(
-                'https://api.sleeper.app/v1/players/nfl/trending/add?lookback_hours=168&limit=200',
-                timeout=10)
-            if r.status_code == 200:
-                # Get player names
-                players_r = requests.get('https://api.sleeper.app/v1/players/nfl', timeout=20)
-                if players_r.status_code == 200:
-                    pdb = players_r.json()
-                    adp_list = []
-                    for i, item in enumerate(r.json()):
-                        pid = item.get('player_id', '')
-                        if pid in pdb:
-                            p = pdb[pid]
-                            name = f"{p.get('first_name','')} {p.get('last_name','')}".strip()
-                            pos = p.get('position', '')
-                            team = p.get('team', 'FA') or 'FA'
-                            if pos in ['QB','RB','WR','TE'] and name:
-                                adp_list.append({
-                                    'rank': i + 1, 'name': name,
-                                    'position': pos, 'team': team,
-                                    'adp': i + 1, 'adds': item.get('count', 0)
-                                })
-                    results['players'] = adp_list
-                    results['source'] = 'Sleeper Trending (7-day)'
+        r = requests.get(
+            f'https://rosteraudit.com/wp-json/ra/v1/rankings?format=sf&per_page={per_page}',
+            headers={'User-Agent': 'DynastyGM/1.0', 'Accept': 'application/json'},
+            timeout=15
+        )
+        if r.status_code == 200:
+            data = r.json()
+            players_raw = data.get('players', data) if isinstance(data, dict) else data
+            if not isinstance(players_raw, list):
+                players_raw = []
 
-        elif adp_type == 'startup':
-            # Underdog dynasty startup ADP
-            try:
-                r = requests.get(
-                    'https://api.underdogfantasy.com/v2/player_search?sport=NFL&per_page=200',
-                    headers={'Accept': 'application/json'},
-                    timeout=10)
-                if r.status_code == 200:
-                    data = r.json()
-                    players_raw = data.get('players', data.get('results', []))
-                    adp_list = []
-                    for i, p in enumerate(players_raw[:200]):
-                        name = p.get('full_name') or f"{p.get('first_name','')} {p.get('last_name','')}".strip()
-                        pos = p.get('position', {})
-                        if isinstance(pos, dict):
-                            pos = pos.get('abbreviation', '')
-                        team = p.get('team', {})
-                        if isinstance(team, dict):
-                            team = team.get('abbreviation', 'FA')
-                        if pos in ['QB','RB','WR','TE'] and name:
-                            adp_list.append({
-                                'rank': i + 1, 'name': name,
-                                'position': pos, 'team': team or 'FA',
-                                'adp': i + 1
-                            })
-                    if adp_list:
-                        results['players'] = adp_list
-                        results['source'] = 'Underdog Fantasy ADP'
-            except Exception:
-                pass
+            players = []
+            for p in players_raw:
+                name = p.get('name', '')
+                pos = p.get('position', '')
+                team = p.get('team', 'FA') or 'FA'
+                val = p.get('val_sf', p.get('value', 0)) or 0
+                trend7 = p.get('trend_7d', 0) or 0
+                trend30 = p.get('trend_30d', 0) or 0
+                age = p.get('age', 0) or 0
 
-            # Fallback to Sleeper trending if Underdog fails
-            if not results['players']:
-                r = requests.get(
-                    'https://api.sleeper.app/v1/players/nfl/trending/add?lookback_hours=720&limit=200',
-                    timeout=10)
-                if r.status_code == 200:
-                    players_r = requests.get('https://api.sleeper.app/v1/players/nfl', timeout=20)
-                    if players_r.status_code == 200:
-                        pdb = players_r.json()
-                        adp_list = []
-                        for i, item in enumerate(r.json()):
-                            pid = item.get('player_id', '')
-                            if pid in pdb:
-                                p = pdb[pid]
-                                name = f"{p.get('first_name','')} {p.get('last_name','')}".strip()
-                                pos = p.get('position', '')
-                                team = p.get('team', 'FA') or 'FA'
-                                if pos in ['QB','RB','WR','TE'] and name:
-                                    adp_list.append({
-                                        'rank': i + 1, 'name': name,
-                                        'position': pos, 'team': team, 'adp': i + 1
-                                    })
-                        results['players'] = adp_list
-                        results['source'] = 'Sleeper Trending (30-day) — Underdog unavailable'
+                if pos in ['QB','RB','WR','TE'] and name and val > 0:
+                    players.append({
+                        'name': name, 'position': pos, 'team': team,
+                        'value': val, 'trend_7d': trend7, 'trend_30d': trend30,
+                        'age': round(age, 1) if age else None,
+                    })
 
-        else:  # dynasty
-            # Sleeper dynasty trending (longer lookback)
-            r = requests.get(
-                'https://api.sleeper.app/v1/players/nfl/trending/add?lookback_hours=720&limit=300',
-                timeout=10)
-            if r.status_code == 200:
-                players_r = requests.get('https://api.sleeper.app/v1/players/nfl', timeout=20)
-                if players_r.status_code == 200:
-                    pdb = players_r.json()
-                    adp_list = []
-                    for i, item in enumerate(r.json()):
-                        pid = item.get('player_id', '')
-                        if pid in pdb:
-                            p = pdb[pid]
-                            name = f"{p.get('first_name','')} {p.get('last_name','')}".strip()
-                            pos = p.get('position', '')
-                            team = p.get('team', 'FA') or 'FA'
-                            if pos in ['QB','RB','WR','TE'] and name:
-                                adp_list.append({
-                                    'rank': i + 1, 'name': name,
-                                    'position': pos, 'team': team, 'adp': i + 1
-                                })
-                    results['players'] = adp_list
-                    results['source'] = 'Sleeper Dynasty Trending (30-day)'
+            # Sort by value descending
+            players.sort(key=lambda x: x['value'], reverse=True)
+
+            # Apply 6pt TD QB boost if needed
+            if scoring == '6pt':
+                for p in players:
+                    if p['position'] == 'QB':
+                        p['value_adjusted'] = round(p['value'] * 1.18)
+                        p['value_original'] = p['value']
+                        p['value'] = p['value_adjusted']
+                players.sort(key=lambda x: x['value'], reverse=True)
+
+            # Assign final ranks
+            for i, p in enumerate(players):
+                p['rank'] = i + 1
+
+            scoring_note = 'QB values boosted 18% for 6pt TD format' if scoring == '6pt' else ''
+            return jsonify({
+                'players': players,
+                'source': 'RosterAudit (SuperFlex Dynasty)',
+                'scoring': scoring,
+                'scoring_note': scoring_note,
+                'total': len(players),
+                'success': True
+            })
 
     except Exception as e:
-        results['error'] = str(e)
+        print(f"RosterAudit error: {e}")
 
-    # Apply 6pt TD QB adjustment if needed
-    if scoring == '6pt' and results['players']:
-        adjusted = []
-        qbs = [p for p in results['players'] if p['position'] == 'QB']
-        non_qbs = [p for p in results['players'] if p['position'] != 'QB']
-        # Move QBs up ~15% in ranking (multiply rank by 0.85 = move up)
-        for p in qbs:
-            p['adp_adjusted'] = round(p['adp'] * 0.82)
-            p['adp_original'] = p['adp']
-        # Combine and re-sort
-        all_players = qbs + non_qbs
-        all_players.sort(key=lambda x: x.get('adp_adjusted', x['adp']))
-        for i, p in enumerate(all_players):
-            p['rank'] = i + 1
-        results['players'] = all_players
-        results['scoring_note'] = 'QB ranks boosted ~18% for 6pt TD format'
+    return jsonify({
+        'players': [], 'source': 'RosterAudit unavailable',
+        'scoring': scoring, 'success': False,
+        'error': 'Could not fetch rankings. Try again in a moment.'
+    })
 
-    return jsonify(results)
+
 
 def evaluate_trade():
     data = request.json
