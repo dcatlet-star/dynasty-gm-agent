@@ -304,13 +304,11 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);displa
       <div class="home-greeting">War Room</div>
       <div class="home-date" id="home-date"></div>
       <div class="home-refresh">
-        <button class="btn btn-primary btn-sm" onclick="loadDashboard()">↻ Refresh Dashboard</button>
+        <button class="btn btn-primary btn-sm" onclick="getIntel()">⚡ Get Live Intel</button>
         <button class="btn btn-secondary btn-sm" onclick="syncSleeper()">⟳ Sync Sleeper</button>
       </div>
     </div>
-    <div id="dashboard-content">
-      <div class="loading" style="padding:60px 24px;"><div class="spinner"></div><div class="loading-text">LOADING WAR ROOM...</div></div>
-    </div>
+    <div id="dashboard-content"></div>
   </div>
 
   <!-- CHAT -->
@@ -385,6 +383,7 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);displa
       <div class="rankings-tab active" onclick="showRankingsTab(this,'matchup')">Head-to-Head</div>
       <div class="rankings-tab" onclick="showRankingsTab(this,'list')">My Rankings</div>
       <div class="rankings-tab" onclick="showRankingsTab(this,'add')">Add Players</div>
+      <div class="rankings-tab" onclick="showRankingsTab(this,'adp')">ADP</div>
     </div>
     <div class="rankings-content" id="rankings-content"></div>
   </div>
@@ -696,17 +695,69 @@ function showPage(page, el) {
 // ── HOME ──
 document.getElementById('home-date').textContent = new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
 
-async function loadDashboard() {
-  document.getElementById('dashboard-content').innerHTML = '<div class="loading" style="padding:60px 24px;"><div class="spinner"></div><div class="loading-text">FETCHING LIVE DATA...</div></div>';
+async function loadDashboard() { loadStaticDashboard(); }
+
+async function loadStaticDashboard() {
+  try {
+    const r = await fetch('/api/dashboard/static');
+    const data = await r.json();
+    if(data.success) renderStaticDashboard(data.data);
+  } catch(e) {
+    document.getElementById('dashboard-content').innerHTML = '<div class="section"><div class="card"><p style="color:var(--text2);font-size:13px;">Connection error.</p></div></div>';
+  }
+}
+
+function renderStaticDashboard(d) {
+  let html = '<div class="section"><div class="section-title">📋 League Snapshot</div>';
+  (d.roster_summary||[]).forEach(lg => {
+    const pColor = lg.priority==='#1'?'var(--gold)':lg.priority==='#2'?'var(--accent)':'var(--text2)';
+    html += `<div class="card" style="margin-bottom:8px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;">
+        <div style="font-family:'Bebas Neue';font-size:15px;letter-spacing:1.5px;">${lg.league}</div>
+        <span style="font-size:10px;font-weight:700;color:${pColor};">${lg.priority}</span>
+      </div>
+      <div style="font-size:11px;color:var(--accent);font-weight:600;margin-bottom:3px;">${lg.strategy}</div>
+      <div style="font-size:11px;color:var(--text2);margin-bottom:3px;">${lg.picks}</div>
+      ${lg.alert?`<div style="font-size:11px;color:var(--gold);padding:4px 8px;background:rgba(240,192,64,0.1);border-radius:6px;margin-top:4px;">⚡ ${lg.alert}</div>`:''}
+    </div>`;
+  });
+  html += '</div>';
+  if(d.quick_actions?.length){
+    html += '<div class="section"><div class="section-title">🎯 Quick Actions</div>';
+    d.quick_actions.forEach(a=>{
+      const safeMsg=(a.message||'').replace(/'/g,"\\'");
+      html+=`<div style="padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;margin-bottom:6px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <div style="font-size:13px;font-weight:700;">${a.action}</div>
+          <span style="font-size:10px;color:var(--text2);">${a.league}</span>
+        </div>
+        <div style="font-size:11px;color:var(--text2);font-family:'JetBrains Mono';padding:5px 8px;background:var(--surface3);border-radius:6px;border-left:2px solid var(--accent);">"${a.message}"</div>
+        <button class="btn btn-ghost btn-sm" style="margin-top:6px;" onclick="copyText('${safeMsg}')">📋 Copy</button>
+      </div>`;
+    });
+    html += '</div>';
+  }
+  html += `<div style="padding:8px 16px 16px;font-size:10px;color:var(--text2);">KTC baseline: ${d.ktc_baseline_date||'May 8 2026'} · Tap ⚡ Get Live Intel for AI news & trade targets</div>`;
+  document.getElementById('dashboard-content').innerHTML = html;
+}
+
+async function getIntel() {
+  document.getElementById('dashboard-content').innerHTML = '<div class="loading" style="padding:60px 24px;"><div class="spinner"></div><div class="loading-text">FETCHING LIVE INTEL...</div><p style="font-size:11px;color:var(--text2);margin-top:8px;">Searching news & opportunities...</p></div>';
   try {
     const r = await fetch('/api/dashboard');
     const data = await r.json();
-    if(data.success) renderDashboard(data.data);
-    else document.getElementById('dashboard-content').innerHTML = '<div class="section"><div class="card"><p style="color:var(--text2);font-size:13px;">Dashboard load failed. Check your API key and try again.</p></div></div>';
-  } catch(e) {
-    document.getElementById('dashboard-content').innerHTML = '<div class="section"><div class="card"><p style="color:var(--text2);font-size:13px;">Connection error. Make sure the app is running.</p></div></div>';
-  }
+    if(data.success){
+      renderDashboard(data.data);
+      if(data.cached){
+        const note = document.createElement('div');
+        note.style.cssText='padding:6px 16px;font-size:10px;color:var(--text2);';
+        note.textContent=`Cached · refreshes every 6h`;
+        document.getElementById('dashboard-content').appendChild(note);
+      }
+    } else loadStaticDashboard();
+  } catch(e){ loadStaticDashboard(); }
 }
+
 
 function renderDashboard(d) {
   let html = '';
@@ -1013,9 +1064,11 @@ function showRankingsTab(el,tab){
 }
 async function renderRankingsTab(tab){
   const content=document.getElementById('rankings-content');
-  if(tab==='matchup') await renderMatchup(content);
-  else if(tab==='list') await renderRankingsList(content);
-  else renderAddPlayer(content);
+  if(tab==='matchup') await renderMatchupInComposite ? null : renderMatchup(content); // handled by composite page
+  if(tab==='matchup') { document.getElementById('composite-content') ? null : await renderMatchup(content); return; }
+  if(tab==='list') await renderRankingsList(content);
+  else if(tab==='add') renderAddPlayer(content);
+  else if(tab==='adp') await renderADPTab(content);
 }
 
 async function renderMatchup(content){
@@ -1070,12 +1123,15 @@ async function renderRankingsList(content){
     let html='';
     data.rankings.forEach(p=>{
       const idx=encodePlayerName(p.name);
-      html+=`<div class="rank-item" onclick="openProfile(${idx})">
+      html+=`<div class="rank-item" style="gap:6px;">
         <div class="rank-num">${p.rank}</div>
         <div class="pos-badge pos-${p.position}">${p.position}</div>
-        <div class="rank-info"><div class="rank-name">${p.name}</div><div class="rank-meta">${p.team} · ${p.comparisons} comps</div></div>
-        <div class="rank-elo">${p.elo}</div>
-      </div>`;
+        <div class="rank-info" style="cursor:pointer;" onclick="openProfile(${idx})"><div class="rank-name">${p.name}</div><div class="rank-meta">${p.team} · ${p.comparisons} comps · ${p.elo}</div></div>
+        <div style="display:flex;flex-direction:column;gap:2px;flex-shrink:0;">
+          <button onclick="adjustRank('${p.name.replace(/'/g,'\\'')}','up')" style="background:rgba(61,220,132,0.15);border:1px solid rgba(61,220,132,0.3);color:var(--green);border-radius:4px;padding:2px 6px;font-size:11px;cursor:pointer;font-weight:700;">▲</button>
+          <button onclick="adjustRank('${p.name.replace(/'/g,'\\'')}','down')" style="background:rgba(255,92,92,0.15);border:1px solid rgba(255,92,92,0.3);color:var(--accent2);border-radius:4px;padding:2px 6px;font-size:11px;cursor:pointer;font-weight:700;">▼</button>
+        </div>
+      </div>`; 
     });
     content.innerHTML=html||'<div class="empty-state"><div class="empty-sub">No rankings yet. Start comparing!</div></div>';
   }catch(e){content.innerHTML='<div class="empty-state"><div class="empty-sub">Error loading rankings.</div></div>';}
@@ -1342,47 +1398,59 @@ function setRankView(btn, view) {
   }
 }
 
+let matchupPosFilter = 'ALL';
+function setMatchupPos(pos) {
+  matchupPosFilter = pos;
+  renderMatchupInComposite();
+}
+
 async function renderMatchupInComposite() {
   document.getElementById('composite-content').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  const filterHtml = `<div style="display:flex;gap:5px;margin-bottom:10px;flex-wrap:wrap;align-items:center;">
+    <span style="font-size:10px;color:var(--text2);">FILTER:</span>
+    ${['ALL','QB','RB','WR','TE'].map(p => `<button class="chip ${p===matchupPosFilter?'active':''}" onclick="setMatchupPos('${p}')">${p}</button>`).join('')}
+  </div>`;
   try {
-    const r = await fetch('/api/rankings/pair');
+    const r = await fetch('/api/rankings/pair?position=' + matchupPosFilter);
     const data = await r.json();
     if (!data.success || data.players.length < 2) {
-      document.getElementById('composite-content').innerHTML = '<div class="empty-state"><div class="empty-sub">Need more players. Go to Add Players tab first.</div></div>';
+      document.getElementById('composite-content').innerHTML = filterHtml + '<div class="empty-state"><div class="empty-sub">Not enough players in this position. Try All or Reset Pool.</div></div>';
       return;
     }
     const [p1, p2] = data.players;
     currentMatchupPlayers = [p1, p2];
     const progress = Math.min((totalComparisons / 100) * 100, 100);
-    document.getElementById('composite-content').innerHTML = `
+    const p1p = p1.position||'WR', p2p = p2.position||'WR';
+    document.getElementById('composite-content').innerHTML = filterHtml + `
       <div class="matchup-card">
         <div class="matchup-title">WHO WOULD YOU RATHER HAVE?</div>
         <div class="matchup-vs">
           <div class="matchup-player" onclick="voteComposite(0)">
-            <span class="matchup-pos-badge pos-${p1.position||'WR'}" style="background:rgba(79,158,255,0.15);color:var(--accent);font-size:10px;padding:3px 8px;border-radius:6px;">${p1.position||'?'}</span>
+            <span class="matchup-pos-badge pos-${p1p}" style="background:rgba(79,158,255,0.15);color:var(--accent);font-size:10px;padding:3px 8px;border-radius:6px;">${p1p}</span>
             <span class="matchup-name">${p1.name}</span>
             <span class="matchup-team">${p1.team||''}</span>
+            <span style="font-size:9px;color:var(--text2);">ELO ${Math.round(p1.elo)}</span>
           </div>
           <div class="vs-divider">VS</div>
           <div class="matchup-player" onclick="voteComposite(1)">
-            <span class="matchup-pos-badge pos-${p2.position||'WR'}" style="background:rgba(79,158,255,0.15);color:var(--accent);font-size:10px;padding:3px 8px;border-radius:6px;">${p2.position||'?'}</span>
+            <span class="matchup-pos-badge pos-${p2p}" style="background:rgba(79,158,255,0.15);color:var(--accent);font-size:10px;padding:3px 8px;border-radius:6px;">${p2p}</span>
             <span class="matchup-name">${p2.name}</span>
             <span class="matchup-team">${p2.team||''}</span>
+            <span style="font-size:9px;color:var(--text2);">ELO ${Math.round(p2.elo)}</span>
           </div>
         </div>
         <div class="progress-label">${totalComparisons} comparisons · ${Math.round(progress)}% to reliable rankings</div>
         <div class="progress-bar"><div class="progress-fill" style="width:${progress}%"></div></div>
         <div style="display:flex;gap:8px;margin-top:10px;">
           <button class="skip-btn" style="flex:1;" onclick="renderMatchupInComposite()">Skip →</button>
-          <button class="btn btn-ghost btn-sm" style="flex:1;" onclick="showAddPlayers()">Add Players</button>
-          <button class="btn btn-secondary btn-sm" style="flex:1;" onclick="resetRankings()">↺ Reset Pool</button>
+          <button class="btn btn-ghost btn-sm" style="flex:1;" onclick="showAddPlayers()">Manage</button>
+          <button class="btn btn-secondary btn-sm" style="flex:1;" onclick="resetRankings()">↺ Reset</button>
         </div>
       </div>`;
   } catch(e) {
-    document.getElementById('composite-content').innerHTML = '<div class="empty-state"><div class="empty-sub">Error loading comparison.</div></div>';
+    document.getElementById('composite-content').innerHTML = filterHtml + '<div class="empty-state"><div class="empty-sub">Error loading.</div></div>';
   }
 }
-
 async function voteComposite(winnerIdx) {
   if (currentMatchupPlayers.length < 2) return;
   const winner = currentMatchupPlayers[winnerIdx].name;
@@ -1689,11 +1757,125 @@ showDraftTab = function(el, tab) {
   }
 };
 
+// ── MANUAL RANK ADJUST ──
+async function adjustRank(name, direction) {
+  try {
+    const r = await fetch('/api/rankings/adjust', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({name, direction, positions: 5})
+    });
+    const data = await r.json();
+    if (data.success) {
+      // Refresh the rankings list
+      await renderRankingsList(document.getElementById('rankings-content'));
+    }
+  } catch(e) { console.error('Adjust error:', e); }
+}
+
+// ── ADP TAB ──
+let adpType = 'dynasty';
+let adpScoring = '4pt';
+let adpData = [];
+let adpPosFilter = 'ALL';
+
+function showADPTab() {
+  showRankingsTab(document.querySelectorAll('.rankings-tab')[3], 'adp');
+}
+
+async function renderADPTab(content) {
+  content.innerHTML = `
+    <div style="padding:12px;">
+      <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;">
+        <button class="chip ${adpType==='dynasty'?'active':''}" onclick="setADPType(this,'dynasty')">Dynasty</button>
+        <button class="chip ${adpType==='startup'?'active':''}" onclick="setADPType(this,'startup')">Startup</button>
+        <button class="chip ${adpType==='redraft'?'active':''}" onclick="setADPType(this,'redraft')">Redraft</button>
+        <div style="margin-left:auto;display:flex;gap:6px;">
+          <button class="chip ${adpScoring==='4pt'?'active':''}" onclick="setADPScoring(this,'4pt')">4pt TDs</button>
+          <button class="chip ${adpScoring==='6pt'?'active':''}" onclick="setADPScoring(this,'6pt')">6pt TDs</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:5px;margin-bottom:8px;flex-wrap:wrap;">
+        ${['ALL','QB','RB','WR','TE'].map(p=>`<button class="chip ${p===adpPosFilter?'active':''}" onclick="setADPPos(this,'${p}')">${p}</button>`).join('')}
+      </div>
+      <div id="adp-list"><div class="loading"><div class="spinner"></div><div class="loading-text">LOADING ADP...</div></div></div>
+    </div>`;
+  await fetchADP();
+}
+
+function setADPType(btn, type) {
+  document.querySelectorAll('#rankings-content .chip').forEach(c => {
+    if (['Dynasty','Startup','Redraft'].includes(c.textContent)) c.classList.remove('active');
+  });
+  btn.classList.add('active');
+  adpType = type;
+  fetchADP();
+}
+
+function setADPScoring(btn, scoring) {
+  adpScoring = scoring;
+  if (adpData.length) renderADPList();
+  else fetchADP();
+}
+
+function setADPPos(btn, pos) {
+  adpPosFilter = pos;
+  renderADPList();
+}
+
+async function fetchADP() {
+  const el = document.getElementById('adp-list');
+  if (!el) return;
+  el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  try {
+    const r = await fetch('/api/adp?type=' + adpType + '&scoring=' + adpScoring);
+    const data = await r.json();
+    adpData = data.players || [];
+    const sourceEl = document.createElement('div');
+    sourceEl.style.cssText = 'font-size:10px;color:var(--text2);padding:4px 0 8px;';
+    sourceEl.textContent = 'Source: ' + (data.source || 'Unknown');
+    if (data.scoring_note) sourceEl.textContent += ' · ' + data.scoring_note;
+    el.innerHTML = '';
+    el.appendChild(sourceEl);
+    renderADPList();
+  } catch(e) {
+    if (el) el.innerHTML = '<div class="empty-state"><div class="empty-sub">Error loading ADP.</div></div>';
+  }
+}
+
+function renderADPList() {
+  const el = document.getElementById('adp-list');
+  if (!el) return;
+  const filtered = adpPosFilter === 'ALL' ? adpData : adpData.filter(p => p.position === adpPosFilter);
+  const source = el.firstChild;
+  let html = '';
+  filtered.slice(0, 150).forEach(p => {
+    const adjRank = p.rank;
+    const origRank = p.adp_original ? ` <span style="color:var(--text2);font-size:10px;">(was ${p.adp_original})</span>` : '';
+    html += `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;margin-bottom:4px;">
+      <div style="font-family:'JetBrains Mono';font-size:12px;color:var(--text2);width:28px;flex-shrink:0;">${adjRank}</div>
+      <div class="pos-badge pos-${p.position}" style="width:24px;height:24px;font-size:9px;">${p.position}</div>
+      <div style="flex:1;">
+        <div style="font-size:13px;font-weight:700;">${p.name}${origRank}</div>
+        <div style="font-size:10px;color:var(--text2);">${p.team||'FA'}</div>
+      </div>
+    </div>`;
+  });
+  if (!filtered.length) html = '<div class="empty-state"><div class="empty-sub">No ADP data. Try a different type.</div></div>';
+  
+  // Keep source div, replace rest
+  el.innerHTML = '';
+  if (source) el.appendChild(source);
+  const listDiv = document.createElement('div');
+  listDiv.innerHTML = html;
+  el.appendChild(listDiv);
+}
+
 // ── INIT ──
 renderRoster('CG');
 renderDraftTab('chart');
 renderRankingsTab('matchup');
-loadDashboard();
+loadStaticDashboard();
 loadDraftState();
 
 </script>
