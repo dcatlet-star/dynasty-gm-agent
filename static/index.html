@@ -1013,24 +1013,14 @@ async function renderADPSection(el) {
     const active = p === adpPosFilter ? ' active' : '';
     return '<button class="chip' + active + '" data-adppos="' + p + '">' + p + '</button>';
   }).join('');
-  el.innerHTML = '<div style="display:flex;gap:5px;margin-bottom:8px;flex-wrap:wrap;">' +
-    '<button class="chip' + (adpType==='dynasty'?' active':'') + '" data-adptype="dynasty">Dynasty</button>' +
-    '<button class="chip' + (adpType==='startup'?' active':'') + '" data-adptype="startup">Startup</button>' +
-    '<button class="chip' + (adpType==='redraft'?' active':'') + '" data-adptype="redraft">Redraft</button>' +
-    '<div style="margin-left:auto;display:flex;gap:5px;">' +
-    '<button class="chip' + (adpScoring==='4pt'?' active':'') + '" data-adpscoring="4pt">4pt</button>' +
-    '<button class="chip' + (adpScoring==='6pt'?' active':'') + '" data-adpscoring="6pt">6pt</button></div></div>' +
-    '<div style="display:flex;gap:5px;margin-bottom:8px;flex-wrap:wrap;">' + posHtml + '</div>' +
-    '<div id="adp-list"><div class="spin-wrap"><div class="spin"></div></div></div>';
-  // Attach events
-  el.querySelectorAll('[data-adptype]').forEach(btn => {
-    btn.addEventListener('click', function() {
-      el.querySelectorAll('[data-adptype]').forEach(b => b.classList.remove('active'));
-      this.classList.add('active');
-      adpType = this.dataset.adptype;
-      fetchADP();
-    });
-  });
+  el.innerHTML =
+    '<div style="display:flex;gap:5px;margin-bottom:8px;flex-wrap:wrap;align-items:center;">' +
+    '<span style="font-size:10px;color:var(--t2);font-weight:700;">SCORING:</span>' +
+    '<button class="chip' + (adpScoring==='4pt'?' active':'') + '" data-adpscoring="4pt">4pt TDs</button>' +
+    '<button class="chip' + (adpScoring==='6pt'?' active':'') + '" data-adpscoring="6pt">6pt TDs</button>' +
+    '</div>' +
+    '<div style="display:flex;gap:5px;margin-bottom:10px;flex-wrap:wrap;">' + posHtml + '</div>' +
+    '<div id="adp-list"><div class="spin-wrap"><div class="spin"></div><div class="spin-txt">LOADING RANKINGS...</div></div></div>';
   el.querySelectorAll('[data-adpscoring]').forEach(btn => {
     btn.addEventListener('click', function() {
       el.querySelectorAll('[data-adpscoring]').forEach(b => b.classList.remove('active'));
@@ -1054,33 +1044,46 @@ async function renderADPSection(el) {
 async function fetchADP() {
   const el = document.getElementById('adp-list');
   if (!el) return;
-  el.innerHTML = '<div class="spin-wrap"><div class="spin"></div></div>';
+  el.innerHTML = '<div class="spin-wrap"><div class="spin"></div><div class="spin-txt">LOADING RANKINGS...</div></div>';
   try {
-    const r = await fetch('/api/adp?type=' + adpType + '&scoring=' + adpScoring);
+    const r = await fetch('/api/adp?scoring=' + adpScoring);
     const d = await r.json();
     adpData = d.players || [];
-    let src = '<div style="font-size:9px;color:var(--t2);margin-bottom:8px;">Source: ' + (d.source||'Unknown') + (d.scoring_note ? ' · ' + d.scoring_note : '') + '</div>';
-    el.innerHTML = src;
+    const srcNote = d.source + (d.scoring_note ? ' · ' + d.scoring_note : '');
+    el.innerHTML = '<div class="adp-source" style="font-size:9px;color:var(--t2);margin-bottom:8px;padding:5px 7px;background:var(--s2);border-radius:5px;">📊 ' + srcNote + '</div>';
+    if (!d.success || !adpData.length) {
+      el.innerHTML += '<div class="empty">Rankings unavailable. RosterAudit may be temporarily down.</div>';
+      return;
+    }
     renderADPList();
   } catch(e) {
-    if (el) el.innerHTML = '<div class="empty">Error loading ADP.</div>';
+    if (el) el.innerHTML = '<div class="empty">Error loading rankings.</div>';
   }
 }
 
 function renderADPList() {
   const el = document.getElementById('adp-list');
   if (!el) return;
-  const src = el.firstChild;
+  const src = el.querySelector('.adp-source');
   const filtered = adpPosFilter === 'ALL' ? adpData : adpData.filter(p => p.position === adpPosFilter);
   let html = '';
-  filtered.slice(0,150).forEach(p => {
-    const orig = p.adp_original ? ' <span style="color:var(--t2);font-size:9px;">(was ' + p.adp_original + ')</span>' : '';
-    html += '<div class="adp-row"><div class="adp-rank">' + p.rank + '</div>';
+  filtered.slice(0, 200).forEach(p => {
+    const t7c = (p.trend_7d||0) >= 0 ? 'var(--gn)' : 'var(--rd)';
+    const t7s = (p.trend_7d||0) >= 0 ? '+' + p.trend_7d : '' + p.trend_7d;
+    html += '<div class="adp-row">';
+    html += '<div class="adp-rank">' + p.rank + '</div>';
     html += '<div class="pos-badge p' + p.position + '" style="width:24px;height:24px;font-size:9px;">' + p.position + '</div>';
-    html += '<div style="flex:1;"><div style="font-size:12px;font-weight:700;">' + p.name + orig + '</div>';
-    html += '<div style="font-size:10px;color:var(--t2);">' + (p.team||'FA') + '</div></div></div>';
+    html += '<div style="flex:1;min-width:0;">';
+    html += '<div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + p.name + '</div>';
+    html += '<div style="font-size:10px;color:var(--t2);">' + (p.team||'FA') + (p.age ? ' · Age ' + p.age : '') + '</div></div>';
+    html += '<div style="text-align:right;flex-shrink:0;">';
+    html += '<div style="font-family:\'JetBrains Mono\';font-size:12px;font-weight:700;">' + (p.value ? p.value.toLocaleString() : '—') + '</div>';
+    if (p.trend_7d !== undefined && p.trend_7d !== 0) {
+      html += '<div style="font-size:10px;color:' + t7c + ';font-family:\'JetBrains Mono\';">' + t7s + '</div>';
+    }
+    html += '</div></div>';
   });
-  if (!html) html = '<div class="empty">No ADP data available.</div>';
+  if (!html) html = '<div class="empty">No rankings data. Try refreshing.</div>';
   el.innerHTML = (src ? src.outerHTML : '') + html;
 }
 
