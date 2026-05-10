@@ -307,7 +307,6 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--tx);display:
     <div class="rank-tab" data-rtab="composite">Composite</div>
     <div class="rank-tab" data-rtab="signals">Signals</div>
     <div class="rank-tab" data-rtab="personal">My Rankings</div>
-    <div class="rank-tab" data-rtab="adp">ADP</div>
     <div class="rank-tab" data-rtab="manage">Manage</div>
   </div>
   <div class="sec" id="rank-content"></div>
@@ -482,10 +481,7 @@ let totalComparisons = 0;
 let currentMatchupPlayers = [];
 let playerNames = []; // safe player name store for onclick
 let draftState = {picks_made:[], my_roster:[], current_pick:''};
-let adpType = 'dynasty';
-let adpScoring = '4pt';
-let adpPosFilter = 'ALL';
-let adpData = [];
+
 
 // ── SAFE PLAYER NAME STORE ──
 function storeName(name) {
@@ -894,7 +890,6 @@ async function renderRankTab(tab) {
   else if (tab === 'composite') { if (!compositeData.length) await loadComposite(); else renderCompositeList('composite'); }
   else if (tab === 'signals') { if (!compositeData.length) await loadComposite(); else renderCompositeList('signals'); }
   else if (tab === 'personal') await renderMyRankings();
-  else if (tab === 'adp') await renderADPSection(el);
   else if (tab === 'manage') renderManage(el);
 }
 
@@ -1006,85 +1001,6 @@ async function voteMatchup(idx) {
   totalComparisons++;
   await fetch('/api/rankings/vote', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({winner,loser})});
   await renderMatchup(document.getElementById('rank-content'));
-}
-
-async function renderADPSection(el) {
-  const posHtml = ['ALL','QB','RB','WR','TE'].map(p => {
-    const active = p === adpPosFilter ? ' active' : '';
-    return '<button class="chip' + active + '" data-adppos="' + p + '">' + p + '</button>';
-  }).join('');
-  el.innerHTML =
-    '<div style="display:flex;gap:5px;margin-bottom:8px;flex-wrap:wrap;align-items:center;">' +
-    '<span style="font-size:10px;color:var(--t2);font-weight:700;">SCORING:</span>' +
-    '<button class="chip' + (adpScoring==='4pt'?' active':'') + '" data-adpscoring="4pt">4pt TDs</button>' +
-    '<button class="chip' + (adpScoring==='6pt'?' active':'') + '" data-adpscoring="6pt">6pt TDs</button>' +
-    '</div>' +
-    '<div style="display:flex;gap:5px;margin-bottom:10px;flex-wrap:wrap;">' + posHtml + '</div>' +
-    '<div id="adp-list"><div class="spin-wrap"><div class="spin"></div><div class="spin-txt">LOADING RANKINGS...</div></div></div>';
-  el.querySelectorAll('[data-adpscoring]').forEach(btn => {
-    btn.addEventListener('click', function() {
-      el.querySelectorAll('[data-adpscoring]').forEach(b => b.classList.remove('active'));
-      this.classList.add('active');
-      adpScoring = this.dataset.adpscoring;
-      if (adpData.length) renderADPList();
-      else fetchADP();
-    });
-  });
-  el.querySelectorAll('[data-adppos]').forEach(btn => {
-    btn.addEventListener('click', function() {
-      el.querySelectorAll('[data-adppos]').forEach(b => b.classList.remove('active'));
-      this.classList.add('active');
-      adpPosFilter = this.dataset.adppos;
-      renderADPList();
-    });
-  });
-  await fetchADP();
-}
-
-async function fetchADP() {
-  const el = document.getElementById('adp-list');
-  if (!el) return;
-  el.innerHTML = '<div class="spin-wrap"><div class="spin"></div><div class="spin-txt">LOADING RANKINGS...</div></div>';
-  try {
-    const r = await fetch('/api/adp?scoring=' + adpScoring);
-    const d = await r.json();
-    adpData = d.players || [];
-    const srcNote = d.source + (d.scoring_note ? ' · ' + d.scoring_note : '');
-    el.innerHTML = '<div class="adp-source" style="font-size:9px;color:var(--t2);margin-bottom:8px;padding:5px 7px;background:var(--s2);border-radius:5px;">📊 ' + srcNote + '</div>';
-    if (!d.success || !adpData.length) {
-      el.innerHTML += '<div class="empty">Rankings unavailable. RosterAudit may be temporarily down.</div>';
-      return;
-    }
-    renderADPList();
-  } catch(e) {
-    if (el) el.innerHTML = '<div class="empty">Error loading rankings.</div>';
-  }
-}
-
-function renderADPList() {
-  const el = document.getElementById('adp-list');
-  if (!el) return;
-  const src = el.querySelector('.adp-source');
-  const filtered = adpPosFilter === 'ALL' ? adpData : adpData.filter(p => p.position === adpPosFilter);
-  let html = '';
-  filtered.slice(0, 200).forEach(p => {
-    const t7c = (p.trend_7d||0) >= 0 ? 'var(--gn)' : 'var(--rd)';
-    const t7s = (p.trend_7d||0) >= 0 ? '+' + p.trend_7d : '' + p.trend_7d;
-    html += '<div class="adp-row">';
-    html += '<div class="adp-rank">' + p.rank + '</div>';
-    html += '<div class="pos-badge p' + p.position + '" style="width:24px;height:24px;font-size:9px;">' + p.position + '</div>';
-    html += '<div style="flex:1;min-width:0;">';
-    html += '<div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + p.name + '</div>';
-    html += '<div style="font-size:10px;color:var(--t2);">' + (p.team||'FA') + (p.age ? ' · Age ' + p.age : '') + '</div></div>';
-    html += '<div style="text-align:right;flex-shrink:0;">';
-    html += '<div style="font-family:\'JetBrains Mono\';font-size:12px;font-weight:700;">' + (p.value ? p.value.toLocaleString() : '—') + '</div>';
-    if (p.trend_7d !== undefined && p.trend_7d !== 0) {
-      html += '<div style="font-size:10px;color:' + t7c + ';font-family:\'JetBrains Mono\';">' + t7s + '</div>';
-    }
-    html += '</div></div>';
-  });
-  if (!html) html = '<div class="empty">No rankings data. Try refreshing.</div>';
-  el.innerHTML = (src ? src.outerHTML : '') + html;
 }
 
 function renderManage(el) {
