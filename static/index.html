@@ -1406,10 +1406,11 @@ function setMatchupPos(pos) {
 
 async function renderMatchupInComposite() {
   document.getElementById('composite-content').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-  const filterHtml = `<div style="display:flex;gap:5px;margin-bottom:10px;flex-wrap:wrap;align-items:center;">
-    <span style="font-size:10px;color:var(--text2);">FILTER:</span>
-    ${['ALL','QB','RB','WR','TE'].map(p => `<button class="chip ${p===matchupPosFilter?'active':''}" onclick="setMatchupPos('${p}')">${p}</button>`).join('')}
-  </div>`;
+  const posButtons = ['ALL','QB','RB','WR','TE'].map(p => {
+    const active = p === matchupPosFilter ? 'active' : '';
+    return '<button class="chip ' + active + '" onclick="setMatchupPos(\''+p+'\')">'+p+'</button>';
+  }).join('');
+  const filterHtml = '<div style="display:flex;gap:5px;margin-bottom:10px;flex-wrap:wrap;align-items:center;"><span style="font-size:10px;color:var(--text2);">FILTER:</span> ' + posButtons + '</div>';
   try {
     const r = await fetch('/api/rankings/pair?position=' + matchupPosFilter);
     const data = await r.json();
@@ -1796,7 +1797,7 @@ async function renderADPTab(content) {
         </div>
       </div>
       <div style="display:flex;gap:5px;margin-bottom:8px;flex-wrap:wrap;">
-        ${['ALL','QB','RB','WR','TE'].map(p=>`<button class="chip ${p===adpPosFilter?'active':''}" onclick="setADPPos(this,'${p}')">${p}</button>`).join('')}
+        ${['ALL','QB','RB','WR','TE'].map(p => '<button class="chip ' + (p===adpPosFilter?'active':'') + '" onclick="setADPPos(this,\'' + p + '\')">' + p + '</button>').join('')}
       </div>
       <div id="adp-list"><div class="loading"><div class="spinner"></div><div class="loading-text">LOADING ADP...</div></div></div>
     </div>`;
