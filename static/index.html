@@ -482,18 +482,19 @@ const STARTUP_VALUES = {
 
 // Dynasty rookie draft pick values (KTC confirmed May 2026)
 const DYNASTY_PICKS = {
-  '2027 Early 1st':7098,'2027 Mid 1st':5602,'2027 Late 1st':4889,
-  '2028 Early 1st':4967,'2028 Mid 1st':4417,'2028 Late 1st':3924,
-  '2026 Early 1st':5719,'2026 Mid 1st':4604,'2026 Late 1st':3880,
-  '2027 Early 2nd':3915,'2027 Mid 2nd':3404,'2027 Late 2nd':3196,
-  '2028 Early 2nd':3120,'2028 Mid 2nd':2930,'2028 Late 2nd':2735,
-  '2026 Early 2nd':3296,'2026 Mid 2nd':3026,'2026 Late 2nd':2770,
-  '2027 Early 3rd':2645,'2027 Mid 3rd':2471,'2027 Late 3rd':2181,
-  '2028 Early 3rd':2134,'2028 Mid 3rd':2082,'2028 Late 3rd':1867,
-  '2026 Early 3rd':2276,'2026 Mid 3rd':2140,'2026 Late 3rd':2013,
-  '2027 Early 4th':1857,'2027 Mid 4th':1764,'2027 Late 4th':1657,
-  '2028 Early 4th':1639,
-  '2026 Early 4th':1698,'2026 Mid 4th':1625,
+  '2027 Early 1st':7117,
+  '2026 Early 1st':5702,
+  '2027 Mid 1st':5609,
+  '2028 Early 1st':4935,
+  '2027 Late 1st':4898,
+  '2026 Mid 1st':4622,
+  '2028 Mid 1st':4425,
+  '2028 Late 1st':3963,
+  '2027 Early 2nd':3950,
+  '2026 Late 1st':3926,
+  '2027 Mid 2nd':3429,
+  '2026 Early 2nd':3277,
+  '2027 Late 2nd':3192
 };
 
 // Your picks in VS: odd rounds = pick 2nd, even rounds = pick 11th
@@ -1916,51 +1917,65 @@ function renderTierView(el, d) {
   const posColors = {QB:'var(--ac)',RB:'var(--gn)',WR:'var(--pu)',TE:'var(--gd)'};
 
   // Source status bar
+  const sourceLabels = {ktc:'KTC', ddl:'DDL ADP', sleeper:'Sleeper'};
   const sourceStatus = ['ktc','ddl','sleeper'].map(s => {
     const has = d.sources_available.includes(s);
-    const label = s === 'ktc' ? 'KTC' : s === 'ddl' ? 'DDL' : 'Sleeper';
-    return '<span style="padding:2px 7px;border-radius:20px;font-size:10px;font-weight:700;' +
+    const count = s === 'ktc' ? d.ktc_count : s === 'ddl' ? d.ddl_count : 0;
+    const label = sourceLabels[s];
+    return '<span style="padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;' +
       (has ? 'background:rgba(61,220,132,.15);color:var(--gn);' : 'background:var(--s3);color:var(--t2);') + '">' +
-      (has ? '✓ ' : '○ ') + label + '</span>';
+      (has ? '✓ ' : '○ ') + label + (has && count ? ' (' + count + ')' : '') + '</span>';
   }).join('');
 
   let html =
     '<div style="display:flex;gap:5px;align-items:center;margin-bottom:10px;flex-wrap:wrap;">' +
     '<span style="font-size:10px;color:var(--t2);">DATA SOURCES:</span>' + sourceStatus +
-    '<button class="btn btn-g btn-sm" id="paste-shortcut-btn" style="margin-left:auto;">+ Paste Rankings</button></div>';
+    '<button class="btn btn-g btn-sm" id="paste-shortcut-btn" style="margin-left:auto;">+ Paste More</button></div>';
 
   // Trade targets section
   if (d.trade_targets && d.trade_targets.length) {
-    html += '<div style="font-family:\'Bebas Neue\';font-size:14px;letter-spacing:2px;color:var(--tx);margin-bottom:8px;">🎯 Trade Up / Down Targets</div>';
-    html += '<div style="font-size:10px;color:var(--t2);margin-bottom:8px;">Based on gap between your VS rankings and KTC market values. Positive delta = you rank higher = target to trade up for.</div>';
+    html += '<div style="font-family:\'Bebas Neue\';font-size:14px;letter-spacing:2px;color:var(--tx);margin-bottom:6px;">🎯 Trade Up / Down Targets</div>';
+    html += '<div style="font-size:10px;color:var(--t2);margin-bottom:8px;padding:7px;background:var(--s2);border-radius:7px;">Primary benchmark: <strong>DDL ADP</strong> (startup draft position). Delta = difference between your VS rank and market ADP rank.</div>';
 
-    const buys = d.trade_targets.filter(t => t.delta > 0).slice(0,6);
-    const sells = d.trade_targets.filter(t => t.delta < 0).slice(0,4);
+    const buys = d.trade_targets.filter(t => t.delta > 0).slice(0,8);
+    const sells = d.trade_targets.filter(t => t.delta < 0).slice(0,5);
 
     if (buys.length) {
-      html += '<div style="font-size:11px;font-weight:700;color:var(--gn);margin-bottom:5px;letter-spacing:1px;">▲ TRADE UP TARGETS (you value higher than market)</div>';
+      html += '<div style="font-size:11px;font-weight:700;color:var(--gn);margin-bottom:6px;letter-spacing:1px;">▲ TRADE UP TARGETS — You Value Higher Than Market</div>';
       buys.forEach(t => {
-        html += '<div style="background:rgba(61,220,132,.06);border:1px solid rgba(61,220,132,.2);border-radius:9px;padding:10px;margin-bottom:5px;">';
-        html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;">';
-        html += '<div><div style="font-size:13px;font-weight:700;">' + t.name + '</div>';
-        html += '<div style="font-size:10px;color:var(--t2);">Your rank: #' + t.my_rank + ' · KTC rank: ~#' + t.ktc_rank + ' · Est. goes: ' + t.est_draft_pick + '</div>';
-        html += '<div style="font-size:11px;color:var(--gn);margin-top:3px;">⬆ ' + t.trade_up_note + '</div></div>';
-        html += '<span style="font-size:10px;font-weight:800;color:var(--gn);padding:2px 8px;background:rgba(61,220,132,.15);border-radius:20px;">' + t.signal + ' +' + t.delta + '</span></div></div>';
+        const sigC = t.signal.includes('STRONG') ? 'var(--gn)' : t.signal.includes('BUY') ? '#80ffb8' : 'var(--gn)';
+        const adpStr = t.adp ? 'ADP ' + t.adp.toFixed(1) : 'Rank ' + t.market_rank;
+        html += '<div style="background:rgba(61,220,132,.05);border:1px solid rgba(61,220,132,.2);border-radius:9px;padding:10px;margin-bottom:5px;">' +
+          '<div style="display:flex;justify-content:space-between;align-items:flex-start;">' +
+          '<div>' +
+          '<div style="font-size:13px;font-weight:700;">' + t.name + ' <span style="font-size:10px;color:var(--t2);font-weight:400;">(' + t.position + ')</span></div>' +
+          '<div style="font-size:10px;color:var(--t2);margin-top:2px;">Your rank: <strong>#' + t.my_rank + '</strong> · ' + t.market_source + ' ' + adpStr + ' (~' + t.est_draft_pick + ')</div>' +
+          '<div style="font-size:10px;color:var(--gn);margin-top:3px;">⬆ Market takes him at ' + t.est_draft_pick + ' — consider trading up</div>' +
+          '</div>' +
+          '<span style="font-size:10px;font-weight:800;color:' + sigC + ';padding:2px 7px;background:rgba(61,220,132,.15);border-radius:20px;white-space:nowrap;margin-left:8px;">' + t.signal + ' <span style="opacity:.7;">+' + t.delta + '</span></span>' +
+          '</div></div>';
       });
     }
 
     if (sells.length) {
-      html += '<div style="font-size:11px;font-weight:700;color:var(--rd);margin:10px 0 5px;letter-spacing:1px;">▼ TRADE DOWN / AVOID REACHES</div>';
+      html += '<div style="font-size:11px;font-weight:700;color:var(--rd);margin:10px 0 6px;letter-spacing:1px;">▼ POTENTIAL REACHES — Market Values Higher</div>';
       sells.forEach(t => {
-        html += '<div style="background:rgba(255,92,92,.06);border:1px solid rgba(255,92,92,.2);border-radius:9px;padding:10px;margin-bottom:5px;">';
-        html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;">';
-        html += '<div><div style="font-size:13px;font-weight:700;">' + t.name + '</div>';
-        html += '<div style="font-size:10px;color:var(--t2);">Your rank: #' + t.my_rank + ' · KTC rank: ~#' + t.ktc_rank + '</div>';
-        html += '<div style="font-size:11px;color:var(--rd);margin-top:3px;">Market values higher — avoid reaching</div></div>';
-        html += '<span style="font-size:10px;font-weight:800;color:var(--rd);padding:2px 8px;background:rgba(255,92,92,.15);border-radius:20px;">' + t.signal + ' ' + t.delta + '</span></div></div>';
+        const adpStr = t.adp ? 'ADP ' + t.adp.toFixed(1) : 'Rank ' + t.market_rank;
+        html += '<div style="background:rgba(255,92,92,.05);border:1px solid rgba(255,92,92,.2);border-radius:9px;padding:10px;margin-bottom:5px;">' +
+          '<div style="display:flex;justify-content:space-between;align-items:flex-start;">' +
+          '<div>' +
+          '<div style="font-size:13px;font-weight:700;">' + t.name + ' <span style="font-size:10px;color:var(--t2);font-weight:400;">(' + t.position + ')</span></div>' +
+          '<div style="font-size:10px;color:var(--t2);margin-top:2px;">Your rank: <strong>#' + t.my_rank + '</strong> · ' + t.market_source + ' ' + adpStr + '</div>' +
+          '<div style="font-size:10px;color:var(--rd);margin-top:3px;">Market rates him higher — avoid reaching, let slide</div>' +
+          '</div>' +
+          '<span style="font-size:10px;font-weight:800;color:var(--rd);padding:2px 7px;background:rgba(255,92,92,.15);border-radius:20px;white-space:nowrap;margin-left:8px;">' + t.signal + ' <span style="opacity:.7;">' + t.delta + '</span></span>' +
+          '</div></div>';
       });
     }
     html += '<div class="div"></div>';
+  } else {
+    html += '<div style="background:var(--s2);border:1px solid var(--b1);border-radius:9px;padding:14px;margin-bottom:10px;text-align:center;">' +
+      '<div style="font-size:12px;color:var(--t2);">No trade targets yet.<br>Do VS head-to-head comparisons first, then come back here.</div></div>';
   }
 
   // Positional tier breaks
