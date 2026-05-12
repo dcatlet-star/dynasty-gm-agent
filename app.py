@@ -3,6 +3,12 @@ import anthropic
 import os
 import json
 import sqlite3
+import os
+
+DB_PATH = os.environ.get('DB_PATH', '/data/dynasty.db')
+# Falls back to local dynasty.db if /data doesn't exist (local dev)
+if not os.path.exists('/data'):
+    DB_PATH = 'dynasty.db'
 from datetime import datetime, timedelta
 import requests
 
@@ -16,7 +22,7 @@ SLEEPER_LEAGUE_IDS = {
 }
 
 def init_db():
-    conn = sqlite3.connect('dynasty.db')
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS chat_history
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, week_key TEXT, role TEXT, content TEXT, timestamp TEXT)''')
@@ -333,83 +339,280 @@ DEFAULT_PLAYERS = [
 
 def seed_players():
     """
-    ELO scale maps to KTC tiers with proper separation:
-    Tier 1 (9000+ KTC):    2800-3000 ELO
-    Tier 2 (7500-8999):    2400-2799 ELO
-    Tier 3 (6000-7499):    2000-2399 ELO
-    Tier 4 (4500-5999):    1600-1999 ELO
-    Tier 5 (3000-4499):    1200-1599 ELO
-    Tier 6 (1500-2999):     800-1199 ELO
-    Tier 7 (under 1500):    400-799  ELO
+    ELO scale maps to KTC tiers with real separation (400-3000):
+    Tier 1 (9000+ KTC): ~2800-3000 ELO
+    Tier 2 (7500-8999): ~2400-2799 ELO
+    Tier 4 (4500-5999): ~1600-1999 ELO
+    Tier 7 (under 3000): ~400-1199 ELO
+    KTC values updated May 12, 2026
     """
     KTC_SEED_ELOS = {
-        # TIER 1: 9000+ KTC → 2800-3000
-        "Josh Allen": 3000, "Ja Marr Chase": 2980, "Bijan Robinson": 2980,
-        "Jaxon Smith-Njigba": 2950,
-        # TIER 2: 7500-8999 → 2400-2799
-        "Jahmyr Gibbs": 2780, "Drake Maye": 2750, "Brock Bowers": 2700,
-        "Puka Nacua": 2660, "Trey McBride": 2600, "Caleb Williams": 2560,
-        "Malik Nabers": 2530, "Jayden Daniels": 2520, "Justin Jefferson": 2510,
-        "Amon-Ra St. Brown": 2490, "Lamar Jackson": 2480, "Jeremiyah Love": 2470,
-        "Ashton Jeanty": 2450, "Joe Burrow": 2430,
-        # TIER 3: 6000-7499 → 2000-2399
-        "CeeDee Lamb": 2380, "2027 Early 1st": 2360, "De'Von Achane": 2340,
-        "Drake London": 2340, "Justin Herbert": 2320, "Patrick Mahomes": 2310,
-        "Colston Loveland": 2290, "Omarion Hampton": 2280, "Jaxson Dart": 2270,
-        "Tetairoa McMillan": 2250, "Tyler Warren": 2220, "Trevor Lawrence": 2200,
-        "Jalen Hurts": 2190, "Emeka Egbuka": 2180, "Bo Nix": 2160,
-        "Jonathan Taylor": 2150, "James Cook": 2140, "George Pickens": 2110,
-        "Brock Purdy": 2080, "Carnell Tate": 2070, "Garrett Wilson": 2040,
-        "2026 Early 1st": 2040, "Fernando Mendoza": 2030, "Nico Collins": 2020,
-        "Jordan Love": 2010,
-        # TIER 4: 4500-5999 → 1600-1999
-        "2027 Mid 1st": 1990, "Chris Olave": 1975, "Quinshon Judkins": 1960,
-        "Harold Fannin": 1950, "Kenneth Walker": 1950, "TreVeyon Henderson": 1940,
-        "Rome Odunze": 1930, "Tucker Kraft": 1920, "Breece Hall": 1910,
-        "Jordyn Tyson": 1900, "Ladd McConkey": 1890, "Rashee Rice": 1880,
-        "Cam Ward": 1870, "DeVonta Smith": 1860, "Luther Burden": 1850,
-        "Marvin Harrison Jr": 1840, "Sam LaPorta": 1820, "Christian McCaffrey": 1810,
-        "Makai Lemon": 1800, "Dak Prescott": 1790, "2028 Early 1st": 1780,
-        "Brian Thomas Jr": 1770, "Bucky Irving": 1760, "Kyle Pitts": 1750,
-        "Saquon Barkley": 1740, "Chase Brown": 1730, "Tyler Shough": 1720,
-        "2027 Late 1st": 1710, "Tee Higgins": 1700, "AJ Brown": 1695,
-        "CJ Stroud": 1685, "Kyren Williams": 1675, "Jaylen Waddle": 1665,
-        "Sam Darnold": 1655, "Baker Mayfield": 1645, "Jadarian Price": 1640,
-        "Jameson Williams": 1630, "Zay Flowers": 1620, "Jared Goff": 1615,
-        "Kenyon Sadiq": 1610, "2026 Mid 1st": 1605,
-        # TIER 5: 3000-4499 → 1200-1599
-        "Cam Skattebo": 1595, "Bryce Young": 1580, "KC Concepcion": 1570,
-        "Josh Jacobs": 1560, "Travis Etienne": 1550, "Javonte Williams": 1540,
-        "2028 Mid 1st": 1530, "Oronde Gadsden": 1510, "Kyler Murray": 1490,
-        "Eli Stowers": 1480, "Isaiah Likely": 1460, "Bhayshul Tuten": 1450,
-        "2028 Late 1st": 1440, "2027 Early 2nd": 1430, "2026 Late 1st": 1420,
-        "Denzel Boston": 1410, "Trey Benson": 1400, "Tank Bigsby": 1390,
-        "2027 Mid 2nd": 1380, "2027 Late 2nd": 1370, "2026 Early 2nd": 1360,
-        "Travis Hunter": 1340, "Chris Bell": 1330, "Germie Bernard": 1310,
-        "Zachariah Branch": 1300, "Antonio Williams": 1290, "Malachi Fields": 1280,
-        "Skyler Bell": 1270, "2026 Mid 2nd": 1260, "Max Klare": 1250,
-        "Kaytron Allen": 1240, "2027 Early 3rd": 1230, "2028 Early 2nd": 1220,
-        "2027 Mid 3rd": 1210,
-        # TIER 6: 1500-2999 → 800-1199
-        "2028 Mid 2nd": 1190, "2026 Late 2nd": 1170, "2027 Late 3rd": 1150,
-        "2028 Late 2nd": 1130, "2026 Early 3rd": 1110, "2027 Early 4th": 1090,
-        "2026 Mid 3rd": 1070, "2027 Mid 4th": 1050, "2026 Late 3rd": 1030,
-        "2028 Early 3rd": 1010, "Oscar Delp": 990, "2028 Mid 3rd": 970,
-        "2026 Early 4th": 950, "2026 Mid 4th": 930, "2028 Late 3rd": 910,
-        "2027 Late 4th": 890, "2028 Early 4th": 870,
-        # TIER 7: under 1500 → 400-799
-        "Justin Joly": 780, "Eli Raridon": 650,
+        'Ja\'Marr Chase': 3000,
+        'Josh Allen': 3000,
+        'Bijan Robinson': 2998,
+        'Jaxon Smith-Njigba': 2971,
+        'Jahmyr Gibbs': 2884,
+        'Drake Maye': 2848,
+        'Brock Bowers': 2687,
+        'Puka Nacua': 2644,
+        'Trey McBride': 2566,
+        'Caleb Williams': 2465,
+        'Malik Nabers': 2443,
+        'Jayden Daniels': 2432,
+        'Justin Jefferson': 2430,
+        'Amon-Ra St. Brown': 2408,
+        'Lamar Jackson': 2396,
+        '2027 Early 1st': 2251,
+        '2026 Early 1st': 1883,
+        '2027 Mid 1st': 1858,
+        'Breece Hall': 1800,
+        'TreVeyon Henderson': 1791,
+        'Tucker Kraft': 1791,
+        'Ladd McConkey': 1783,
+        'Jordyn Tyson': 1779,
+        'Rashee Rice': 1778,
+        'Cam Ward': 1764,
+        'Luther Burden': 1756,
+        'DeVonta Smith': 1755,
+        'Sam LaPorta': 1723,
+        'Makai Lemon': 1714,
+        'Marvin Harrison Jr.': 1714,
+        'Christian McCaffrey': 1713,
+        'Dak Prescott': 1698,
+        '2028 Early 1st': 1683,
+        'Brian Thomas Jr.': 1683,
+        'Kyle Pitts': 1681,
+        'Tee Higgins': 1677,
+        'Bucky Irving': 1676,
+        '2027 Late 1st': 1674,
+        'Tyler Shough': 1670,
+        'Chase Brown': 1669,
+        'Saquon Barkley': 1668,
+        'Jaylen Waddle': 1666,
+        'C.J. Stroud': 1666,
+        'Kyren Williams': 1663,
+        'A.J. Brown': 1650,
+        'Sam Darnold': 1643,
+        'Baker Mayfield': 1637,
+        'Jadarian Price': 1633,
+        'Zay Flowers': 1614,
+        'Jameson Williams': 1612,
+        'Kenyon Sadiq': 1610,
+        '2026 Mid 1st': 1602,
+        'Jared Goff': 1594,
+        'Cam Skattebo': 1592,
+        'KC Concepcion': 1574,
+        'Bryce Young': 1571,
+        'Josh Jacobs': 1559,
+        'Javonte Williams': 1553,
+        '2028 Mid 1st': 1551,
+        'Travis Etienne': 1545,
+        'Alec Pierce': 1469,
+        'Kyler Murray': 1466,
+        'Oronde Gadsden': 1466,
+        'Malik Willis': 1442,
+        'Jordan Addison': 1433,
+        '2028 Late 1st': 1430,
+        'Daniel Jones': 1429,
+        'Bhayshul Tuten': 1427,
+        '2027 Early 2nd': 1427,
+        '2026 Late 1st': 1421,
+        'Omar Cooper Jr.': 1413,
+        'Derrick Henry': 1397,
+        'Matthew Golden': 1374,
+        'Isaiah Likely': 1372,
+        'Ty Simpson': 1368,
+        'Jake Ferguson': 1366,
+        'George Kittle': 1364,
+        'D.J. Moore': 1356,
+        'Matthew Stafford': 1352,
+        'Michael Wilson': 1351,
+        'Dalton Kincaid': 1350,
+        'DK Metcalf': 1348,
+        'Christian Watson': 1345,
+        'Josh Downs': 1339,
+        'Kyle Monangai': 1333,
+        'Wan\'Dale Robinson': 1321,
+        'Ricky Pearsall': 1316,
+        'Parker Washington': 1316,
+        'D\'Andre Swift': 1311,
+        'RJ Harvey': 1310,
+        'Jayden Reed': 1307,
+        'Terry McLaurin': 1297,
+        'Brenton Strange': 1294,
+        'Jayden Higgins': 1292,
+        '2027 Mid 2nd': 1292,
+        'David Montgomery': 1286,
+        'Chuba Hubbard': 1285,
+        'Davante Adams': 1284,
+        'Michael Pittman': 1276,
+        'Zach Charbonnet': 1274,
+        'Xavier Worthy': 1270,
+        'Quentin Johnston': 1268,
+        'Travis Hunter': 1264,
+        'Mike Evans': 1255,
+        'Romeo Doubs': 1255,
+        '2026 Early 2nd': 1252,
+        'Courtland Sutton': 1240,
+        'T.J. Hockenson': 1239,
+        'Jaylen Warren': 1236,
+        'AJ Barner': 1236,
+        'Blake Corum': 1235,
+        'Jakobi Meyers': 1235,
+        '2027 Late 2nd': 1230,
+        'Rico Dowdle': 1225,
+        'Mark Andrews': 1222,
+        'Michael Penix Jr.': 1219,
+        'Chigoziem Okonkwo': 1211,
     }
-    conn = sqlite3.connect('dynasty.db')
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     for name, pos, team in DEFAULT_PLAYERS:
-        starting_elo = KTC_SEED_ELOS.get(name, 1400)  # default to Tier 5 bottom
+        starting_elo = KTC_SEED_ELOS.get(name, 1400)
         c.execute("INSERT OR IGNORE INTO player_rankings (player_name, position, team, elo_score, comparisons, last_updated) VALUES (?, ?, ?, ?, 0, ?)",
                  (name, pos, team, starting_elo, datetime.now().isoformat()))
     conn.commit()
     conn.close()
 
+def seed_ktc_market_data():
+    """Store fresh KTC values in market_data table for tier/trade analysis"""
+    KTC_PLAYERS = [
+        ('Ja\'Marr Chase', 'WR', 'CIN', 1, 9999, 1),
+        ('Josh Allen', 'QB', 'BUF', 2, 9999, 1),
+        ('Bijan Robinson', 'RB', 'ATL', 3, 9991, 1),
+        ('Jaxon Smith-Njigba', 'WR', 'SEA', 4, 9889, 1),
+        ('Jahmyr Gibbs', 'RB', 'DET', 5, 9553, 2),
+        ('Drake Maye', 'QB', 'NEP', 6, 9416, 2),
+        ('Brock Bowers', 'TE', 'LVR', 7, 8794, 3),
+        ('Puka Nacua', 'WR', 'LAR', 8, 8631, 3),
+        ('Trey McBride', 'TE', 'ARI', 9, 8330, 3),
+        ('Caleb Williams', 'QB', 'CHI', 10, 7943, 4),
+        ('Malik Nabers', 'WR', 'NYG', 11, 7858, 4),
+        ('Jayden Daniels', 'QB', 'WAS', 12, 7814, 4),
+        ('Justin Jefferson', 'WR', 'MIN', 13, 7806, 4),
+        ('Amon-Ra St. Brown', 'WR', 'DET', 14, 7723, 4),
+        ('Lamar Jackson', 'QB', 'BAL', 15, 7676, 4),
+        ('2027 Early 1st', 'PICK', 'FA', 20, 7117, 6),
+        ('2026 Early 1st', 'PICK', 'FA', 40, 5702, 12),
+        ('2027 Mid 1st', 'PICK', 'FA', 44, 5609, 12),
+        ('Breece Hall', 'RB', 'NYJ', 50, 5384, 13),
+        ('TreVeyon Henderson', 'RB', 'NEP', 51, 5351, 10),
+        ('Tucker Kraft', 'TE', 'GBP', 52, 5348, 10),
+        ('Ladd McConkey', 'WR', 'LAC', 53, 5318, 10),
+        ('Jordyn Tyson', 'WR', 'NOS', 54, 5304, 10),
+        ('Rashee Rice', 'WR', 'KCC', 55, 5301, 10),
+        ('Cam Ward', 'QB', 'TEN', 56, 5245, 10),
+        ('Luther Burden', 'WR', 'CHI', 57, 5216, 10),
+        ('DeVonta Smith', 'WR', 'PHI', 58, 5211, 10),
+        ('Sam LaPorta', 'TE', 'DET', 59, 5089, 11),
+        ('Makai Lemon', 'WR', 'PHI', 60, 5055, 11),
+        ('Marvin Harrison Jr.', 'WR', 'ARI', 61, 5054, 11),
+        ('Christian McCaffrey', 'RB', 'SFO', 62, 5051, 11),
+        ('Dak Prescott', 'QB', 'DAL', 63, 4993, 11),
+        ('2028 Early 1st', 'PICK', 'FA', 64, 4935, 11),
+        ('Brian Thomas Jr.', 'WR', 'JAC', 65, 4934, 11),
+        ('Kyle Pitts', 'TE', 'ATL', 66, 4927, 11),
+        ('Tee Higgins', 'WR', 'CIN', 67, 4911, 11),
+        ('Bucky Irving', 'RB', 'TBB', 68, 4908, 11),
+        ('2027 Late 1st', 'PICK', 'FA', 69, 4898, 11),
+        ('Tyler Shough', 'QB', 'NOS', 70, 4884, 11),
+        ('Chase Brown', 'RB', 'CIN', 71, 4882, 11),
+        ('Saquon Barkley', 'RB', 'PHI', 72, 4876, 11),
+        ('Jaylen Waddle', 'WR', 'DEN', 73, 4870, 11),
+        ('C.J. Stroud', 'QB', 'HOU', 74, 4868, 11),
+        ('Kyren Williams', 'RB', 'LAR', 75, 4858, 11),
+        ('A.J. Brown', 'WR', 'PHI', 76, 4808, 11),
+        ('Sam Darnold', 'QB', 'SEA', 77, 4781, 11),
+        ('Baker Mayfield', 'QB', 'TBB', 78, 4758, 11),
+        ('Jadarian Price', 'RB', 'SEA', 79, 4742, 11),
+        ('Zay Flowers', 'WR', 'BAL', 80, 4670, 12),
+        ('Jameson Williams', 'WR', 'DET', 81, 4662, 12),
+        ('Kenyon Sadiq', 'TE', 'NYJ', 82, 4652, 12),
+        ('2026 Mid 1st', 'PICK', 'FA', 83, 4622, 12),
+        ('Jared Goff', 'QB', 'DET', 84, 4591, 12),
+        ('Cam Skattebo', 'RB', 'NYG', 85, 4586, 12),
+        ('KC Concepcion', 'WR', 'CLE', 86, 4516, 13),
+        ('Bryce Young', 'QB', 'CAR', 87, 4505, 13),
+        ('Josh Jacobs', 'RB', 'GBP', 88, 4457, 13),
+        ('Javonte Williams', 'RB', 'DAL', 89, 4434, 13),
+        ('2028 Mid 1st', 'PICK', 'FA', 90, 4425, 13),
+        ('Travis Etienne', 'RB', 'NOS', 91, 4403, 13),
+        ('Alec Pierce', 'WR', 'IND', 92, 4111, 14),
+        ('Kyler Murray', 'QB', 'MIN', 93, 4101, 14),
+        ('Oronde Gadsden', 'TE', 'LAC', 94, 4099, 14),
+        ('Malik Willis', 'QB', 'MIA', 95, 4007, 15),
+        ('Jordan Addison', 'WR', 'MIN', 97, 3973, 15),
+        ('2028 Late 1st', 'PICK', 'FA', 98, 3963, 15),
+        ('Daniel Jones', 'QB', 'IND', 99, 3959, 15),
+        ('Bhayshul Tuten', 'RB', 'JAC', 100, 3951, 15),
+        ('2027 Early 2nd', 'PICK', 'FA', 101, 3950, 15),
+        ('2026 Late 1st', 'PICK', 'FA', 102, 3926, 15),
+        ('Omar Cooper Jr.', 'WR', 'NYJ', 103, 3896, 15),
+        ('Derrick Henry', 'RB', 'BAL', 104, 3834, 16),
+        ('Matthew Golden', 'WR', 'GBP', 105, 3745, 17),
+        ('Isaiah Likely', 'TE', 'NYG', 106, 3740, 17),
+        ('Ty Simpson', 'QB', 'LAR', 107, 3724, 17),
+        ('Jake Ferguson', 'TE', 'DAL', 108, 3716, 17),
+        ('George Kittle', 'TE', 'SFO', 109, 3708, 17),
+        ('D.J. Moore', 'WR', 'BUF', 110, 3678, 17),
+        ('Matthew Stafford', 'QB', 'LAR', 111, 3661, 17),
+        ('Michael Wilson', 'WR', 'ARI', 112, 3656, 17),
+        ('Dalton Kincaid', 'TE', 'BUF', 113, 3654, 17),
+        ('DK Metcalf', 'WR', 'PIT', 114, 3647, 17),
+        ('Christian Watson', 'WR', 'GBP', 115, 3633, 17),
+        ('Josh Downs', 'WR', 'IND', 116, 3610, 17),
+        ('Kyle Monangai', 'RB', 'CHI', 117, 3590, 17),
+        ('Wan\'Dale Robinson', 'WR', 'TEN', 118, 3543, 17),
+        ('Ricky Pearsall', 'WR', 'SFO', 119, 3522, 17),
+        ('Parker Washington', 'WR', 'JAC', 120, 3521, 17),
+        ('D\'Andre Swift', 'RB', 'CHI', 121, 3505, 17),
+        ('RJ Harvey', 'RB', 'DEN', 122, 3498, 17),
+        ('Jayden Reed', 'WR', 'GBP', 123, 3487, 17),
+        ('Terry McLaurin', 'WR', 'WAS', 124, 3450, 17),
+        ('Brenton Strange', 'TE', 'JAC', 126, 3440, 17),
+        ('Jayden Higgins', 'WR', 'HOU', 127, 3429, 17),
+        ('2027 Mid 2nd', 'PICK', 'FA', 128, 3429, 17),
+        ('David Montgomery', 'RB', 'HOU', 129, 3408, 17),
+        ('Chuba Hubbard', 'RB', 'CAR', 130, 3405, 17),
+        ('Davante Adams', 'WR', 'LAR', 131, 3398, 17),
+        ('Michael Pittman', 'WR', 'PIT', 132, 3370, 17),
+        ('Zach Charbonnet', 'RB', 'SEA', 133, 3360, 17),
+        ('Xavier Worthy', 'WR', 'KCC', 134, 3344, 17),
+        ('Quentin Johnston', 'WR', 'LAC', 135, 3337, 17),
+        ('Travis Hunter', 'WR', 'JAC', 136, 3322, 17),
+        ('Mike Evans', 'WR', 'SFO', 137, 3289, 17),
+        ('Romeo Doubs', 'WR', 'NEP', 138, 3288, 17),
+        ('2026 Early 2nd', 'PICK', 'FA', 139, 3277, 17),
+        ('Courtland Sutton', 'WR', 'DEN', 140, 3231, 17),
+        ('T.J. Hockenson', 'TE', 'MIN', 141, 3228, 17),
+        ('Jaylen Warren', 'RB', 'PIT', 142, 3215, 17),
+        ('AJ Barner', 'TE', 'SEA', 143, 3214, 17),
+        ('Blake Corum', 'RB', 'LAR', 144, 3212, 17),
+        ('Jakobi Meyers', 'WR', 'JAC', 145, 3211, 17),
+        ('2027 Late 2nd', 'PICK', 'FA', 146, 3192, 17),
+        ('Rico Dowdle', 'RB', 'PIT', 147, 3174, 17),
+        ('Mark Andrews', 'TE', 'BAL', 148, 3161, 17),
+        ('Michael Penix Jr.', 'QB', 'ATL', 149, 3151, 17),
+        ('Chigoziem Okonkwo', 'TE', 'WAS', 150, 3118, 17),
+    ]
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    # Only seed if empty or stale
+    c.execute("SELECT COUNT(*) FROM market_data WHERE source='ktc'")
+    existing = c.fetchone()[0]
+    if existing > 100:
+        conn.close()
+        return  # Already have data
+    for name, pos, team, rank, value, tier in KTC_PLAYERS:
+        c.execute('''INSERT OR REPLACE INTO market_data
+                    (source, player_name, rank, value, position, team, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)''',
+                 ('ktc', name, rank, value, pos, team, datetime.now().isoformat()))
+    conn.commit()
+    conn.close()
+
 seed_players()
+seed_ktc_market_data()
 
 @app.route('/')
 def index():
@@ -432,7 +635,7 @@ def chat():
     else:
         content = user_message
 
-    conn = sqlite3.connect('dynasty.db')
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("SELECT role, content FROM chat_history WHERE week_key=? ORDER BY id", (week_key,))
     history_rows = c.fetchall()
@@ -464,7 +667,7 @@ def chat():
             if hasattr(block, 'text'):
                 assistant_message += block.text
 
-        conn = sqlite3.connect('dynasty.db')
+        conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
         user_content_str = json.dumps(content) if isinstance(content, list) else content
         c.execute("INSERT INTO chat_history (week_key, role, content, timestamp) VALUES (?, ?, ?, ?)",
@@ -481,7 +684,7 @@ def chat():
 @app.route('/api/chat/history', methods=['GET'])
 def get_history():
     week_key = get_week_key()
-    conn = sqlite3.connect('dynasty.db')
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("SELECT role, content, timestamp FROM chat_history WHERE week_key=? ORDER BY id", (week_key,))
     rows = c.fetchall()
@@ -503,7 +706,7 @@ def get_history():
 @app.route('/api/chat/clear', methods=['POST'])
 def clear_chat():
     week_key = get_week_key()
-    conn = sqlite3.connect('dynasty.db')
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("DELETE FROM chat_history WHERE week_key=?", (week_key,))
     conn.commit()
@@ -513,7 +716,7 @@ def clear_chat():
 @app.route('/api/chat/search', methods=['POST'])
 def search_chat():
     query = request.json.get('query', '').lower()
-    conn = sqlite3.connect('dynasty.db')
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("SELECT role, content, timestamp, week_key FROM chat_history ORDER BY id DESC LIMIT 500")
     rows = c.fetchall()
@@ -562,7 +765,7 @@ def get_static_dashboard():
 def get_dashboard():
     """AI-powered dashboard with live web searches — triggered on demand"""
     # Check cache first (6 hour TTL)
-    conn = sqlite3.connect('dynasty.db')
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     try:
         c.execute("SELECT data, last_updated FROM dashboard_cache WHERE cache_key='main'")
@@ -596,7 +799,7 @@ def get_dashboard():
         if start >= 0 and end > start:
             data = json.loads(text[start:end])
             # Cache it
-            conn = sqlite3.connect('dynasty.db')
+            conn = sqlite3.connect(DB_PATH)
             c = conn.cursor()
             c.execute("INSERT OR REPLACE INTO dashboard_cache (cache_key, data, last_updated) VALUES (?, ?, ?)",
                      ('main', json.dumps(data), datetime.now().isoformat()))
@@ -620,7 +823,7 @@ def get_dashboard():
 def get_player_profile():
     player_name = request.json.get('player', '')
     league = request.json.get('league', 'all')
-    conn = sqlite3.connect('dynasty.db')
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("SELECT profile_data, last_updated FROM player_profiles WHERE player_name=?", (player_name,))
     row = c.fetchone()
@@ -641,7 +844,7 @@ def get_player_profile():
         assistant_message = "".join(b.text for b in response.content if hasattr(b, 'text'))
         cleaned = assistant_message.strip().lstrip('```json').lstrip('```').rstrip('```').strip()
         profile = json.loads(cleaned)
-        conn = sqlite3.connect('dynasty.db')
+        conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
         c.execute("INSERT OR REPLACE INTO player_profiles (player_name, profile_data, last_updated) VALUES (?, ?, ?)",
                  (player_name, json.dumps(profile), datetime.now().isoformat()))
@@ -654,7 +857,7 @@ def get_player_profile():
 @app.route('/api/rankings/reset', methods=['POST'])
 def reset_rankings():
     """Reset all rankings and re-seed with full player list"""
-    conn = sqlite3.connect('dynasty.db')
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("DELETE FROM player_rankings")
     conn.commit()
@@ -666,7 +869,7 @@ def reset_rankings():
 def get_ranking_pair():
     """Get two players for comparison using tier-proximity matching"""
     position_filter = request.args.get('position', 'ALL')
-    conn = sqlite3.connect('dynasty.db')
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
 
     if position_filter != 'ALL':
@@ -733,7 +936,7 @@ def adjust_ranking():
     direction = request.json.get('direction', 'up')  # 'up' or 'down'
     positions = request.json.get('positions', 5)  # how many spots to move
 
-    conn = sqlite3.connect('dynasty.db')
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
 
     # Get current rank
@@ -789,7 +992,7 @@ def adjust_ranking():
 def submit_vote():
     winner = request.json.get('winner')
     loser = request.json.get('loser')
-    conn = sqlite3.connect('dynasty.db')
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("SELECT elo_score FROM player_rankings WHERE player_name=?", (winner,))
     w_row = c.fetchone()
@@ -810,7 +1013,7 @@ def submit_vote():
 
 @app.route('/api/rankings/list', methods=['GET'])
 def get_rankings():
-    conn = sqlite3.connect('dynasty.db')
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("SELECT player_name, position, team, elo_score, comparisons FROM player_rankings ORDER BY elo_score DESC LIMIT 200")
     rows = c.fetchall()
@@ -825,7 +1028,7 @@ def add_player():
     team = request.json.get('team', '')
     if not name:
         return jsonify({"success": False, "error": "Name required"})
-    conn = sqlite3.connect('dynasty.db')
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("INSERT OR IGNORE INTO player_rankings (player_name, position, team, elo_score, comparisons, last_updated) VALUES (?, ?, ?, 1500, 0, ?)",
              (name, position, team, datetime.now().isoformat()))
@@ -903,7 +1106,7 @@ def sync_ktc():
         )
         if r.status_code == 200:
             players = r.json()
-            conn = sqlite3.connect('dynasty.db')
+            conn = sqlite3.connect(DB_PATH)
             c = conn.cursor()
             c.execute('''CREATE TABLE IF NOT EXISTS ktc_values
                         (id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -933,7 +1136,7 @@ def sync_ktc():
 @app.route('/api/ktc/values', methods=['GET'])
 def get_ktc_values():
     """Get stored KTC values with 4-week trend"""
-    conn = sqlite3.connect('dynasty.db')
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     try:
         c.execute('''CREATE TABLE IF NOT EXISTS ktc_values
@@ -974,7 +1177,7 @@ def manual_ktc_update():
     """Allow manual paste of KTC values"""
     updates = request.json.get('updates', [])
     week_key = get_week_key()
-    conn = sqlite3.connect('dynasty.db')
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS ktc_values
                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1020,7 +1223,7 @@ def get_composite_rankings():
     position_filter = request.args.get('position', 'ALL')
 
     # 1. Get personal ELO rankings
-    conn = sqlite3.connect('dynasty.db')
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute('''SELECT player_name, position, team, elo_score, comparisons
                 FROM player_rankings ORDER BY elo_score DESC''')
@@ -1035,7 +1238,7 @@ def get_composite_rankings():
         }
 
     # 2. Get KTC values from DB
-    conn = sqlite3.connect('dynasty.db')
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     ktc_ranks = {}
     try:
@@ -1198,7 +1401,7 @@ Be decisive. One clear recommendation first. Format for mobile."""
 @app.route('/api/draft/state', methods=['GET', 'POST'])
 def draft_state():
     """Save and retrieve draft state"""
-    conn = sqlite3.connect('dynasty.db')
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS draft_state
                 (id INTEGER PRIMARY KEY, state_data TEXT, updated_at TEXT)''')
@@ -1224,7 +1427,7 @@ def draft_state():
 
 def seed_vs_players():
     """Seed VS rankings pool with 6pt TD adjusted ELO — QBs boosted ~18%"""
-    conn = sqlite3.connect('dynasty.db')
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("SELECT COUNT(*) FROM vs_rankings")
     if c.fetchone()[0] > 0:
@@ -1248,7 +1451,7 @@ seed_vs_players()
 def get_vs_pair():
     """Proximity-based matchup for VS 6pt TD rankings"""
     position_filter = request.args.get('position', 'ALL')
-    conn = sqlite3.connect('dynasty.db')
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     if position_filter != 'ALL':
         c.execute('''SELECT player_name, position, team, elo_score, comparisons
@@ -1297,7 +1500,7 @@ def vs_vote():
     data = request.json
     winner = data.get('winner', '')
     loser = data.get('loser', '')
-    conn = sqlite3.connect('dynasty.db')
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("SELECT elo_score, comparisons FROM vs_rankings WHERE player_name=?", (winner,))
     wr = c.fetchone()
@@ -1321,7 +1524,7 @@ def vs_vote():
 def get_vs_list():
     """Get VS personal rankings sorted by ELO, limited to top 150"""
     position_filter = request.args.get('position', 'ALL')
-    conn = sqlite3.connect('dynasty.db')
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     if position_filter != 'ALL':
         c.execute('''SELECT player_name, position, team, elo_score, comparisons
@@ -1342,7 +1545,7 @@ def vs_adjust():
     name = request.json.get('name', '')
     direction = request.json.get('direction', 'up')
     positions = request.json.get('positions', 5)
-    conn = sqlite3.connect('dynasty.db')
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("SELECT elo_score FROM vs_rankings WHERE player_name=?", (name,))
     row = c.fetchone()
@@ -1373,7 +1576,7 @@ def vs_adjust():
 @app.route('/api/vs/reset', methods=['POST'])
 def vs_reset():
     """Reset VS rankings and re-seed from standard rankings with QB boost"""
-    conn = sqlite3.connect('dynasty.db')
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("DELETE FROM vs_rankings")
     conn.commit()
@@ -1490,7 +1693,7 @@ def paste_market_data():
         return jsonify({"success": False, "error": "Could not parse any players. Try copying just the player list rows."})
 
     # Store in DB
-    conn = sqlite3.connect('dynasty.db')
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     for p in players_parsed:
         c.execute('''INSERT OR REPLACE INTO market_data
@@ -1506,7 +1709,7 @@ def paste_market_data():
 @app.route('/api/market/data', methods=['GET'])
 def get_market_data():
     """Get all stored market data by source"""
-    conn = sqlite3.connect('dynasty.db')
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute('''SELECT source, player_name, rank, value, position, team, updated_at
                 FROM market_data ORDER BY source, rank ASC''')
@@ -1527,14 +1730,12 @@ def get_market_data():
 @app.route('/api/tiers', methods=['GET'])
 def get_tiers():
     """
-    Compute positional tier breaks and trade targets by comparing:
-    - VS personal rankings
-    - KTC stored values
-    - DDL rankings (if pasted)
-    - Sleeper ADP (if pasted)
-    Also identifies draft slots where tier breaks occur.
+    Compute positional tier breaks and trade targets comparing:
+    - VS personal rankings (ELO-based)
+    - KTC stored values (market baseline)
+    - DDL ADP (startup draft position benchmark)
     """
-    conn = sqlite3.connect('dynasty.db')
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
 
     # Get VS personal rankings
@@ -1542,34 +1743,35 @@ def get_tiers():
     vs_rows = c.fetchall()
     vs_rank = {r[0]: {'rank': i+1, 'pos': r[1], 'elo': r[2]} for i, r in enumerate(vs_rows)}
 
-    # Get KTC values
-    c.execute("SELECT player_name, ktc_value FROM ktc_values GROUP BY player_name HAVING MAX(synced_at)")
-    ktc_rows = c.fetchall()
-    ktc_vals = {r[0]: r[1] for r in ktc_rows}
+    # Get KTC ranks from market_data
+    c.execute("SELECT player_name, rank, value FROM market_data WHERE source='ktc' ORDER BY rank ASC")
+    ktc_rank_map = {r[0]: {'rank': r[1], 'value': r[2]} for r in c.fetchall()}
 
-    # Get market data
-    c.execute("SELECT source, player_name, rank, value FROM market_data ORDER BY source, rank")
-    mkt_rows = c.fetchall()
-    mkt_by_source = {}
-    for source, name, rank, val in mkt_rows:
-        if source not in mkt_by_source:
-            mkt_by_source[source] = {}
-        mkt_by_source[source][name] = {'rank': rank, 'value': val}
+    # Get DDL ADP from market_data (value stored as adp*10, team field has raw adp string)
+    c.execute("SELECT player_name, rank, team FROM market_data WHERE source='ddl' ORDER BY rank ASC")
+    ddl_rows = c.fetchall()
+    ddl_rank_map = {}
+    for name, rank, adp_str in ddl_rows:
+        try:
+            ddl_rank_map[name] = {'rank': rank, 'adp': float(adp_str)}
+        except:
+            ddl_rank_map[name] = {'rank': rank, 'adp': rank}
 
     conn.close()
 
-    # Build position-specific tier analysis
+    has_ktc = len(ktc_rank_map) > 10
+    has_ddl = len(ddl_rank_map) > 10
+
+    # Build position-specific tier analysis from VS rankings
     positions = ['QB', 'RB', 'WR', 'TE']
     tier_data = {}
 
     for pos in positions:
         pos_players = [(name, d['rank'], d['elo']) for name, d in vs_rank.items() if d['pos'] == pos]
         pos_players.sort(key=lambda x: x[1])
-
         if len(pos_players) < 2:
             continue
 
-        # Detect tier breaks: ELO drop > 120 between consecutive players
         tiers = []
         current_tier = []
         for i, (name, rank, elo) in enumerate(pos_players):
@@ -1578,12 +1780,9 @@ def get_tiers():
                 next_elo = pos_players[i+1][2]
                 gap = elo - next_elo
                 if gap > 120:
-                    # Calculate what startup pick this tier break falls at
-                    # Rough mapping: overall vs_rank -> startup slot
-                    overall_rank = rank
-                    est_pick_round = (overall_rank // 12) + 1
-                    est_pick_slot = (overall_rank % 12) + 1
-                    est_pick = str(est_pick_round) + '.' + str(est_pick_slot).zfill(2)
+                    est_pick_round = max(1, (rank // 12) + 1)
+                    est_pick_slot = (rank % 12) + 1
+                    est_pick = f"{est_pick_round}.{str(est_pick_slot).zfill(2)}"
                     tiers.append({
                         'tier_num': len(tiers) + 1,
                         'players': current_tier.copy(),
@@ -1594,64 +1793,281 @@ def get_tiers():
                     })
                     current_tier = []
         if current_tier:
-            tiers.append({'tier_num': len(tiers)+1, 'players': current_tier.copy(), 'break_after': None, 'gap': 0, 'est_pick': None, 'last_rank': None})
-
+            tiers.append({'tier_num': len(tiers)+1, 'players': current_tier.copy(),
+                         'break_after': None, 'gap': 0, 'est_pick': None, 'last_rank': None})
         tier_data[pos] = tiers
 
-    # Trade up/down targets: players you rank significantly higher/lower than KTC
+    # Trade targets: compare VS rank vs DDL ADP rank (primary) and KTC rank (secondary)
     trade_targets = []
     for name, vd in vs_rank.items():
         if vd['rank'] > 150:
             continue
-        # Get KTC rank for this player
-        ktc_v = ktc_vals.get(name, 0)
-        if not ktc_v:
-            continue
-        # Compute KTC rank by sorting all players by KTC value
-        # Already have vs_rank — approximate KTC rank from value percentile
-        ktc_rank_approx = max(1, 200 - int(ktc_v / 50))
+
         my_rank = vd['rank']
-        delta = ktc_rank_approx - my_rank  # positive = I rank higher than KTC (buy signal)
+        market_rank = None
+        market_source = None
+        adp_float = None
 
-        if abs(delta) >= 15:
-            if delta >= 30:
-                signal = 'STRONG BUY'
-                signal_color = 'gn'
-            elif delta >= 15:
-                signal = 'BUY'
-                signal_color = 'gn'
-            elif delta <= -30:
-                signal = 'STRONG SELL'
-                signal_color = 'rd'
-            else:
-                signal = 'SELL'
-                signal_color = 'rd'
+        # Prefer DDL ADP as market benchmark (most accurate for startup)
+        if name in ddl_rank_map:
+            market_rank = ddl_rank_map[name]['rank']
+            adp_float = ddl_rank_map[name]['adp']
+            market_source = 'DDL'
+        elif name in ktc_rank_map:
+            market_rank = ktc_rank_map[name]['rank']
+            market_source = 'KTC'
 
-            # Estimate when this player will be drafted based on KTC rank
-            est_draft_round = (ktc_rank_approx // 12) + 1
-            est_draft_pick = str(est_draft_round) + '.' + str((ktc_rank_approx % 12 + 1)).zfill(2)
+        if not market_rank:
+            continue
 
-            trade_targets.append({
-                'name': name,
-                'position': vd['pos'],
-                'my_rank': my_rank,
-                'ktc_rank': ktc_rank_approx,
-                'delta': delta,
-                'signal': signal,
-                'signal_color': signal_color,
-                'ktc_value': ktc_v,
-                'est_draft_pick': est_draft_pick,
-                'trade_up_note': f"Draft {est_draft_pick} to get him" if delta > 0 else f"Could slide past your next pick",
-            })
+        delta = market_rank - my_rank  # positive = I rank higher than market
+
+        if abs(delta) < 10:
+            continue
+
+        if delta >= 30:
+            signal = 'STRONG BUY'
+        elif delta >= 15:
+            signal = 'BUY'
+        elif delta >= 10:
+            signal = 'SLIGHT BUY'
+        elif delta <= -30:
+            signal = 'STRONG SELL'
+        elif delta <= -15:
+            signal = 'SELL'
+        else:
+            signal = 'SLIGHT SELL'
+
+        # Estimate draft pick from DDL ADP
+        if adp_float:
+            est_pick_round = int(adp_float // 12) + 1
+            est_pick_slot = int(adp_float % 12) + 1
+            est_draft_pick = f"{est_pick_round}.{str(est_pick_slot).zfill(2)}"
+        else:
+            est_draft_pick = f"{(market_rank//12)+1}.{str((market_rank%12)+1).zfill(2)}"
+
+        trade_targets.append({
+            'name': name,
+            'position': vd['pos'],
+            'my_rank': my_rank,
+            'market_rank': market_rank,
+            'market_source': market_source,
+            'adp': adp_float,
+            'delta': delta,
+            'signal': signal,
+            'est_draft_pick': est_draft_pick,
+            'note': f"Market goes at ~{est_draft_pick} ({market_source} ADP {adp_float or market_rank})" if delta > 0
+                   else f"Market values higher — slides to ~{est_draft_pick}",
+        })
 
     trade_targets.sort(key=lambda x: abs(x['delta']), reverse=True)
 
     return jsonify({
         "tiers": tier_data,
-        "trade_targets": trade_targets[:30],
-        "sources_available": list(mkt_by_source.keys()),
+        "trade_targets": trade_targets[:40],
+        "sources_available": (['ktc'] if has_ktc else []) + (['ddl'] if has_ddl else []),
+        "ktc_count": len(ktc_rank_map),
+        "ddl_count": len(ddl_rank_map),
         "success": True
     })
+
+def seed_ddl_market_data():
+    """Store DDL ADP data — seeded from May 12 2026 paste"""
+    DDL_PLAYERS = [
+    ('Josh Allen', 'QB', 1, 1.95),
+    ('Bijan Robinson', 'RB', 2, 2.7),
+    ('Drake Maye', 'QB', 3, 3.76),
+    ('Ja\'Marr Chase', 'WR', 4, 4.68),
+    ('Jahmyr Gibbs', 'RB', 5, 4.97),
+    ('Jaxon Smith-Njigba', 'WR', 6, 6.45),
+    ('Puka Nacua', 'WR', 7, 7.43),
+    ('Jayden Daniels', 'QB', 8, 10.51),
+    ('Amon-Ra St. Brown', 'WR', 9, 11.39),
+    ('Caleb Williams', 'QB', 10, 12.58),
+    ('Brock Bowers', 'TE', 11, 12.72),
+    ('Lamar Jackson', 'QB', 12, 12.8),
+    ('Malik Nabers', 'WR', 13, 13.72),
+    ('Joe Burrow', 'QB', 14, 15.12),
+    ('Ashton Jeanty', 'RB', 15, 15.34),
+    ('Trey McBride', 'TE', 16, 15.67),
+    ('Justin Jefferson', 'WR', 17, 16.22),
+    ('Jeremiyah Love', 'RB', 18, 16.84),
+    ('CeeDee Lamb', 'WR', 19, 19.34),
+    ('Devon Achane', 'RB', 20, 21.27),
+    ('Omarion Hampton', 'RB', 21, 21.88),
+    ('Jaxson Dart', 'QB', 22, 22.08),
+    ('Justin Herbert', 'QB', 23, 24.06),
+    ('Drake London', 'WR', 24, 24.22),
+    ('Jalen Hurts', 'QB', 25, 26.37),
+    ('Jonathan Taylor', 'RB', 26, 27.47),
+    ('Patrick Mahomes', 'QB', 27, 28.33),
+    ('Tetairoa McMillan', 'WR', 28, 28.49),
+    ('James Cook', 'RB', 29, 28.97),
+    ('Colston Loveland', 'TE', 30, 29.22),
+    ('Trevor Lawrence', 'QB', 31, 31.04),
+    ('George Pickens', 'WR', 32, 33.91),
+    ('Bo Nix', 'QB', 33, 34.43),
+    ('Emeka Egbuka', 'WR', 34, 35.5),
+    ('Tyler Warren', 'TE', 35, 36.88),
+    ('Nico Collins', 'WR', 36, 37.69),
+    ('Brock Purdy', 'QB', 37, 39.08),
+    ('Christian McCaffrey', 'RB', 38, 40.83),
+    ('Kenneth Walker III', 'RB', 39, 41.15),
+    ('Chris Olave', 'WR', 40, 41.44),
+    ('TreVeyon Henderson', 'RB', 41, 42.67),
+    ('Carnell Tate', 'WR', 42, 43.29),
+    ('Chase Brown', 'RB', 43, 43.7),
+    ('Garrett Wilson', 'WR', 44, 43.97),
+    ('Rashee Rice', 'WR', 45, 44.12),
+    ('Dak Prescott', 'QB', 46, 47.14),
+    ('Ladd McConkey', 'WR', 47, 49.0),
+    ('Breece Hall', 'RB', 48, 49.48),
+    ('Quinshon Judkins', 'RB', 49, 51.06),
+    ('Fernando Mendoza', 'QB', 50, 51.76),
+    ('Harold Fannin', 'TE', 51, 51.83),
+    ('Jordan Love', 'QB', 52, 53.27),
+    ('Luther Burden', 'WR', 53, 53.29),
+    ('Bucky Irving', 'RB', 54, 55.06),
+    ('Saquon Barkley', 'RB', 55, 55.08),
+    ('Jordyn Tyson', 'WR', 56, 56.08),
+    ('Rome Odunze', 'WR', 57, 57.49),
+    ('A.J. Brown', 'WR', 58, 58.17),
+    ('Tucker Kraft', 'TE', 59, 58.95),
+    ('Kyren Williams', 'RB', 60, 59.64),
+    ('Marvin Harrison Jr.', 'WR', 61, 62.51),
+    ('Makai Lemon', 'WR', 62, 63.6),
+    ('Zay Flowers', 'WR', 63, 64.15),
+    ('Cam Ward', 'QB', 64, 65.25),
+    ('Tee Higgins', 'WR', 65, 66.42),
+    ('Cam Skattebo', 'RB', 66, 67.09),
+    ('Brian Thomas Jr.', 'WR', 67, 67.69),
+    ('Javonte Williams', 'RB', 68, 68.3),
+    ('Jared Goff', 'QB', 69, 69.32),
+    ('Jadarian Price', 'RB', 70, 69.33),
+    ('DeVonta Smith', 'WR', 71, 69.52),
+    ('Josh Jacobs', 'RB', 72, 69.58),
+    ('Tyler Shough', 'QB', 73, 70.32),
+    ('Baker Mayfield', 'QB', 74, 70.51),
+    ('Sam LaPorta', 'TE', 75, 70.92),
+    ('Travis Etienne', 'RB', 76, 71.31),
+    ('Jameson Williams', 'WR', 77, 74.97),
+    ('Kyle Pitts', 'TE', 78, 75.46),
+    ('Jaylen Waddle', 'WR', 79, 75.48),
+    ('C.J. Stroud', 'QB', 80, 77.6),
+    ('Derrick Henry', 'RB', 81, 78.23),
+    ('Sam Darnold', 'QB', 82, 83.25),
+    ('Kenyon Sadiq', 'TE', 83, 83.34),
+    ('KC Concepcion', 'WR', 84, 84.5),
+    ('Bhayshul Tuten', 'RB', 85, 84.67),
+    ('Oronde Gadsden', 'TE', 86, 85.56),
+    ('Kyler Murray', 'QB', 87, 87.12),
+    ('D.J. Moore', 'WR', 88, 88.1),
+    ('Alec Pierce', 'WR', 89, 88.86),
+    ('Matthew Stafford', 'QB', 90, 88.97),
+    ('RJ Harvey', 'RB', 91, 90.54),
+    ('Bryce Young', 'QB', 92, 91.51),
+    ('David Montgomery', 'RB', 93, 95.69),
+    ('Malik Willis', 'QB', 94, 96.94),
+    ('D\'Andre Swift', 'RB', 95, 97.55),
+    ('Christian Watson', 'WR', 96, 97.89),
+    ('Jordan Addison', 'WR', 97, 98.55),
+    ('Michael Wilson', 'WR', 98, 99.89),
+    ('Kyle Monangai', 'RB', 99, 100.17),
+    ('Omar Cooper', 'WR', 100, 101.0),
+    ('Terry McLaurin', 'WR', 101, 102.16),
+    ('Jake Ferguson', 'TE', 102, 103.61),
+    ('Daniel Jones', 'QB', 103, 104.28),
+    ('Chuba Hubbard', 'RB', 104, 104.39),
+    ('Wan\'Dale Robinson', 'WR', 105, 106.93),
+    ('Parker Washington', 'WR', 106, 107.69),
+    ('Davante Adams', 'WR', 107, 108.69),
+    ('D.K. Metcalf', 'WR', 108, 109.17),
+    ('Dalton Kincaid', 'TE', 109, 109.29),
+    ('Ricky Pearsall', 'WR', 110, 109.48),
+    ('Eli Stowers', 'TE', 111, 110.9),
+    ('Ty Simpson', 'QB', 112, 110.93),
+    ('Isaiah Likely', 'TE', 113, 112.76),
+    ('Mike Evans', 'WR', 114, 113.32),
+    ('Matthew Golden', 'WR', 115, 115.41),
+    ('Jaylen Warren', 'RB', 116, 116.33),
+    ('George Kittle', 'TE', 117, 116.89),
+    ('Jayden Higgins', 'WR', 118, 117.97),
+    ('Denzel Boston', 'WR', 119, 118.53),
+    ('Brenton Strange', 'TE', 120, 120.51),
+    ('Jonah Coleman', 'RB', 121, 121.38),
+    ('Blake Corum', 'RB', 122, 121.73),
+    ('Rico Dowdle', 'RB', 123, 123.61),
+    ('Quentin Johnston', 'WR', 124, 125.26),
+    ('Michael Pittman Jr.', 'WR', 125, 127.04),
+    ('Xavier Worthy', 'WR', 126, 128.03),
+    ('Josh Downs', 'WR', 127, 128.39),
+    ('Zach Charbonnet', 'RB', 128, 128.85),
+    ('Travis Hunter', 'WR', 129, 129.24),
+    ('Jayden Reed', 'WR', 130, 130.32),
+    ('Rhamondre Stevenson', 'RB', 131, 130.81),
+    ('Courtland Sutton', 'WR', 132, 131.56),
+    ('Jacory Croskey-Merritt', 'RB', 133, 133.04),
+    ('Romeo Doubs', 'WR', 134, 134.34),
+    ('Chris Bell', 'WR', 135, 134.7),
+    ('Jonathon Brooks', 'RB', 136, 135.9),
+    ('Nicholas Singleton', 'RB', 137, 135.92),
+    ('Jakobi Meyers', 'WR', 138, 137.76),
+    ('J.K. Dobbins', 'RB', 139, 138.88),
+    ('AJ Barner', 'TE', 140, 139.65),
+    ('Jalen Coker', 'WR', 141, 141.4),
+    ('Tony Pollard', 'RB', 142, 143.0),
+    ('Chris Godwin', 'WR', 143, 144.14),
+    ('Germie Bernard', 'WR', 144, 144.33),
+    ('Kenneth Gainwell', 'RB', 145, 146.65),
+    ('Mark Andrews', 'TE', 146, 146.81),
+    ('Woody Marks', 'RB', 147, 150.57),
+    ('Tyler Allgeier', 'RB', 148, 151.89),
+    ('Jordan Mason', 'RB', 149, 152.01),
+    ('Khalil Shakir', 'WR', 150, 152.4),
+    ('Travis Kelce', 'TE', 151, 154.32),
+    ('Jacoby Brissett', 'QB', 152, 154.33),
+    ('Michael Penix Jr.', 'QB', 153, 155.53),
+    ('Juwan Johnson', 'TE', 154, 157.15),
+    ('Tua Tagovailoa', 'QB', 155, 157.17),
+    ('Elijah Sarratt', 'WR', 156, 157.21),
+    ('Jalen McMillan', 'WR', 157, 157.41),
+    ('Rachaad White', 'RB', 158, 157.97),
+    ('Antonio Williams', 'WR', 159, 159.57),
+    ('T.J. Hockenson', 'TE', 160, 159.66),
+    ('Chigoziem Okonkwo', 'TE', 161, 161.33),
+    ('Shedeur Sanders', 'QB', 162, 161.33),
+    ('Emmett Johnson', 'RB', 163, 161.53),
+    ('Dallas Goedert', 'TE', 164, 161.63),
+    ('Gunnar Helm', 'TE', 165, 165.15),
+    ('Tyrone Tracy', 'RB', 166, 165.65),
+    ('Geno Smith', 'QB', 167, 166.76),
+    ('Rashid Shaheed', 'WR', 168, 168.97),
+    ('Chris Brazzell', 'WR', 169, 172.25),
+    ('Zachariah Branch', 'WR', 170, 172.5),
+    ('Braelon Allen', 'RB', 171, 172.75),
+    ('Chris Rodriguez Jr.', 'RB', 172, 173.44),
+    ('J.J. McCarthy', 'QB', 173, 173.99),
+    ('Tre Harris', 'WR', 174, 175.81),
+    ('Kaytron Allen', 'RB', 176, 176.15),
+    ('Brandon Aiyuk', 'WR', 177, 177.79),
+    ('Dylan Sampson', 'RB', 178, 178.02),
+    ]
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT COUNT(*) FROM market_data WHERE source='ddl'")
+    if c.fetchone()[0] > 50:
+        conn.close()
+        return  # Already loaded
+    for name, pos, rank, adp in DDL_PLAYERS:
+        # Store ADP as value (multiplied by 100 to keep as int, adp_float stored in team field)
+        c.execute('''INSERT OR REPLACE INTO market_data
+                    (source, player_name, rank, value, position, team, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)''',
+                 ('ddl', name, rank, int(adp * 10), pos, str(adp), datetime.now().isoformat()))
+    conn.commit()
+    conn.close()
+
+seed_ddl_market_data()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8080, debug=False)
