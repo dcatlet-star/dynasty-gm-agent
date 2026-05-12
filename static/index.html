@@ -344,14 +344,16 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--tx);display:
   <div style="padding:12px;">
     <div style="background:var(--s2);border:1px solid var(--b1);border-radius:11px;padding:12px;margin-bottom:12px;">
       <div style="font-family:'Bebas Neue';font-size:17px;letter-spacing:2px;margin-bottom:3px;">Velvet Spade Draft</div>
-      <div style="font-size:11px;color:var(--t2);">KTC-calibrated values · 6pt TD adjusted · Gold = your picks</div>
+      <div style="font-size:11px;color:var(--t2);">KTC-calibrated · 6pt TD · 28 rounds · May 15</div>
     </div>
   </div>
-  <div class="draft-tabs">
-    <div class="draft-tab active" data-dtab="chart">Pick Values</div>
-    <div class="draft-tab" data-dtab="cumulative">Draft Capital</div>
-    <div class="draft-tab" data-dtab="assistant">🔴 Live Draft</div>
-    <div class="draft-tab" data-dtab="analyzer">Trade Analyzer</div>
+  <div class="draft-tabs" style="overflow-x:auto;scrollbar-width:none;display:flex;">
+    <div class="draft-tab active" data-dtab="vsrank" style="white-space:nowrap;">⭐ VS Rankings</div>
+    <div class="draft-tab" data-dtab="tiers" style="white-space:nowrap;">📊 Tier Breaks</div>
+    <div class="draft-tab" data-dtab="chart" style="white-space:nowrap;">Pick Values</div>
+    <div class="draft-tab" data-dtab="cumulative" style="white-space:nowrap;">Draft Capital</div>
+    <div class="draft-tab" data-dtab="assistant" style="white-space:nowrap;">🔴 Live Draft</div>
+    <div class="draft-tab" data-dtab="analyzer" style="white-space:nowrap;">Trade Analyzer</div>
   </div>
   <div class="sec" id="draft-content"></div>
 </div>
@@ -392,30 +394,129 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--tx);display:
 
 // ── CONSTANTS ──
 const STARTUP_VALUES = {
+  // Round 1 — elite franchise tier
   '1.01':9999,'1.02':9987,'1.03':9918,'1.04':9565,'1.05':9412,'1.06':8765,
   '1.07':8603,'1.08':8337,'1.09':7935,'1.10':7861,'1.11':7838,'1.12':7778,
+  // Round 2
   '2.01':7713,'2.02':7697,'2.03':7679,'2.04':7566,'2.05':7499,'2.06':7287,
   '2.07':6888,'2.08':6887,'2.09':6818,'2.10':6814,'2.11':6702,'2.12':6692,
+  // Round 3
   '3.01':6673,'3.02':6556,'3.03':6328,'3.04':6220,'3.05':6197,'3.06':6181,
   '3.07':6139,'3.08':6056,'3.09':6044,'3.10':5957,'3.11':5841,'3.12':5830,
+  // Round 4
   '4.01':5719,'4.02':5672,'4.03':5668,'4.04':5638,'4.05':5571,'4.06':5474,
   '4.07':5461,'4.08':5459,'4.09':5402,'4.10':5373,'4.11':5357,'4.12':5356,
+  // Round 5
+  '5.01':5251,'5.02':5243,'5.03':5214,'5.04':5197,'5.05':5076,'5.06':5042,
+  '5.07':4993,'5.08':4992,'5.09':4929,'5.10':4925,'5.11':4920,'5.12':4904,
+  // Round 6
+  '6.01':4899,'6.02':4898,'6.03':4889,'6.04':4885,'6.05':4866,'6.06':4853,
+  '6.07':4850,'6.08':4810,'6.09':4747,'6.10':4741,'6.11':4710,'6.12':4696,
+  // Round 7
+  '7.01':4695,'7.02':4620,'7.03':4619,'7.04':4604,'7.05':4560,'7.06':4512,
+  '7.07':4494,'7.08':4464,'7.09':4454,'7.10':4428,'7.11':4417,'7.12':4338,
+  // Round 8
+  '8.01':4110,'8.02':4103,'8.03':4059,'8.04':3969,'8.05':3967,'8.06':3960,
+  '8.07':3945,'8.08':3924,'8.09':3915,'8.10':3880,'8.11':3866,'8.12':3825,
+  // Round 9
+  '9.01':3764,'9.02':3725,'9.03':3714,'9.04':3712,'9.05':3695,'9.06':3690,
+  '9.07':3683,'9.08':3680,'9.09':3679,'9.10':3664,'9.11':3640,'9.12':3596,
+  // Round 10
+  '10.01':3569,'10.02':3533,'10.03':3533,'10.04':3529,'10.05':3521,'10.06':3515,
+  '10.07':3479,'10.08':3466,'10.09':3465,'10.10':3449,'10.11':3420,'10.12':3414,
+  // Round 11
+  '11.01':3404,'11.02':3388,'11.03':3376,'11.04':3373,'11.05':3339,'11.06':3336,
+  '11.07':3326,'11.08':3315,'11.09':3304,'11.10':3304,'11.11':3296,'11.12':3241,
+  // Round 12
+  '12.01':3215,'12.02':3210,'12.03':3209,'12.04':3204,'12.05':3201,'12.06':3196,
+  '12.07':3191,'12.08':3187,'12.09':3147,'12.10':3139,'12.11':3136,'12.12':3120,
+  // Round 13
+  '13.01':3082,'13.02':3080,'13.03':3038,'13.04':3036,'13.05':3026,'13.06':3020,
+  '13.07':3005,'13.08':3000,'13.09':2963,'13.10':2959,'13.11':2952,'13.12':2948,
+  // Round 14
+  '14.01':2944,'14.02':2930,'14.03':2916,'14.04':2905,'14.05':2897,'14.06':2892,
+  '14.07':2890,'14.08':2863,'14.09':2860,'14.10':2837,'14.11':2831,'14.12':2828,
+  // Round 15
+  '15.01':2806,'15.02':2804,'15.03':2798,'15.04':2794,'15.05':2791,'15.06':2785,
+  '15.07':2778,'15.08':2770,'15.09':2759,'15.10':2758,'15.11':2742,'15.12':2737,
+  // Round 16
+  '16.01':2737,'16.02':2735,'16.03':2734,'16.04':2719,'16.05':2717,'16.06':2708,
+  '16.07':2699,'16.08':2692,'16.09':2689,'16.10':2688,'16.11':2677,'16.12':2672,
+  // Round 17
+  '17.01':2670,'17.02':2665,'17.03':2663,'17.04':2647,'17.05':2646,'17.06':2637,
+  '17.07':2617,'17.08':2614,'17.09':2598,'17.10':2590,'17.11':2589,'17.12':2571,
+  // Round 18
+  '18.01':2547,'18.02':2528,'18.03':2515,'18.04':2510,'18.05':2501,'18.06':2490,
+  '18.07':2475,'18.08':2471,'18.09':2470,'18.10':2466,'18.11':2453,'18.12':2447,
+  // Round 19
+  '19.01':2445,'19.02':2445,'19.03':2433,'19.04':2419,'19.05':2417,'19.06':2414,
+  '19.07':2412,'19.08':2409,'19.09':2402,'19.10':2392,'19.11':2372,'19.12':2362,
+  // Round 20
+  '20.01':2359,'20.02':2347,'20.03':2321,'20.04':2313,'20.05':2311,'20.06':2304,
+  '20.07':2294,'20.08':2292,'20.09':2286,'20.10':2276,'20.11':2267,'20.12':2263,
+  // Round 21
+  '21.01':2253,'21.02':2252,'21.03':2234,'21.04':2220,'21.05':2203,'21.06':2181,
+  '21.07':2175,'21.08':2168,'21.09':2159,'21.10':2152,'21.11':2140,'21.12':2138,
+  // Round 22
+  '22.01':2138,'22.02':2137,'22.03':2134,'22.04':2134,'22.05':2119,'22.06':2110,
+  '22.07':2096,'22.08':2088,'22.09':2087,'22.10':2082,'22.11':2081,'22.12':2079,
+  // Round 23
+  '23.01':2079,'23.02':2064,'23.03':2059,'23.04':2059,'23.05':2039,'23.06':2031,
+  '23.07':2023,'23.08':2013,'23.09':2009,'23.10':2004,'23.11':1990,'23.12':1984,
+  // Round 24
+  '24.01':1983,'24.02':1977,'24.03':1972,'24.04':1949,'24.05':1927,'24.06':1925,
+  '24.07':1907,'24.08':1896,'24.09':1881,'24.10':1873,'24.11':1867,'24.12':1857,
+  // Round 25
+  '25.01':1847,'25.02':1839,'25.03':1834,'25.04':1827,'25.05':1824,'25.06':1824,
+  '25.07':1816,'25.08':1797,'25.09':1789,'25.10':1785,'25.11':1783,'25.12':1774,
+  // Round 26
+  '26.01':1773,'26.02':1770,'26.03':1764,'26.04':1726,'26.05':1722,'26.06':1722,
+  '26.07':1721,'26.08':1714,'26.09':1713,'26.10':1707,'26.11':1704,'26.12':1702,
+  // Round 27
+  '27.01':1698,'27.02':1693,'27.03':1688,'27.04':1681,'27.05':1657,'27.06':1652,
+  '27.07':1650,'27.08':1650,'27.09':1643,'27.10':1642,'27.11':1641,'27.12':1639,
+  // Round 28
+  '28.01':1632,'28.02':1631,'28.03':1625,'28.04':1609,'28.05':1606,'28.06':1594,
+  '28.07':1579,'28.08':1576,'28.09':1571,'28.10':1569,'28.11':1559,'28.12':1557,
 };
-const MY_VS_PICKS = ['1.02','2.11','3.11','4.02','5.11','6.02','7.11','8.02'];
+
+// Dynasty rookie draft pick values (KTC confirmed May 2026)
+const DYNASTY_PICKS = {
+  '2027 Early 1st':7098,'2027 Mid 1st':5602,'2027 Late 1st':4889,
+  '2028 Early 1st':4967,'2028 Mid 1st':4417,'2028 Late 1st':3924,
+  '2026 Early 1st':5719,'2026 Mid 1st':4604,'2026 Late 1st':3880,
+  '2027 Early 2nd':3915,'2027 Mid 2nd':3404,'2027 Late 2nd':3196,
+  '2028 Early 2nd':3120,'2028 Mid 2nd':2930,'2028 Late 2nd':2735,
+  '2026 Early 2nd':3296,'2026 Mid 2nd':3026,'2026 Late 2nd':2770,
+  '2027 Early 3rd':2645,'2027 Mid 3rd':2471,'2027 Late 3rd':2181,
+  '2028 Early 3rd':2134,'2028 Mid 3rd':2082,'2028 Late 3rd':1867,
+  '2026 Early 3rd':2276,'2026 Mid 3rd':2140,'2026 Late 3rd':2013,
+  '2027 Early 4th':1857,'2027 Mid 4th':1764,'2027 Late 4th':1657,
+  '2028 Early 4th':1639,
+  '2026 Early 4th':1698,'2026 Mid 4th':1625,
+};
+
+// Your picks in VS: odd rounds = pick 2nd, even rounds = pick 11th
+const MY_VS_PICKS = [
+  '1.02','2.11','3.11','4.02','5.11','6.02','7.11','8.02',
+  '9.11','10.02','11.11','12.02','13.11','14.02','15.11','16.02',
+  '17.11','18.02','19.11','20.02','21.11','22.02','23.11','24.02',
+  '25.11','26.02','27.11','28.02',
+];
 
 const MANAGERS = [
-  {name:'pdwyer13',picks:['1.01','2.12','3.12','4.01']},
-  {name:'dcatlet (YOU)',picks:['1.02','2.11','3.11','4.02'],isMe:true},
-  {name:'yerkdog',picks:['1.03','2.10','3.10','4.03']},
-  {name:'jefisk24',picks:['1.04','2.09','3.09','4.04']},
-  {name:'Smohr609',picks:['1.05','2.08','3.08','4.05']},
-  {name:'ColeTrain8300',picks:['1.06','2.07','3.07','4.06']},
-  {name:'DrTrollPhD',picks:['1.07','2.06','3.06','4.07']},
-  {name:'colinmonie',picks:['1.08','2.05','3.05','4.08']},
-  {name:'EazyDakar',picks:['1.09','2.04','3.04','4.09']},
-  {name:'jakemills69',picks:['1.10','2.03','3.03','4.10']},
-  {name:'NateSneller',picks:['1.11','2.02','3.02','4.11']},
-  {name:'sneller',picks:['1.12','2.01','3.01','4.12']},
+  {name:'pdwyer13',picks:['1.01','2.12','3.12','4.01','5.12','6.01','7.12','8.01','9.12','10.01','11.12','12.01','13.12','14.01','15.12','16.01','17.12','18.01','19.12','20.01','21.12','22.01','23.12','24.01','25.12','26.01','27.12','28.01']},
+  {name:'dcatlet (YOU)',picks:['1.02','2.11','3.11','4.02','5.11','6.02','7.11','8.02','9.11','10.02','11.11','12.02','13.11','14.02','15.11','16.02','17.11','18.02','19.11','20.02','21.11','22.02','23.11','24.02','25.11','26.02','27.11','28.02'],isMe:true},
+  {name:'yerkdog',picks:['1.03','2.10','3.10','4.03','5.10','6.03','7.10','8.03','9.10','10.03','11.10','12.03','13.10','14.03','15.10','16.03','17.10','18.03','19.10','20.03','21.10','22.03','23.10','24.03','25.10','26.03','27.10','28.03']},
+  {name:'jefisk24',picks:['1.04','2.09','3.09','4.04','5.09','6.04','7.09','8.04','9.09','10.04','11.09','12.04','13.09','14.04','15.09','16.04','17.09','18.04','19.09','20.04','21.09','22.04','23.09','24.04','25.09','26.04','27.09','28.04']},
+  {name:'Smohr609',picks:['1.05','2.08','3.08','4.05','5.08','6.05','7.08','8.05','9.08','10.05','11.08','12.05','13.08','14.05','15.08','16.05','17.08','18.05','19.08','20.05','21.08','22.05','23.08','24.05','25.08','26.05','27.08','28.05']},
+  {name:'ColeTrain8300',picks:['1.06','2.07','3.07','4.06','5.07','6.06','7.07','8.06','9.07','10.06','11.07','12.06','13.07','14.06','15.07','16.06','17.07','18.06','19.07','20.06','21.07','22.06','23.07','24.06','25.07','26.06','27.07','28.06']},
+  {name:'DrTrollPhD',picks:['1.07','2.06','3.06','4.07','5.06','6.07','7.06','8.07','9.06','10.07','11.06','12.07','13.06','14.07','15.06','16.07','17.06','18.07','19.06','20.07','21.06','22.07','23.06','24.07','25.06','26.07','27.06','28.07']},
+  {name:'colinmonie',picks:['1.08','2.05','3.05','4.08','5.05','6.08','7.05','8.08','9.05','10.08','11.05','12.08','13.05','14.08','15.05','16.08','17.05','18.08','19.05','20.08','21.05','22.08','23.05','24.08','25.05','26.08','27.05','28.08']},
+  {name:'EazyDakar',picks:['1.09','2.04','3.04','4.09','5.04','6.09','7.04','8.09','9.04','10.09','11.04','12.09','13.04','14.09','15.04','16.09','17.04','18.09','19.04','20.09','21.04','22.09','23.04','24.09','25.04','26.09','27.04','28.09']},
+  {name:'jakemills69',picks:['1.10','2.03','3.03','4.10','5.03','6.10','7.03','8.10','9.03','10.10','11.03','12.10','13.03','14.10','15.03','16.10','17.03','18.10','19.03','20.10','21.03','22.10','23.03','24.10','25.03','26.10','27.03','28.10']},
+  {name:'NateSneller',picks:['1.11','2.02','3.02','4.11','5.02','6.11','7.02','8.11','9.02','10.11','11.02','12.11','13.02','14.11','15.02','16.11','17.02','18.11','19.02','20.11','21.02','22.11','23.02','24.11','25.02','26.11','27.02','28.11']},
+  {name:'sneller',picks:['1.12','2.01','3.01','4.12','5.01','6.12','7.01','8.12','9.01','10.12','11.01','12.12','13.01','14.12','15.01','16.12','17.01','18.12','19.01','20.12','21.01','22.12','23.01','24.12','25.01','26.12','27.01','28.12']},
 ];
 
 const ROSTERS = {
@@ -473,7 +574,7 @@ let givingAssets = [];
 let receivingAssets = [];
 let currentRosterTab = 'CG';
 let currentRankTab = 'compare';
-let currentDraftTab = 'chart';
+let currentDraftTab = 'vsrank';
 let currentPosFilter = 'ALL';
 let matchupPosFilter = 'ALL';
 let compositeData = [];
@@ -502,7 +603,7 @@ document.querySelectorAll('.ni').forEach(btn => {
     this.classList.add('active');
     if (page === 'rosters') renderRoster(currentRosterTab);
     if (page === 'composite') renderRankTab(currentRankTab);
-    if (page === 'draft') { currentDraftTab = 'chart'; renderDraftContent('chart'); }
+    if (page === 'draft') { currentDraftTab = 'vsrank'; renderDraftContent('vsrank'); }
     if (page === 'chat') loadChatHistory();
   });
 });
@@ -1160,78 +1261,211 @@ document.querySelectorAll('.draft-tab').forEach(tab => {
 
 function renderDraftContent(tab) {
   const el = document.getElementById('draft-content');
-  if (tab === 'chart') renderPickChart(el);
+  if (tab === 'vsrank') renderVSRankings(el);
+  else if (tab === 'tiers') renderTierBreaks(el);
+  else if (tab === 'chart') renderPickChart(el);
   else if (tab === 'cumulative') renderCumulative(el);
   else if (tab === 'assistant') { loadDraftState().then(() => renderDraftAssistant(el)); }
   else renderAnalyzer(el);
 }
 
 function renderPickChart(el) {
-  const rounds = ['1','2','3','4','5','6','7','8'];
-  const picks = ['01','02','03','04','05','06','07','08','09','10','11','12'];
-  let html = '<div class="pick-grid">';
-  rounds.forEach(r => {
-    picks.forEach(p => {
-      const key = r + '.' + p;
-      const val = STARTUP_VALUES[key];
-      if (!val) return;
-      const mine = MY_VS_PICKS.includes(key) ? ' mine' : '';
-      html += '<div class="pick-cell' + mine + '" data-pick="' + key + '"><div class="pick-slot">' + key + '</div><div class="pick-val">' + (val >= 1000 ? (val/1000).toFixed(1) + 'k' : val) + '</div></div>';
+  // Show rounds in groups of 4 for readability across 28 rounds
+  const allRounds = Array.from({length:28}, (_,i) => String(i+1));
+  const picks = Array.from({length:12}, (_,i) => String(i+1).padStart(2,'0'));
+
+  // Group selector
+  const groups = [
+    {label:'R1-4 (Elite)',rounds:['1','2','3','4']},
+    {label:'R5-8 (Starters)',rounds:['5','6','7','8']},
+    {label:'R9-12 (Depth)',rounds:['9','10','11','12']},
+    {label:'R13-16',rounds:['13','14','15','16']},
+    {label:'R17-20',rounds:['17','18','19','20']},
+    {label:'R21-24',rounds:['21','22','23','24']},
+    {label:'R25-28 (Late)',rounds:['25','26','27','28']},
+  ];
+
+  let activeGroup = 0;
+
+  function buildGrid(groupIdx) {
+    const g = groups[groupIdx];
+    let html = '<div class="pick-grid">';
+    g.rounds.forEach(r => {
+      picks.forEach(p => {
+        const key = r + '.' + p;
+        const val = STARTUP_VALUES[key];
+        if (!val) return;
+        const mine = MY_VS_PICKS.includes(key) ? ' mine' : '';
+        html += '<div class="pick-cell' + mine + '" data-pick="' + key + '">';
+        html += '<div class="pick-slot">' + key + '</div>';
+        html += '<div class="pick-val">' + (val >= 1000 ? (val/1000).toFixed(1) + 'k' : val) + '</div></div>';
+      });
+    });
+    html += '</div>';
+    return html;
+  }
+
+  // Build tab buttons
+  const tabBtns = groups.map((g,i) =>
+    '<button class="chip' + (i===0?' active':'') + '" data-grp="' + i + '" style="font-size:10px;">' + g.label + '</button>'
+  ).join('');
+
+  el.innerHTML =
+    '<div style="display:flex;gap:5px;margin-bottom:10px;overflow-x:auto;scrollbar-width:none;padding-bottom:3px;">' + tabBtns + '</div>' +
+    '<div id="pick-grid-body">' + buildGrid(0) + '</div>' +
+    '<div class="card" style="margin-top:10px;margin-bottom:0;"><div style="font-size:11px;color:var(--t2);line-height:1.6;">' +
+    'Values mapped from KTC player rankings to draft position. <strong style="color:var(--gd);">Gold = your picks</strong> · ' +
+    'Odd rounds: pick 2nd · Even rounds: pick 11th · Rounds 2+3 both reversed (sneller gets 2.01+3.01)' +
+    '</div></div>';
+
+  el.querySelectorAll('[data-grp]').forEach(btn => {
+    btn.addEventListener('click', function() {
+      el.querySelectorAll('[data-grp]').forEach(b => b.classList.remove('active'));
+      this.classList.add('active');
+      document.getElementById('pick-grid-body').innerHTML = buildGrid(+this.dataset.grp);
+      attachPickClicks();
     });
   });
-  html += '</div>';
-  html += '<div class="card" style="margin-bottom:0;"><div style="font-size:11px;color:var(--t2);line-height:1.6;">Values based on KTC player rankings mapped to draft position.<br><strong style="color:var(--gd);">Gold = your picks</strong> · Rounds 2+3 both reversed (sneller gets 2.01+3.01)<br>6pt TD format — elite QBs worth ~20% more than standard.</div></div>';
-  el.innerHTML = html;
-  el.querySelectorAll('.pick-cell').forEach(cell => {
-    cell.addEventListener('click', function() {
-      const key = this.dataset.pick;
-      const val = STARTUP_VALUES[key];
-      alert('Pick ' + key + '\nValue: ' + (val ? val.toLocaleString() : 'N/A') + (MY_VS_PICKS.includes(key) ? '\n⭐ YOUR PICK' : ''));
+
+  function attachPickClicks() {
+    document.querySelectorAll('.pick-cell').forEach(cell => {
+      cell.addEventListener('click', function() {
+        const key = this.dataset.pick;
+        const val = STARTUP_VALUES[key];
+        alert('Pick ' + key + '\nStartup Value: ' + (val ? val.toLocaleString() : 'N/A') + (MY_VS_PICKS.includes(key) ? '\n⭐ YOUR PICK' : ''));
+      });
     });
-  });
+  }
+  attachPickClicks();
 }
 
 function renderCumulative(el) {
   const ranked = MANAGERS.map(m => {
     let total = 0;
-    m.picks.forEach(p => { total += (STARTUP_VALUES[p]||0); });
-    return {...m, total};
+    let r1val = 0;
+    m.picks.forEach((p,i) => {
+      const v = STARTUP_VALUES[p] || 0;
+      total += v;
+      if (i === 0) r1val = v;
+    });
+    return {...m, total, r1val};
   }).sort((a,b) => b.total - a.total);
-  let html = '<div class="card" style="margin-bottom:10px;font-size:11px;color:var(--t2);line-height:1.5;">Cumulative startup draft capital across rounds 1-4 using KTC-calibrated values.</div>';
-  html += '<div class="cum-tbl"><div class="cum-hdr"><div class="cum-h">Manager</div><div class="cum-h" style="text-align:right;">Total (R1-4)</div><div class="cum-h" style="text-align:right;">Rank</div></div>';
+
+  // Also show breakdown by round groups
+  const myM = ranked.find(m => m.isMe);
+
+  let html = '<div class="card" style="margin-bottom:10px;">';
+  html += '<div style="font-size:11px;color:var(--t2);line-height:1.6;margin-bottom:10px;">Total startup draft capital across all 28 rounds using KTC-calibrated values.</div>';
+  if (myM) {
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:4px;">';
+    const groups = [{l:'R1-7',s:0,e:6},{l:'R8-14',s:7,e:13},{l:'R15-28',s:14,e:27}];
+    groups.forEach(g => {
+      let gTotal = 0;
+      myM.picks.slice(g.s, g.e+1).forEach(p => { gTotal += STARTUP_VALUES[p]||0; });
+      html += '<div style="background:rgba(79,158,255,.08);border:1px solid rgba(79,158,255,.2);border-radius:8px;padding:8px;text-align:center;">';
+      html += '<div style="font-size:9px;color:var(--t2);font-weight:700;">' + g.l + '</div>';
+      html += '<div style="font-family:\'JetBrains Mono\';font-size:14px;font-weight:700;color:var(--ac);">' + Math.round(gTotal/1000) + 'k</div></div>';
+    });
+    html += '</div>';
+  }
+  html += '</div>';
+
+  html += '<div class="cum-tbl"><div class="cum-hdr">';
+  html += '<div class="cum-h">Manager</div>';
+  html += '<div class="cum-h" style="text-align:right;">Total (28R)</div>';
+  html += '<div class="cum-h" style="text-align:right;">1st Pick</div></div>';
+
   ranked.forEach((m,i) => {
     const mc = m.isMe ? ' me' : '';
     const vc = m.isMe ? 'var(--gd)' : 'var(--tx)';
-    html += '<div class="cum-row' + mc + '"><div class="cum-mgr">' + m.name + '</div><div class="cum-v" style="color:' + vc + ';">' + Math.round(m.total/1000) + 'k</div><div class="cum-v" style="color:var(--t2);">#' + (i+1) + '</div></div>';
+    const r1str = m.picks[0] + ' (' + Math.round(m.r1val/1000) + 'k)';
+    html += '<div class="cum-row' + mc + '">';
+    html += '<div class="cum-mgr" style="color:' + vc + ';">' + m.name + '</div>';
+    html += '<div class="cum-v" style="color:' + vc + ';">' + Math.round(m.total/1000) + 'k</div>';
+    html += '<div class="cum-v" style="color:var(--t2);font-size:10px;">' + r1str + '</div></div>';
   });
-  html += '</div><div style="font-size:10px;color:var(--t2);padding:8px 0;line-height:1.5;">sneller gets both 2.01 and 3.01 (3rd round reversal). Your picks alternate 2nd (odd rounds) / 11th (even rounds).</div>';
+  html += '</div>';
+  html += '<div style="font-size:10px;color:var(--t2);padding:8px 0;line-height:1.5;">Rounds 2+3 reversed — sneller holds 2.01 and 3.01. Your pick pattern: 2nd in odd rounds, 11th in even rounds.</div>';
   el.innerHTML = html;
 }
 
 function renderAnalyzer(el) {
-  el.innerHTML = '<div class="card" style="margin-bottom:10px;">' +
-    '<div style="font-family:\'Bebas Neue\';font-size:15px;letter-spacing:1.5px;margin-bottom:10px;">Trade Up / Down Analyzer</div>' +
-    '<input class="inp" id="pick-give" placeholder="You give (e.g. 2.11 + 3.11)" style="margin-bottom:8px;">' +
-    '<input class="inp" id="pick-get" placeholder="You receive (e.g. 1.06)" style="margin-bottom:8px;">' +
-    '<button class="btn btn-p" id="pick-analyze-btn" style="width:100%;">Analyze</button>' +
+  // Quick reference table including dynasty rookie picks
+  const myPicksRef = [
+    {label:'VS 1.02 (startup)', val:9987},
+    {label:'VS 2.11 (startup)', val:6702},
+    {label:'VS 3.11 (startup)', val:5841},
+    {label:'VS 4.02 (startup)', val:5672},
+    {label:'VS 5.11 (startup)', val:4920},
+    {label:'VS 6.02 (startup)', val:4898},
+    {label:'2027 Early 1st', val:7098},
+    {label:'2027 Mid 1st', val:5602},
+    {label:'2027 Late 1st', val:4889},
+    {label:'2028 Early 1st', val:4967},
+    {label:'2026 Early 1st', val:5719},
+  ];
+
+  let refHtml = myPicksRef.map(r =>
+    '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:11px;">' +
+    '<span style="color:var(--t2);">' + r.label + '</span>' +
+    '<span style="font-family:\'JetBrains Mono\';font-weight:700;">' + r.val.toLocaleString() + '</span></div>'
+  ).join('');
+
+  el.innerHTML =
+    '<div class="card" style="margin-bottom:10px;">' +
+    '<div style="font-family:\'Bebas Neue\';font-size:15px;letter-spacing:1.5px;margin-bottom:4px;">Pick Trade Analyzer</div>' +
+    '<div style="font-size:11px;color:var(--t2);margin-bottom:10px;">Supports startup picks (1.02), dynasty rookie picks (2027 Early 1st), and player names.</div>' +
+    '<input class="inp" id="pick-give" placeholder="Give: e.g. 2.11 + 3.11 or 2027 Early 1st" style="margin-bottom:8px;">' +
+    '<input class="inp" id="pick-get" placeholder="Get: e.g. 1.06 or 2027 Mid 1st" style="margin-bottom:8px;">' +
+    '<button class="btn btn-p" id="pick-analyze-btn" style="width:100%;margin-bottom:4px;">Analyze</button>' +
+    '<div style="font-size:10px;color:var(--t2);text-align:center;">Execute if within ±15% of fair value</div>' +
     '<div id="pick-result"></div></div>' +
-    '<div class="card"><div style="font-family:\'Bebas Neue\';font-size:13px;letter-spacing:1px;margin-bottom:8px;color:var(--t2);">Quick Reference</div>' +
-    '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:12px;"><span style="color:var(--t2);">Your 1.02</span><span style="font-family:\'JetBrains Mono\';">9,987</span></div>' +
-    '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:12px;"><span style="color:var(--t2);">Your 2.11</span><span style="font-family:\'JetBrains Mono\';">6,702</span></div>' +
-    '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:12px;"><span style="color:var(--t2);">Your 3.11</span><span style="font-family:\'JetBrains Mono\';">5,841</span></div>' +
-    '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:12px;"><span style="color:var(--t2);">Your 4.02</span><span style="font-family:\'JetBrains Mono\';">5,672</span></div>' +
-    '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:12px;"><span style="color:var(--t2);">Execute threshold</span><span style="font-family:\'JetBrains Mono\';">±15%</span></div></div>';
+    '<div class="card"><div style="font-family:\'Bebas Neue\';font-size:13px;letter-spacing:1px;margin-bottom:8px;color:var(--t2);">Key Reference Values</div>' +
+    refHtml + '</div>';
+
   document.getElementById('pick-analyze-btn').addEventListener('click', analyzePicks);
 }
 
 function parsePicks(str) {
-  const parts = str.split(/[+,\s]+/).map(s => s.trim()).filter(Boolean);
+  // Handle multi-word dynasty picks like "2027 Early 1st" by checking DYNASTY_PICKS first
+  const parts = [];
+  let remaining = str.trim();
+
+  // Try to match dynasty picks (multi-word) first
+  const dynastyKeys = Object.keys(DYNASTY_PICKS).sort((a,b) => b.length - a.length);
+  while (remaining.length > 0) {
+    let matched = false;
+    for (const key of dynastyKeys) {
+      if (remaining.toLowerCase().startsWith(key.toLowerCase())) {
+        parts.push({key, val: DYNASTY_PICKS[key], type: 'dynasty'});
+        remaining = remaining.slice(key.length).replace(/^[\s,+]+/, '');
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) {
+      // Try startup pick format (e.g. 1.02)
+      const m = remaining.match(/^(\d{1,2}\.\d{2})/);
+      if (m) {
+        const key = m[1];
+        const val = STARTUP_VALUES[key];
+        parts.push({key, val: val || 5000, type: val ? 'startup' : 'estimate'});
+        remaining = remaining.slice(key.length).replace(/^[\s,+]+/, '');
+      } else {
+        // Skip unknown token
+        const next = remaining.search(/[\s,+]/);
+        if (next === -1) break;
+        remaining = remaining.slice(next).replace(/^[\s,+]+/, '');
+      }
+    }
+  }
+
   let total = 0;
   const detail = [];
   parts.forEach(p => {
-    const v = STARTUP_VALUES[p];
-    if (v) { total += v; detail.push(p + ' (' + v.toLocaleString() + ')'); }
-    else { total += 5000; detail.push(p + ' (~5,000 est.)'); }
+    total += p.val;
+    const suffix = p.type === 'estimate' ? ' (~est)' : '';
+    detail.push(p.key + ' (' + p.val.toLocaleString() + suffix + ')');
   });
   return {total, detail};
 }
@@ -1424,10 +1658,369 @@ function copyText(text) {
   });
 }
 
+// ── VS RANKINGS (6PT TD SPECIFIC) ──
+let vsRankTab = 'compare';
+let vsPosFilt = 'ALL';
+let vsTotalComps = 0;
+let vsMatchupPlayers = [];
+let vsRankData = [];
+
+function renderVSRankings(el) {
+  const tabs = [
+    {k:'compare', l:'Head-to-Head'},
+    {k:'list', l:'My Top 150'},
+    {k:'paste', l:'📋 Paste Data'},
+    {k:'manage', l:'Manage'},
+  ];
+  const tabHtml = tabs.map(t =>
+    '<div class="draft-tab' + (vsRankTab===t.k?' active':'') + '" data-vstab="' + t.k + '" style="white-space:nowrap;font-size:11px;">' + t.l + '</div>'
+  ).join('');
+
+  const posHtml = ['ALL','QB','RB','WR','TE'].map(p =>
+    '<button class="chip' + (vsPosFilt===p?' active':'') + '" data-vspos="' + p + '">' + p + '</button>'
+  ).join('');
+
+  el.innerHTML =
+    '<div style="background:rgba(240,192,64,.06);border:1px solid rgba(240,192,64,.2);border-radius:9px;padding:9px 11px;margin-bottom:10px;display:flex;align-items:center;gap:8px;">' +
+    '<div style="font-size:15px;">⭐</div>' +
+    '<div><div style="font-size:11px;font-weight:700;color:var(--gd);">VELVET SPADE — 6PT TD RANKINGS</div>' +
+    '<div style="font-size:10px;color:var(--t2);">QB values boosted ~18% · 150-player personal board · Separate from standard rankings</div></div></div>' +
+    '<div style="display:flex;gap:5px;margin-bottom:8px;flex-wrap:wrap;">' + posHtml + '</div>' +
+    '<div style="display:flex;border-bottom:1px solid var(--b1);margin-bottom:10px;">' + tabHtml + '</div>' +
+    '<div id="vs-tab-body"></div>';
+
+  el.querySelectorAll('[data-vstab]').forEach(btn => {
+    btn.addEventListener('click', function() {
+      vsRankTab = this.dataset.vstab;
+      renderVSRankings(el);
+    });
+  });
+  el.querySelectorAll('[data-vspos]').forEach(btn => {
+    btn.addEventListener('click', function() {
+      vsPosFilt = this.dataset.vspos;
+      renderVSRankings(el);
+    });
+  });
+
+  const body = document.getElementById('vs-tab-body');
+  if (vsRankTab === 'compare') renderVSMatchup(body);
+  else if (vsRankTab === 'list') renderVSList(body);
+  else if (vsRankTab === 'paste') renderVSPaste(body);
+  else renderVSManage(body);
+}
+
+async function renderVSMatchup(el) {
+  el.innerHTML = '<div class="spin-wrap"><div class="spin"></div></div>';
+  try {
+    const r = await fetch('/api/vs/pair?position=' + vsPosFilt);
+    const d = await r.json();
+    if (!d.success || d.players.length < 2) {
+      el.innerHTML = '<div class="empty">Not enough players. Go to Manage tab to reset the pool.</div>';
+      return;
+    }
+    const [p1,p2] = d.players;
+    vsMatchupPlayers = [p1,p2];
+    const prog = Math.min((vsTotalComps/100)*100,100);
+    el.innerHTML =
+      '<div class="matchup-card">' +
+      '<div style="font-family:\'Bebas Neue\';font-size:11px;letter-spacing:2px;color:var(--gd);margin-bottom:10px;">6PT TD · WHO WOULD YOU RATHER DRAFT?</div>' +
+      '<div class="matchup-vs">' +
+      '<div class="mp-player" id="vsmp-left">' +
+      '<span class="pos-badge p' + (p1.position||'WR') + '" style="font-size:9px;">' + (p1.position||'?') + '</span>' +
+      '<div class="mp-name">' + p1.name + '</div>' +
+      '<div class="mp-sub">' + (p1.team||'') + '</div>' +
+      '<div class="mp-sub" style="color:var(--gd);">ELO ' + Math.round(p1.elo) + '</div></div>' +
+      '<div class="vs">VS</div>' +
+      '<div class="mp-player" id="vsmp-right">' +
+      '<span class="pos-badge p' + (p2.position||'WR') + '" style="font-size:9px;">' + (p2.position||'?') + '</span>' +
+      '<div class="mp-name">' + p2.name + '</div>' +
+      '<div class="mp-sub">' + (p2.team||'') + '</div>' +
+      '<div class="mp-sub" style="color:var(--gd);">ELO ' + Math.round(p2.elo) + '</div></div>' +
+      '</div>' +
+      '<div class="prog-lbl">' + vsTotalComps + ' VS comparisons · ' + Math.round(prog) + '% to reliable board</div>' +
+      '<div class="prog-bar"><div class="prog-fill" style="width:' + prog + '%;background:linear-gradient(90deg,var(--gd),var(--ac));"></div></div>' +
+      '<button class="btn btn-g btn-sm" id="vs-skip-btn" style="width:100%;margin-top:8px;">Skip →</button>' +
+      '</div>';
+    document.getElementById('vsmp-left').addEventListener('click', () => castVSVote(0, el));
+    document.getElementById('vsmp-right').addEventListener('click', () => castVSVote(1, el));
+    document.getElementById('vs-skip-btn').addEventListener('click', () => renderVSMatchup(el));
+  } catch(e) {
+    el.innerHTML = '<div class="empty">Error loading matchup.</div>';
+  }
+}
+
+async function castVSVote(idx, el) {
+  if (vsMatchupPlayers.length < 2) return;
+  const winner = vsMatchupPlayers[idx].name;
+  const loser = vsMatchupPlayers[1-idx].name;
+  vsTotalComps++;
+  await fetch('/api/vs/vote', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({winner, loser})});
+  renderVSMatchup(el);
+}
+
+async function renderVSList(el) {
+  el.innerHTML = '<div class="spin-wrap"><div class="spin"></div></div>';
+  try {
+    const r = await fetch('/api/vs/list?position=' + vsPosFilt);
+    const d = await r.json();
+    vsRankData = d.rankings || [];
+    if (!vsRankData.length) {
+      el.innerHTML = '<div class="empty">No rankings yet. Do some head-to-head comparisons first.</div>';
+      return;
+    }
+    let html = '<div style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">';
+    html += '<div style="font-size:11px;color:var(--t2);">Top ' + vsRankData.length + ' · ' + vsPosFilt + ' · 6pt TD adjusted</div>';
+    html += '<button class="btn btn-g btn-sm" id="vs-export-btn">📋 Copy Board</button></div>';
+    html += '<div style="display:flex;flex-direction:column;gap:4px;">';
+    vsRankData.forEach(p => {
+      const ni = storeName(p.name);
+      html += '<div class="rank-row">';
+      html += '<div class="rank-num">' + p.rank + '</div>';
+      html += '<div class="pos-badge p' + p.position + '">' + p.position + '</div>';
+      html += '<div class="rank-info" data-name-idx="' + ni + '">';
+      html += '<div class="rank-name">' + p.name + '</div>';
+      html += '<div class="rank-meta">' + (p.team||'FA') + ' · ' + p.elo + ' ELO · ' + p.comparisons + ' comps</div></div>';
+      html += '<div class="adj-btns">';
+      html += '<button class="adj-btn adj-up" data-ni="' + ni + '" data-dir="up">▲</button>';
+      html += '<button class="adj-btn adj-dn" data-ni="' + ni + '" data-dir="dn">▼</button>';
+      html += '</div></div>';
+    });
+    html += '</div>';
+    el.innerHTML = html;
+    el.querySelectorAll('.rank-info').forEach(row => {
+      row.addEventListener('click', function() { openProfile(playerNames[+this.dataset.nameIdx]||''); });
+    });
+    el.querySelectorAll('.adj-btn').forEach(btn => {
+      btn.addEventListener('click', async function(e) {
+        e.stopPropagation();
+        const name = playerNames[+this.dataset.ni] || '';
+        const dir = this.dataset.dir === 'up' ? 'up' : 'down';
+        await fetch('/api/vs/adjust', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name, direction:dir, positions:5})});
+        renderVSList(el);
+      });
+    });
+    document.getElementById('vs-export-btn').addEventListener('click', function() {
+      const board = vsRankData.map(p => p.rank + '. ' + p.name + ' (' + p.position + ')').join('\n');
+      copyText(board);
+    });
+  } catch(e) {
+    el.innerHTML = '<div class="empty">Error loading.</div>';
+  }
+}
+
+function renderVSPaste(el) {
+  el.innerHTML =
+    '<div style="font-size:11px;color:var(--t2);line-height:1.6;margin-bottom:12px;padding:9px;background:var(--s2);border-radius:8px;border:1px solid var(--b1);">' +
+    '<strong style="color:var(--tx);">How to paste rankings:</strong><br>' +
+    '• <strong style="color:var(--ac);">KTC:</strong> Go to keeptradecut.com → set SuperFlex+TE → select all rankings text → paste below<br>' +
+    '• <strong style="color:var(--pu);">Dynasty Data Lab:</strong> Go to dynastydatlab.com/rankings → set SuperFlex → copy the player table → paste below<br>' +
+    '• <strong style="color:var(--gn);">Sleeper ADP:</strong> Go to sleeper.com → draft lobby → copy player rankings list → paste below<br>' +
+    'The parser handles messy text. Just paste what you see.</div>' +
+    '<div style="display:flex;gap:6px;margin-bottom:8px;">' +
+    '<button class="chip active" data-src="ktc" id="src-ktc">KTC</button>' +
+    '<button class="chip" data-src="ddl" id="src-ddl">DDL</button>' +
+    '<button class="chip" data-src="sleeper" id="src-sleeper">Sleeper ADP</button>' +
+    '</div>' +
+    '<textarea class="inp" id="paste-ta" rows="8" placeholder="Paste ranking data here..." style="font-size:11px;font-family:monospace;margin-bottom:8px;"></textarea>' +
+    '<button class="btn btn-p" id="paste-submit-btn" style="width:100%;">Parse & Save Rankings</button>' +
+    '<div id="paste-result" style="margin-top:8px;"></div>';
+
+  let activeSource = 'ktc';
+  el.querySelectorAll('[data-src]').forEach(btn => {
+    btn.addEventListener('click', function() {
+      el.querySelectorAll('[data-src]').forEach(b => b.classList.remove('active'));
+      this.classList.add('active');
+      activeSource = this.dataset.src;
+    });
+  });
+
+  document.getElementById('paste-submit-btn').addEventListener('click', async function() {
+    const text = document.getElementById('paste-ta').value.trim();
+    if (!text) { alert('Paste some data first.'); return; }
+    this.textContent = 'Parsing...';
+    this.disabled = true;
+    try {
+      const r = await fetch('/api/market/paste', {method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({source: activeSource, text})});
+      const d = await r.json();
+      const res = document.getElementById('paste-result');
+      if (d.success) {
+        res.innerHTML = '<div style="background:rgba(61,220,132,.1);border:1px solid rgba(61,220,132,.3);border-radius:8px;padding:10px;font-size:12px;">' +
+          '✅ Parsed <strong>' + d.parsed + ' players</strong><br>' +
+          'Sample: ' + d.sample.join(', ') + '<br>' +
+          '<span style="color:var(--t2);font-size:10px;">Go to Tier Breaks tab to see trade targets</span></div>';
+        document.getElementById('paste-ta').value = '';
+      } else {
+        res.innerHTML = '<div style="color:var(--rd);font-size:12px;">❌ ' + d.error + '</div>';
+      }
+    } catch(e) {
+      document.getElementById('paste-result').innerHTML = '<div style="color:var(--rd);font-size:12px;">Error.</div>';
+    }
+    this.textContent = 'Parse & Save Rankings';
+    this.disabled = false;
+  });
+}
+
+function renderVSManage(el) {
+  el.innerHTML =
+    '<div class="card" style="margin-bottom:10px;">' +
+    '<div style="font-size:13px;font-weight:700;margin-bottom:6px;">Reset VS Player Pool</div>' +
+    '<div style="font-size:11px;color:var(--t2);margin-bottom:10px;">Pulls from your standard player pool and applies 6pt TD QB boost. QBs start ~18% higher in ELO.</div>' +
+    '<button class="btn btn-p" id="vs-reset-btn" style="width:100%;">↺ Reset VS Rankings</button></div>' +
+    '<div class="card">' +
+    '<div style="font-size:13px;font-weight:700;margin-bottom:8px;">Add Player to VS Pool</div>' +
+    '<input class="inp" id="vs-add-name" placeholder="Player name" style="margin-bottom:7px;">' +
+    '<div style="display:flex;gap:7px;margin-bottom:7px;">' +
+    '<select class="sel" id="vs-add-pos" style="flex:1;"><option value="QB">QB</option><option value="RB">RB</option><option value="WR" selected>WR</option><option value="TE">TE</option></select>' +
+    '<input class="inp" id="vs-add-team" placeholder="Team" style="flex:1;"></div>' +
+    '<button class="btn btn-s" id="vs-add-btn" style="width:100%;">Add Player</button></div>';
+
+  document.getElementById('vs-reset-btn').addEventListener('click', async function() {
+    if (!confirm('Reset VS rankings? Comparison history will be lost.')) return;
+    const r = await fetch('/api/vs/reset', {method:'POST'});
+    const d = await r.json();
+    alert(d.success ? 'VS rankings reset with 6pt TD adjustments!' : 'Reset failed.');
+    vsTotalComps = 0; vsMatchupPlayers = [];
+  });
+
+  document.getElementById('vs-add-btn').addEventListener('click', async function() {
+    const name = document.getElementById('vs-add-name').value.trim();
+    const pos = document.getElementById('vs-add-pos').value;
+    const team = document.getElementById('vs-add-team').value.trim();
+    if (!name) return;
+    await fetch('/api/rankings/add', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name, position:pos, team})});
+    await fetch('/api/vs/reset', {method:'POST'}); // re-seed to pick up new player
+    alert(name + ' added to both pools!');
+    document.getElementById('vs-add-name').value = '';
+  });
+}
+
+// ── TIER BREAKS + TRADE TARGETS ──
+async function renderTierBreaks(el) {
+  el.innerHTML = '<div class="spin-wrap"><div class="spin"></div><div class="spin-txt">COMPUTING TIERS...</div></div>';
+  try {
+    const r = await fetch('/api/tiers');
+    const d = await r.json();
+    if (!d.success) {
+      el.innerHTML = '<div class="empty">Could not compute tiers. Make sure you have VS rankings built and market data pasted.</div>';
+      return;
+    }
+    renderTierView(el, d);
+  } catch(e) {
+    el.innerHTML = '<div class="empty">Error loading tier data.</div>';
+  }
+}
+
+function renderTierView(el, d) {
+  const positions = ['QB','RB','WR','TE'];
+  const posColors = {QB:'var(--ac)',RB:'var(--gn)',WR:'var(--pu)',TE:'var(--gd)'};
+
+  // Source status bar
+  const sourceStatus = ['ktc','ddl','sleeper'].map(s => {
+    const has = d.sources_available.includes(s);
+    const label = s === 'ktc' ? 'KTC' : s === 'ddl' ? 'DDL' : 'Sleeper';
+    return '<span style="padding:2px 7px;border-radius:20px;font-size:10px;font-weight:700;' +
+      (has ? 'background:rgba(61,220,132,.15);color:var(--gn);' : 'background:var(--s3);color:var(--t2);') + '">' +
+      (has ? '✓ ' : '○ ') + label + '</span>';
+  }).join('');
+
+  let html =
+    '<div style="display:flex;gap:5px;align-items:center;margin-bottom:10px;flex-wrap:wrap;">' +
+    '<span style="font-size:10px;color:var(--t2);">DATA SOURCES:</span>' + sourceStatus +
+    '<button class="btn btn-g btn-sm" id="paste-shortcut-btn" style="margin-left:auto;">+ Paste Rankings</button></div>';
+
+  // Trade targets section
+  if (d.trade_targets && d.trade_targets.length) {
+    html += '<div style="font-family:\'Bebas Neue\';font-size:14px;letter-spacing:2px;color:var(--tx);margin-bottom:8px;">🎯 Trade Up / Down Targets</div>';
+    html += '<div style="font-size:10px;color:var(--t2);margin-bottom:8px;">Based on gap between your VS rankings and KTC market values. Positive delta = you rank higher = target to trade up for.</div>';
+
+    const buys = d.trade_targets.filter(t => t.delta > 0).slice(0,6);
+    const sells = d.trade_targets.filter(t => t.delta < 0).slice(0,4);
+
+    if (buys.length) {
+      html += '<div style="font-size:11px;font-weight:700;color:var(--gn);margin-bottom:5px;letter-spacing:1px;">▲ TRADE UP TARGETS (you value higher than market)</div>';
+      buys.forEach(t => {
+        html += '<div style="background:rgba(61,220,132,.06);border:1px solid rgba(61,220,132,.2);border-radius:9px;padding:10px;margin-bottom:5px;">';
+        html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;">';
+        html += '<div><div style="font-size:13px;font-weight:700;">' + t.name + '</div>';
+        html += '<div style="font-size:10px;color:var(--t2);">Your rank: #' + t.my_rank + ' · KTC rank: ~#' + t.ktc_rank + ' · Est. goes: ' + t.est_draft_pick + '</div>';
+        html += '<div style="font-size:11px;color:var(--gn);margin-top:3px;">⬆ ' + t.trade_up_note + '</div></div>';
+        html += '<span style="font-size:10px;font-weight:800;color:var(--gn);padding:2px 8px;background:rgba(61,220,132,.15);border-radius:20px;">' + t.signal + ' +' + t.delta + '</span></div></div>';
+      });
+    }
+
+    if (sells.length) {
+      html += '<div style="font-size:11px;font-weight:700;color:var(--rd);margin:10px 0 5px;letter-spacing:1px;">▼ TRADE DOWN / AVOID REACHES</div>';
+      sells.forEach(t => {
+        html += '<div style="background:rgba(255,92,92,.06);border:1px solid rgba(255,92,92,.2);border-radius:9px;padding:10px;margin-bottom:5px;">';
+        html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;">';
+        html += '<div><div style="font-size:13px;font-weight:700;">' + t.name + '</div>';
+        html += '<div style="font-size:10px;color:var(--t2);">Your rank: #' + t.my_rank + ' · KTC rank: ~#' + t.ktc_rank + '</div>';
+        html += '<div style="font-size:11px;color:var(--rd);margin-top:3px;">Market values higher — avoid reaching</div></div>';
+        html += '<span style="font-size:10px;font-weight:800;color:var(--rd);padding:2px 8px;background:rgba(255,92,92,.15);border-radius:20px;">' + t.signal + ' ' + t.delta + '</span></div></div>';
+      });
+    }
+    html += '<div class="div"></div>';
+  }
+
+  // Positional tier breaks
+  html += '<div style="font-family:\'Bebas Neue\';font-size:14px;letter-spacing:2px;color:var(--tx);margin-bottom:8px;">📊 Positional Tier Breaks</div>';
+  html += '<div style="font-size:10px;color:var(--t2);margin-bottom:10px;">ELO gap of 120+ = tier break. Est. pick shows when tier ends based on your VS rankings.</div>';
+
+  positions.forEach(pos => {
+    const tiers = d.tiers[pos];
+    if (!tiers || !tiers.length) return;
+    const pc = posColors[pos] || 'var(--tx)';
+
+    html += '<div style="margin-bottom:12px;">';
+    html += '<div style="font-family:\'Bebas Neue\';font-size:13px;letter-spacing:1.5px;color:' + pc + ';margin-bottom:6px;">' + pos + ' TIERS</div>';
+
+    tiers.forEach(tier => {
+      const isAlert = tier.break_after && tier.gap > 200;
+      const alertBg = isAlert ? 'rgba(255,92,92,.06)' : 'var(--s2)';
+      const alertBorder = isAlert ? 'rgba(255,92,92,.25)' : 'var(--b1)';
+
+      html += '<div style="background:' + alertBg + ';border:1px solid ' + alertBorder + ';border-radius:8px;padding:9px;margin-bottom:5px;">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">';
+      html += '<div style="font-size:10px;font-weight:700;color:' + pc + ';letter-spacing:1px;">TIER ' + tier.tier_num + ' · ' + tier.players.length + ' players</div>';
+      if (tier.break_after) {
+        html += '<div style="font-size:10px;color:' + (isAlert?'var(--rd)':'var(--t2)') + ';">';
+        html += (isAlert ? '⚠️ ' : '') + 'Drop-off after ~' + tier.est_pick + ' · gap: ' + tier.gap + ' ELO</div>';
+      }
+      html += '</div>';
+
+      // Show players in this tier
+      const names = tier.players.slice(0,8).map(p => p.name).join(' · ');
+      const more = tier.players.length > 8 ? ' +' + (tier.players.length-8) + ' more' : '';
+      html += '<div style="font-size:11px;color:var(--tx);line-height:1.5;">' + names + '<span style="color:var(--t2);">' + more + '</span></div>';
+
+      if (tier.break_after && isAlert) {
+        html += '<div style="font-size:10px;color:var(--rd);margin-top:4px;padding:4px 7px;background:rgba(255,92,92,.08);border-radius:5px;">🔴 Major positional drop-off. Last of this tier: <strong>' + tier.break_after + '</strong></div>';
+      } else if (tier.break_after) {
+        html += '<div style="font-size:10px;color:var(--t2);margin-top:4px;">↓ Tier drop after <strong>' + tier.break_after + '</strong> (' + tier.gap + ' ELO gap)</div>';
+      }
+      html += '</div>';
+    });
+    html += '</div>';
+  });
+
+  el.innerHTML = html;
+
+  // Paste shortcut button
+  const psBtn = document.getElementById('paste-shortcut-btn');
+  if (psBtn) {
+    psBtn.addEventListener('click', function() {
+      vsRankTab = 'paste';
+      const draftEl = document.getElementById('draft-content');
+      renderVSRankings(draftEl);
+    });
+  }
+}
+
 // ── INIT ──
 loadStaticHome();
 renderRoster('CG');
-renderDraftContent('chart');
+renderDraftContent('vsrank');
 renderRankTab('compare');
 loadDraftState();
 loadChatHistory();
