@@ -27,6 +27,15 @@ def init_db():
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, player_name TEXT UNIQUE, profile_data TEXT, last_updated TEXT)''')
     c.execute('''CREATE TABLE IF NOT EXISTS dashboard_cache
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, cache_key TEXT UNIQUE, data TEXT, last_updated TEXT)''')
+    # VS-specific 6pt TD rankings (separate ELO pool)
+    c.execute('''CREATE TABLE IF NOT EXISTS vs_rankings
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, player_name TEXT UNIQUE, position TEXT, team TEXT,
+                  elo_score REAL DEFAULT 1500, comparisons INTEGER DEFAULT 0, last_updated TEXT)''')
+    # Market data: KTC, DDL, Sleeper ADP pasted by user
+    c.execute('''CREATE TABLE IF NOT EXISTS market_data
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, source TEXT NOT NULL, player_name TEXT NOT NULL,
+                  rank INTEGER, value INTEGER, position TEXT, team TEXT, updated_at TEXT NOT NULL,
+                  UNIQUE(source, player_name))''')
     conn.commit()
     conn.close()
 
@@ -1208,6 +1217,441 @@ def draft_state():
         if row:
             return jsonify({"state": json.loads(row[0]), "success": True})
         return jsonify({"state": {}, "success": True})
+
+# ============================================================
+# VS RANKINGS — 6PT TD SPECIFIC HEAD-TO-HEAD
+# ============================================================
+
+def seed_vs_players():
+    """Seed VS rankings pool with 6pt TD adjusted ELO — QBs boosted ~18%"""
+    conn = sqlite3.connect('dynasty.db')
+    c = conn.cursor()
+    c.execute("SELECT COUNT(*) FROM vs_rankings")
+    if c.fetchone()[0] > 0:
+        conn.close()
+        return
+    # Pull from standard rankings and boost QB ELO by 18%
+    c.execute("SELECT player_name, position, team, elo_score FROM player_rankings")
+    rows = c.fetchall()
+    for name, pos, team, elo in rows:
+        adjusted_elo = round(elo * 1.18) if pos == 'QB' else elo
+        c.execute('''INSERT OR IGNORE INTO vs_rankings
+                    (player_name, position, team, elo_score, comparisons, last_updated)
+                    VALUES (?, ?, ?, ?, 0, ?)''',
+                 (name, pos, team, adjusted_elo, datetime.now().isoformat()))
+    conn.commit()
+    conn.close()
+
+seed_vs_players()
+
+@app.route('/api/vs/pair', methods=['GET'])
+def get_vs_pair():
+    """Proximity-based matchup for VS 6pt TD rankings"""
+    position_filter = request.args.get('position', 'ALL')
+    conn = sqlite3.connect('dynasty.db')
+    c = conn.cursor()
+    if position_filter != 'ALL':
+        c.execute('''SELECT player_name, position, team, elo_score, comparisons
+                    FROM vs_rankings WHERE position=?
+                    ORDER BY comparisons ASC, RANDOM() LIMIT 80''', (position_filter,))
+    else:
+        c.execute('''SELECT player_name, position, team, elo_score, comparisons
+                    FROM vs_rankings ORDER BY comparisons ASC, RANDOM() LIMIT 100''')
+    rows = c.fetchall()
+    conn.close()
+    if len(rows) < 2:
+        return jsonify({"players": [], "success": False})
+    players = [{"name": r[0], "position": r[1], "team": r[2], "elo": r[3], "comparisons": r[4]} for r in rows]
+
+    def get_tier(elo):
+        if elo >= 2800: return 1
+        if elo >= 2400: return 2
+        if elo >= 2000: return 3
+        if elo >= 1600: return 4
+        if elo >= 1200: return 5
+        if elo >= 800: return 6
+        return 7
+
+    import random
+    pool = sorted(players, key=lambda x: x['comparisons'])
+    p1 = pool[random.randint(0, min(9, len(pool)-1))]
+    p1_tier = get_tier(p1['elo'])
+    rand = random.random()
+    if rand < 0.60:
+        target_tiers = [p1_tier]
+    elif rand < 0.90:
+        target_tiers = [p1_tier - 1, p1_tier + 1]
+    else:
+        target_tiers = [p1_tier + i for i in range(-3, 4) if i != 0]
+    target_tiers = [t for t in target_tiers if 1 <= t <= 7]
+    p2_candidates = [p for p in players if p['name'] != p1['name'] and get_tier(p['elo']) in target_tiers]
+    if not p2_candidates:
+        p2_candidates = [p for p in players if p['name'] != p1['name']]
+    p2_candidates.sort(key=lambda x: x['comparisons'])
+    p2 = p2_candidates[random.randint(0, min(9, len(p2_candidates)-1))]
+    return jsonify({"players": [p1, p2], "success": True})
+
+@app.route('/api/vs/vote', methods=['POST'])
+def vs_vote():
+    """Record VS comparison vote and update ELO"""
+    data = request.json
+    winner = data.get('winner', '')
+    loser = data.get('loser', '')
+    conn = sqlite3.connect('dynasty.db')
+    c = conn.cursor()
+    c.execute("SELECT elo_score, comparisons FROM vs_rankings WHERE player_name=?", (winner,))
+    wr = c.fetchone()
+    c.execute("SELECT elo_score, comparisons FROM vs_rankings WHERE player_name=?", (loser,))
+    lr = c.fetchone()
+    if wr and lr:
+        K = 32
+        we, le = wr[0], lr[0]
+        exp_w = 1 / (1 + 10 ** ((le - we) / 400))
+        new_we = we + K * (1 - exp_w)
+        new_le = le + K * (0 - (1 - exp_w))
+        c.execute("UPDATE vs_rankings SET elo_score=?, comparisons=comparisons+1, last_updated=? WHERE player_name=?",
+                 (new_we, datetime.now().isoformat(), winner))
+        c.execute("UPDATE vs_rankings SET elo_score=?, comparisons=comparisons+1, last_updated=? WHERE player_name=?",
+                 (new_le, datetime.now().isoformat(), loser))
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True})
+
+@app.route('/api/vs/list', methods=['GET'])
+def get_vs_list():
+    """Get VS personal rankings sorted by ELO, limited to top 150"""
+    position_filter = request.args.get('position', 'ALL')
+    conn = sqlite3.connect('dynasty.db')
+    c = conn.cursor()
+    if position_filter != 'ALL':
+        c.execute('''SELECT player_name, position, team, elo_score, comparisons
+                    FROM vs_rankings WHERE position=?
+                    ORDER BY elo_score DESC LIMIT 150''', (position_filter,))
+    else:
+        c.execute('''SELECT player_name, position, team, elo_score, comparisons
+                    FROM vs_rankings ORDER BY elo_score DESC LIMIT 150''')
+    rows = c.fetchall()
+    conn.close()
+    rankings = [{"rank": i+1, "name": r[0], "position": r[1], "team": r[2],
+                 "elo": round(r[3]), "comparisons": r[4]} for i, r in enumerate(rows)]
+    return jsonify({"rankings": rankings, "success": True})
+
+@app.route('/api/vs/adjust', methods=['POST'])
+def vs_adjust():
+    """Manually adjust VS player ranking"""
+    name = request.json.get('name', '')
+    direction = request.json.get('direction', 'up')
+    positions = request.json.get('positions', 5)
+    conn = sqlite3.connect('dynasty.db')
+    c = conn.cursor()
+    c.execute("SELECT elo_score FROM vs_rankings WHERE player_name=?", (name,))
+    row = c.fetchone()
+    if not row:
+        conn.close()
+        return jsonify({"success": False, "error": "Player not found"})
+    current_elo = row[0]
+    c.execute("SELECT elo_score FROM vs_rankings ORDER BY elo_score DESC")
+    all_elos = [r[0] for r in c.fetchall()]
+    try:
+        curr_pos = next(i for i, e in enumerate(all_elos) if abs(e - current_elo) < 0.01)
+    except StopIteration:
+        curr_pos = len(all_elos) // 2
+    target_pos = max(0, curr_pos - positions) if direction == 'up' else min(len(all_elos)-1, curr_pos + positions)
+    if target_pos != curr_pos:
+        if direction == 'up' and target_pos > 0:
+            new_elo = (all_elos[target_pos-1] + all_elos[target_pos]) / 2
+        elif direction == 'down' and target_pos < len(all_elos)-1:
+            new_elo = (all_elos[target_pos] + all_elos[target_pos+1]) / 2
+        else:
+            new_elo = all_elos[target_pos]
+        c.execute("UPDATE vs_rankings SET elo_score=?, last_updated=? WHERE player_name=?",
+                 (new_elo, datetime.now().isoformat(), name))
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True, "new_elo": round(new_elo if target_pos != curr_pos else current_elo)})
+
+@app.route('/api/vs/reset', methods=['POST'])
+def vs_reset():
+    """Reset VS rankings and re-seed from standard rankings with QB boost"""
+    conn = sqlite3.connect('dynasty.db')
+    c = conn.cursor()
+    c.execute("DELETE FROM vs_rankings")
+    conn.commit()
+    conn.close()
+    seed_vs_players()
+    return jsonify({"success": True, "message": "VS rankings reset with 6pt TD QB adjustments"})
+
+# ============================================================
+# MARKET DATA — PASTE KTC / DDL / SLEEPER ADP
+# ============================================================
+
+@app.route('/api/market/paste', methods=['POST'])
+def paste_market_data():
+    """
+    Accept pasted rankings from KTC, Dynasty Data Lab, or Sleeper ADP.
+    Parser handles messy copied text — just paste what you see on screen.
+    """
+    source = request.json.get('source', '')  # 'ktc', 'ddl', 'sleeper'
+    raw_text = request.json.get('text', '')
+    if not source or not raw_text:
+        return jsonify({"success": False, "error": "source and text required"})
+
+    import re
+    players_parsed = []
+
+    if source == 'ktc':
+        # KTC format: "1 Josh Allen BUF QB1 9999"
+        # Also handles the format from the paste: rank, name, team, pos, value
+        lines = raw_text.strip().split('\n')
+        rank = 0
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            # Extract KTC value (4-5 digit number at end)
+            val_match = re.search(r'\b(\d{3,5})\s*$', line)
+            if not val_match:
+                continue
+            val = int(val_match.group(1))
+            if val < 100:
+                continue
+            # Extract position
+            pos_match = re.search(r'\b(QB|RB|WR|TE|PICK)\b', line)
+            if not pos_match:
+                continue
+            pos = pos_match.group(1)
+            # Extract team (2-3 uppercase letters)
+            team_match = re.search(r'\b([A-Z]{2,3})\b', line)
+            team = team_match.group(1) if team_match else 'FA'
+            # Player name: everything before team/pos markers
+            name_part = re.sub(r'\b(QB|RB|WR|TE|PICK|QB\d+|RB\d+|WR\d+|TE\d+)\b.*', '', line)
+            name_part = re.sub(r'^\d+\s*', '', name_part)
+            name_part = re.sub(r'\b[A-Z]{2,3}\b', '', name_part)
+            name = re.sub(r'\s+', ' ', name_part).strip()
+            name = re.sub(r"[^\w\s'.]", '', name).strip()
+            if len(name) < 3:
+                continue
+            rank += 1
+            players_parsed.append({'name': name, 'rank': rank, 'value': val, 'position': pos, 'team': team})
+
+    elif source == 'ddl':
+        # DDL format: rank | name | team | pos | value
+        # Handles both table and list formats
+        lines = raw_text.strip().split('\n')
+        rank = 0
+        for line in lines:
+            line = line.strip()
+            if not line or len(line) < 5:
+                continue
+            # Skip headers
+            if any(h in line.lower() for h in ['player', 'rank', 'name', 'value', '---']):
+                continue
+            pos_match = re.search(r'\b(QB|RB|WR|TE)\b', line)
+            if not pos_match:
+                continue
+            pos = pos_match.group(1)
+            val_match = re.search(r'\b(\d{3,5})\b', line)
+            val = int(val_match.group(1)) if val_match else 5000
+            # Name is usually before position marker
+            name_part = line[:pos_match.start()]
+            name_part = re.sub(r'^\d+[\.\):\s]+', '', name_part)
+            name_part = re.sub(r'\b[A-Z]{2,3}\b\s*$', '', name_part)
+            name = re.sub(r'\s+', ' ', name_part).strip()
+            name = re.sub(r"[^\w\s'.]", '', name).strip()
+            if len(name) < 3:
+                continue
+            rank += 1
+            players_parsed.append({'name': name, 'rank': rank, 'value': val, 'position': pos, 'team': 'FA'})
+
+    elif source == 'sleeper':
+        # Sleeper ADP: usually "1. Player Name POS" or "Name (POS) - Team"
+        lines = raw_text.strip().split('\n')
+        rank = 0
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            pos_match = re.search(r'\b(QB|RB|WR|TE)\b', line)
+            if not pos_match:
+                continue
+            pos = pos_match.group(1)
+            team_match = re.search(r'\b([A-Z]{2,3})\b(?!.*\b(?:QB|RB|WR|TE)\b)', line)
+            team = team_match.group(1) if team_match else 'FA'
+            name_part = line[:pos_match.start()]
+            name_part = re.sub(r'^\d+[\.\):\s]+', '', name_part)
+            name = re.sub(r'\s+', ' ', name_part).strip()
+            name = re.sub(r"[^\w\s'.]", '', name).strip()
+            if len(name) < 3:
+                continue
+            rank += 1
+            players_parsed.append({'name': name, 'rank': rank, 'value': 0, 'position': pos, 'team': team})
+
+    if not players_parsed:
+        return jsonify({"success": False, "error": "Could not parse any players. Try copying just the player list rows."})
+
+    # Store in DB
+    conn = sqlite3.connect('dynasty.db')
+    c = conn.cursor()
+    for p in players_parsed:
+        c.execute('''INSERT OR REPLACE INTO market_data
+                    (source, player_name, rank, value, position, team, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)''',
+                 (source, p['name'], p['rank'], p['value'], p['position'], p['team'],
+                  datetime.now().isoformat()))
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True, "parsed": len(players_parsed),
+                   "sample": [p['name'] for p in players_parsed[:5]]})
+
+@app.route('/api/market/data', methods=['GET'])
+def get_market_data():
+    """Get all stored market data by source"""
+    conn = sqlite3.connect('dynasty.db')
+    c = conn.cursor()
+    c.execute('''SELECT source, player_name, rank, value, position, team, updated_at
+                FROM market_data ORDER BY source, rank ASC''')
+    rows = c.fetchall()
+    conn.close()
+    by_source = {}
+    for source, name, rank, val, pos, team, updated in rows:
+        if source not in by_source:
+            by_source[source] = {'players': [], 'updated': updated}
+        by_source[source]['players'].append({'name': name, 'rank': rank, 'value': val, 'position': pos, 'team': team})
+    sources_available = list(by_source.keys())
+    return jsonify({"by_source": by_source, "sources": sources_available, "success": True})
+
+# ============================================================
+# TIER BREAKS + TRADE UP/DOWN TARGETS
+# ============================================================
+
+@app.route('/api/tiers', methods=['GET'])
+def get_tiers():
+    """
+    Compute positional tier breaks and trade targets by comparing:
+    - VS personal rankings
+    - KTC stored values
+    - DDL rankings (if pasted)
+    - Sleeper ADP (if pasted)
+    Also identifies draft slots where tier breaks occur.
+    """
+    conn = sqlite3.connect('dynasty.db')
+    c = conn.cursor()
+
+    # Get VS personal rankings
+    c.execute("SELECT player_name, position, elo_score FROM vs_rankings ORDER BY elo_score DESC LIMIT 200")
+    vs_rows = c.fetchall()
+    vs_rank = {r[0]: {'rank': i+1, 'pos': r[1], 'elo': r[2]} for i, r in enumerate(vs_rows)}
+
+    # Get KTC values
+    c.execute("SELECT player_name, ktc_value FROM ktc_values GROUP BY player_name HAVING MAX(synced_at)")
+    ktc_rows = c.fetchall()
+    ktc_vals = {r[0]: r[1] for r in ktc_rows}
+
+    # Get market data
+    c.execute("SELECT source, player_name, rank, value FROM market_data ORDER BY source, rank")
+    mkt_rows = c.fetchall()
+    mkt_by_source = {}
+    for source, name, rank, val in mkt_rows:
+        if source not in mkt_by_source:
+            mkt_by_source[source] = {}
+        mkt_by_source[source][name] = {'rank': rank, 'value': val}
+
+    conn.close()
+
+    # Build position-specific tier analysis
+    positions = ['QB', 'RB', 'WR', 'TE']
+    tier_data = {}
+
+    for pos in positions:
+        pos_players = [(name, d['rank'], d['elo']) for name, d in vs_rank.items() if d['pos'] == pos]
+        pos_players.sort(key=lambda x: x[1])
+
+        if len(pos_players) < 2:
+            continue
+
+        # Detect tier breaks: ELO drop > 120 between consecutive players
+        tiers = []
+        current_tier = []
+        for i, (name, rank, elo) in enumerate(pos_players):
+            current_tier.append({'name': name, 'vs_rank': rank, 'elo': round(elo)})
+            if i < len(pos_players) - 1:
+                next_elo = pos_players[i+1][2]
+                gap = elo - next_elo
+                if gap > 120:
+                    # Calculate what startup pick this tier break falls at
+                    # Rough mapping: overall vs_rank -> startup slot
+                    overall_rank = rank
+                    est_pick_round = (overall_rank // 12) + 1
+                    est_pick_slot = (overall_rank % 12) + 1
+                    est_pick = str(est_pick_round) + '.' + str(est_pick_slot).zfill(2)
+                    tiers.append({
+                        'tier_num': len(tiers) + 1,
+                        'players': current_tier.copy(),
+                        'break_after': name,
+                        'gap': round(gap),
+                        'est_pick': est_pick,
+                        'last_rank': rank,
+                    })
+                    current_tier = []
+        if current_tier:
+            tiers.append({'tier_num': len(tiers)+1, 'players': current_tier.copy(), 'break_after': None, 'gap': 0, 'est_pick': None, 'last_rank': None})
+
+        tier_data[pos] = tiers
+
+    # Trade up/down targets: players you rank significantly higher/lower than KTC
+    trade_targets = []
+    for name, vd in vs_rank.items():
+        if vd['rank'] > 150:
+            continue
+        # Get KTC rank for this player
+        ktc_v = ktc_vals.get(name, 0)
+        if not ktc_v:
+            continue
+        # Compute KTC rank by sorting all players by KTC value
+        # Already have vs_rank — approximate KTC rank from value percentile
+        ktc_rank_approx = max(1, 200 - int(ktc_v / 50))
+        my_rank = vd['rank']
+        delta = ktc_rank_approx - my_rank  # positive = I rank higher than KTC (buy signal)
+
+        if abs(delta) >= 15:
+            if delta >= 30:
+                signal = 'STRONG BUY'
+                signal_color = 'gn'
+            elif delta >= 15:
+                signal = 'BUY'
+                signal_color = 'gn'
+            elif delta <= -30:
+                signal = 'STRONG SELL'
+                signal_color = 'rd'
+            else:
+                signal = 'SELL'
+                signal_color = 'rd'
+
+            # Estimate when this player will be drafted based on KTC rank
+            est_draft_round = (ktc_rank_approx // 12) + 1
+            est_draft_pick = str(est_draft_round) + '.' + str((ktc_rank_approx % 12 + 1)).zfill(2)
+
+            trade_targets.append({
+                'name': name,
+                'position': vd['pos'],
+                'my_rank': my_rank,
+                'ktc_rank': ktc_rank_approx,
+                'delta': delta,
+                'signal': signal,
+                'signal_color': signal_color,
+                'ktc_value': ktc_v,
+                'est_draft_pick': est_draft_pick,
+                'trade_up_note': f"Draft {est_draft_pick} to get him" if delta > 0 else f"Could slide past your next pick",
+            })
+
+    trade_targets.sort(key=lambda x: abs(x['delta']), reverse=True)
+
+    return jsonify({
+        "tiers": tier_data,
+        "trade_targets": trade_targets[:30],
+        "sources_available": list(mkt_by_source.keys()),
+        "success": True
+    })
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8080, debug=False)
