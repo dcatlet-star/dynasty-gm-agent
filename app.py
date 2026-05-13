@@ -762,10 +762,10 @@ def get_static_dashboard():
              "top_assets": ["Brock Bowers 8,765", "Patrick Mahomes 6,814", "Carnell Tate 5,830"],
              "picks": "2027 R1(own) · 2028 R1+R2+R3+R4",
              "alert": "Acquire LaPorta from c1smith11 — #1 priority"},
-            {"league": "Velvet Spade", "strategy": "STARTUP — May 15", "priority": "#1",
+            {"league": "Velvet Spade", "strategy": "STARTUP COMPLETE — Build in progress", "priority": "#1",
              "top_assets": ["Pick 1.02 overall", "2.11", "3.11"],
              "picks": "28-round startup — pick #2 overall",
-             "alert": "Draft in 7 days — finalize strategy"}
+             "alert": "Velvet Spade roster — update via Sleeper sync"}
         ],
         "quick_actions": [
             {"league": "Gentleman's", "action": "Send LaPorta offer to c1smith11", "message": "Njoku and 2027 2nd for LaPorta. Works for both of us."},
@@ -1882,6 +1882,7 @@ def get_tiers():
     has_ddl = len(ddl_rank_map) > 10
 
     # Build position-specific tier analysis from VS rankings
+    # Use DDL ADP as the draft slot reference for each player
     positions = ['QB', 'RB', 'WR', 'TE']
     tier_data = {}
 
@@ -1891,29 +1892,105 @@ def get_tiers():
         if len(pos_players) < 2:
             continue
 
-        tiers = []
+        # Step 1: detect raw breaks with adaptive threshold
+        # Use a percentage-based gap relative to the ELO range for this position
+        if len(pos_players) >= 2:
+            pos_elo_max = pos_players[0][2]
+            pos_elo_min = pos_players[-1][2]
+            pos_elo_range = max(pos_elo_max - pos_elo_min, 1)
+            # Gap threshold: 8% of position ELO range, minimum 80 ELO
+            gap_threshold = max(80, pos_elo_range * 0.08)
+        else:
+            gap_threshold = 120
+
+        raw_tiers = []
         current_tier = []
         for i, (name, rank, elo) in enumerate(pos_players):
-            current_tier.append({'name': name, 'vs_rank': rank, 'elo': round(elo)})
+            # Enrich with DDL ADP
+            ddl_info = ddl_rank_map.get(name, {})
+            adp = ddl_info.get('adp', None)
+            adp_str = f"{adp:.1f}" if adp else '—'
+            # Convert DDL ADP to startup pick slot
+            if adp:
+                pick_round = int(adp // 12) + 1
+                pick_slot_n = int(adp % 12) + 1
+                adp_pick = f"{pick_round}.{str(pick_slot_n).zfill(2)}"
+            else:
+                adp_pick = '—'
+            current_tier.append({
+                'name': name,
+                'vs_rank': rank,
+                'elo': round(elo),
+                'adp': adp,
+                'adp_pick': adp_pick,
+            })
             if i < len(pos_players) - 1:
                 next_elo = pos_players[i+1][2]
                 gap = elo - next_elo
-                if gap > 120:
-                    est_pick_round = max(1, (rank // 12) + 1)
-                    est_pick_slot = (rank % 12) + 1
-                    est_pick = f"{est_pick_round}.{str(est_pick_slot).zfill(2)}"
-                    tiers.append({
-                        'tier_num': len(tiers) + 1,
+                if gap >= gap_threshold:
+                    raw_tiers.append({
                         'players': current_tier.copy(),
-                        'break_after': name,
                         'gap': round(gap),
-                        'est_pick': est_pick,
-                        'last_rank': rank,
+                        'break_after': name,
+                        'break_adp': adp_pick,
                     })
                     current_tier = []
         if current_tier:
-            tiers.append({'tier_num': len(tiers)+1, 'players': current_tier.copy(),
-                         'break_after': None, 'gap': 0, 'est_pick': None, 'last_rank': None})
+            raw_tiers.append({
+                'players': current_tier.copy(),
+                'gap': 0,
+                'break_after': None,
+                'break_adp': None,
+            })
+
+        # Step 2: merge single-player tiers into adjacent tiers
+        # A tier with 1 player merges with the next tier unless its gap > 2x threshold (elite singleton OK)
+        merged = []
+        i = 0
+        while i < len(raw_tiers):
+            t = raw_tiers[i]
+            # Merge forward if single-player and not a massive break
+            if len(t['players']) == 1 and i + 1 < len(raw_tiers) and t['gap'] < gap_threshold * 2:
+                combined = t['players'] + raw_tiers[i+1]['players']
+                merged.append({
+                    'players': combined,
+                    'gap': raw_tiers[i+1]['gap'],
+                    'break_after': raw_tiers[i+1]['break_after'],
+                    'break_adp': raw_tiers[i+1].get('break_adp'),
+                })
+                i += 2
+            else:
+                merged.append(t)
+                i += 1
+
+        # Step 3: number the tiers and compute last-player draft slot
+        tiers = []
+        for ti, t in enumerate(merged):
+            last_player = t['players'][-1]
+            last_adp = last_player.get('adp')
+            if last_adp:
+                last_round = int(last_adp // 12) + 1
+                last_slot = int(last_adp % 12) + 1
+                last_pick = f"{last_round}.{str(last_slot).zfill(2)}"
+            else:
+                last_pick = '—'
+
+            is_major = t['gap'] > gap_threshold * 2
+            is_moderate = gap_threshold <= t['gap'] <= gap_threshold * 2
+
+            tiers.append({
+                'tier_num': ti + 1,
+                'players': t['players'],
+                'count': len(t['players']),
+                'break_after': t['break_after'],
+                'break_adp': t.get('break_adp', last_pick),
+                'last_player': last_player['name'],
+                'last_adp_pick': last_pick,
+                'gap': t['gap'],
+                'is_major': is_major,
+                'is_moderate': is_moderate,
+            })
+
         tier_data[pos] = tiers
 
     # Trade targets: compare VS rank vs DDL ADP rank (primary) and KTC rank (secondary)
