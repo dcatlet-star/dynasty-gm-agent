@@ -28,20 +28,36 @@ def init_db():
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, week_key TEXT, role TEXT, content TEXT, timestamp TEXT)''')
     c.execute('''CREATE TABLE IF NOT EXISTS player_rankings
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, player_name TEXT UNIQUE, position TEXT, team TEXT,
-                  elo_score REAL DEFAULT 1500, comparisons INTEGER DEFAULT 0, last_updated TEXT)''')
+                  elo_score REAL DEFAULT 1500, comparisons INTEGER DEFAULT 0, last_updated TEXT,
+                  ktc_tier INTEGER DEFAULT 10)''')
     c.execute('''CREATE TABLE IF NOT EXISTS player_profiles
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, player_name TEXT UNIQUE, profile_data TEXT, last_updated TEXT)''')
     c.execute('''CREATE TABLE IF NOT EXISTS dashboard_cache
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, cache_key TEXT UNIQUE, data TEXT, last_updated TEXT)''')
-    # VS-specific 6pt TD rankings (separate ELO pool)
     c.execute('''CREATE TABLE IF NOT EXISTS vs_rankings
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, player_name TEXT UNIQUE, position TEXT, team TEXT,
-                  elo_score REAL DEFAULT 1500, comparisons INTEGER DEFAULT 0, last_updated TEXT)''')
-    # Market data: KTC, DDL, Sleeper ADP pasted by user
+                  elo_score REAL DEFAULT 1500, comparisons INTEGER DEFAULT 0, last_updated TEXT,
+                  ktc_tier INTEGER DEFAULT 10)''')
     c.execute('''CREATE TABLE IF NOT EXISTS market_data
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, source TEXT NOT NULL, player_name TEXT NOT NULL,
                   rank INTEGER, value INTEGER, position TEXT, team TEXT, updated_at TEXT NOT NULL,
                   UNIQUE(source, player_name))''')
+    # Draft activity: picks made, trades, opponent tendencies
+    c.execute('''CREATE TABLE IF NOT EXISTS draft_activity
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, draft_id TEXT DEFAULT 'vs_2026',
+                  pick_slot TEXT, player_name TEXT, manager TEXT, position TEXT,
+                  logged_at TEXT, source TEXT DEFAULT 'manual')''')
+    # Manager profiles for trade targeting
+    c.execute('''CREATE TABLE IF NOT EXISTS manager_profiles
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, manager TEXT UNIQUE,
+                  roster_data TEXT, trade_activity TEXT, tendencies TEXT, updated_at TEXT)''')
+    # Alter existing tables to add ktc_tier if missing
+    try:
+        c.execute("ALTER TABLE player_rankings ADD COLUMN ktc_tier INTEGER DEFAULT 10")
+    except: pass
+    try:
+        c.execute("ALTER TABLE vs_rankings ADD COLUMN ktc_tier INTEGER DEFAULT 10")
+    except: pass
     conn.commit()
     conn.close()
 
@@ -867,18 +883,23 @@ def reset_rankings():
 
 @app.route('/api/rankings/pair', methods=['GET'])
 def get_ranking_pair():
-    """Get two players for comparison using tier-proximity matching"""
+    """
+    Proximity-based matchup using hybrid tier system:
+    - Uses KTC tier until player has 10+ comparisons, then ELO-based tier
+    - 60% same tier, 30% 1 tier apart, 10% 2-3 tiers apart
+    - Relaxes constraints for position-filtered pools
+    """
     position_filter = request.args.get('position', 'ALL')
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
 
     if position_filter != 'ALL':
-        c.execute("""SELECT player_name, position, team, elo_score, comparisons
+        c.execute("""SELECT player_name, position, team, elo_score, comparisons, COALESCE(ktc_tier, 10)
                     FROM player_rankings WHERE position=?
-                    ORDER BY comparisons ASC, RANDOM() LIMIT 50""", (position_filter,))
+                    ORDER BY comparisons ASC, RANDOM() LIMIT 80""", (position_filter,))
     else:
-        c.execute("""SELECT player_name, position, team, elo_score, comparisons
-                    FROM player_rankings ORDER BY comparisons ASC, RANDOM() LIMIT 80""")
+        c.execute("""SELECT player_name, position, team, elo_score, comparisons, COALESCE(ktc_tier, 10)
+                    FROM player_rankings ORDER BY comparisons ASC, RANDOM() LIMIT 120""")
 
     rows = c.fetchall()
     conn.close()
@@ -886,48 +907,77 @@ def get_ranking_pair():
     if len(rows) < 2:
         return jsonify({"players": [], "success": False, "error": "Not enough players"})
 
-    players = [{"name": r[0], "position": r[1], "team": r[2], "elo": r[3], "comparisons": r[4]} for r in rows]
+    players = [{"name": r[0], "position": r[1], "team": r[2],
+                "elo": r[3], "comparisons": r[4], "ktc_tier": r[5]} for r in rows]
 
-    # Assign KTC tiers based on ELO (maps to KTC value ranges)
-    def get_tier(elo):
-        if elo >= 2800: return 1   # 9000+ KTC
-        if elo >= 2400: return 2   # 7500-8999
-        if elo >= 2000: return 3   # 6000-7499
-        if elo >= 1600: return 4   # 4500-5999
-        if elo >= 1200: return 5   # 3000-4499
-        if elo >= 800:  return 6   # 1500-2999
-        return 7                   # under 1500
+    def get_comparison_tier(p):
+        """Hybrid: use KTC tier until 10+ comps, then derive from ELO rank"""
+        if p['comparisons'] < 10:
+            # Map KTC tiers (1-21) to comparison buckets (1-7)
+            kt = p['ktc_tier']
+            if kt <= 1: return 1
+            if kt <= 3: return 2
+            if kt <= 6: return 3
+            if kt <= 10: return 4
+            if kt <= 14: return 5
+            if kt <= 18: return 6
+            return 7
+        else:
+            # ELO-based after enough comparisons
+            elo = p['elo']
+            if elo >= 2800: return 1
+            if elo >= 2400: return 2
+            if elo >= 2000: return 3
+            if elo >= 1600: return 4
+            if elo >= 1200: return 5
+            if elo >= 800: return 6
+            return 7
 
     import random
-    # Pick first player with fewest comparisons from top 20
+
+    # Position-filtered pools are smaller — relax tier constraints
+    is_filtered = position_filter != 'ALL'
     pool = sorted(players, key=lambda x: x['comparisons'])
     p1 = pool[random.randint(0, min(9, len(pool)-1))]
-    p1_tier = get_tier(p1['elo'])
+    p1_tier = get_comparison_tier(p1)
 
-    # Decide tier proximity: 60% same tier, 30% 1 tier apart, 10% up to 3 tiers apart
     rand = random.random()
     if rand < 0.60:
         target_tiers = [p1_tier]
+        max_spread = 1 if is_filtered else 0
     elif rand < 0.90:
         target_tiers = [p1_tier - 1, p1_tier + 1]
+        max_spread = 2 if is_filtered else 1
     else:
-        target_tiers = [p1_tier - 3, p1_tier - 2, p1_tier - 1,
-                       p1_tier + 1, p1_tier + 2, p1_tier + 3]
+        target_tiers = [p1_tier + i for i in range(-3, 4) if i != 0]
+        max_spread = 3
+
     target_tiers = [t for t in target_tiers if 1 <= t <= 7]
 
-    # Find p2 candidates in target tiers (excluding p1)
     p2_candidates = [p for p in players
-                    if p['name'] != p1['name'] and get_tier(p['elo']) in target_tiers]
+                    if p['name'] != p1['name'] and get_comparison_tier(p) in target_tiers]
+
+    # Fallback: expand by 1 tier at a time until we find candidates
+    if not p2_candidates and is_filtered:
+        for spread in range(1, 4):
+            expanded = [p1_tier + i for i in range(-spread, spread+1) if i != 0]
+            expanded = [t for t in expanded if 1 <= t <= 7]
+            p2_candidates = [p for p in players
+                            if p['name'] != p1['name'] and get_comparison_tier(p) in expanded]
+            if p2_candidates:
+                break
 
     if not p2_candidates:
-        # Fallback: any player in adjacent tiers
         p2_candidates = [p for p in players if p['name'] != p1['name']]
 
-    # Prefer candidates with fewer comparisons
     p2_candidates.sort(key=lambda x: x['comparisons'])
     p2 = p2_candidates[random.randint(0, min(9, len(p2_candidates)-1))]
 
-    return jsonify({"players": [p1, p2], "success": True})
+    return jsonify({
+        "players": [p1, p2],
+        "success": True,
+        "tiers": [p1_tier, get_comparison_tier(p2)]
+    })
 
 @app.route('/api/rankings/adjust', methods=['POST'])
 def adjust_ranking():
@@ -988,7 +1038,44 @@ def adjust_ranking():
     return jsonify({"success": True, "new_elo": round(new_elo), "moved_to": target_pos + 1})
 
 
-@app.route('/api/rankings/vote', methods=['POST'])
+@app.route('/api/rankings/reorder', methods=['POST'])
+def reorder_rankings():
+    """
+    Accept a new ordered list of player names and assign ELO scores
+    that preserve the requested order with equal spacing.
+    Handles both standard ('standard') and VS ('vs') pools.
+    """
+    data = request.json
+    ordered_names = data.get('ordered_names', [])
+    pool = data.get('pool', 'standard')  # 'standard' or 'vs'
+    table = 'vs_rankings' if pool == 'vs' else 'player_rankings'
+
+    if not ordered_names:
+        return jsonify({"success": False, "error": "No names provided"})
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+
+    # Get current ELO range to maintain scale
+    c.execute(f"SELECT MIN(elo_score), MAX(elo_score) FROM {table}")
+    row = c.fetchone()
+    elo_min = row[0] or 400
+    elo_max = row[1] or 3000
+
+    n = len(ordered_names)
+    step = (elo_max - elo_min) / max(n, 1)
+
+    # Assign ELOs: rank 1 gets elo_max, rank n gets elo_min
+    for i, name in enumerate(ordered_names):
+        new_elo = elo_max - (i * step)
+        c.execute(f"UPDATE {table} SET elo_score=?, last_updated=? WHERE player_name=?",
+                 (new_elo, datetime.now().isoformat(), name))
+
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True, "reordered": n, "pool": pool})
+
+
 def submit_vote():
     winner = request.json.get('winner')
     loser = request.json.get('loser')
@@ -1426,22 +1513,23 @@ def draft_state():
 # ============================================================
 
 def seed_vs_players():
-    """Seed VS rankings pool with 6pt TD adjusted ELO — QBs boosted ~18%"""
+    """Seed VS rankings pool with 6pt TD adjusted ELO — QBs boosted ~18%, copies ktc_tier"""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("SELECT COUNT(*) FROM vs_rankings")
     if c.fetchone()[0] > 0:
         conn.close()
         return
-    # Pull from standard rankings and boost QB ELO by 18%
-    c.execute("SELECT player_name, position, team, elo_score FROM player_rankings")
+    c.execute("SELECT player_name, position, team, elo_score, COALESCE(ktc_tier, 10) FROM player_rankings")
     rows = c.fetchall()
-    for name, pos, team, elo in rows:
+    for name, pos, team, elo, ktc_tier in rows:
         adjusted_elo = round(elo * 1.18) if pos == 'QB' else elo
+        # QBs move up ~2 KTC tier buckets in 6pt TD
+        adjusted_tier = max(1, ktc_tier - 2) if pos == 'QB' else ktc_tier
         c.execute('''INSERT OR IGNORE INTO vs_rankings
-                    (player_name, position, team, elo_score, comparisons, last_updated)
-                    VALUES (?, ?, ?, ?, 0, ?)''',
-                 (name, pos, team, adjusted_elo, datetime.now().isoformat()))
+                    (player_name, position, team, elo_score, comparisons, last_updated, ktc_tier)
+                    VALUES (?, ?, ?, ?, 0, ?, ?)''',
+                 (name, pos, team, adjusted_elo, datetime.now().isoformat(), adjusted_tier))
     conn.commit()
     conn.close()
 
@@ -1449,36 +1537,51 @@ seed_vs_players()
 
 @app.route('/api/vs/pair', methods=['GET'])
 def get_vs_pair():
-    """Proximity-based matchup for VS 6pt TD rankings"""
+    """Proximity-based matchup for VS 6pt TD rankings — hybrid KTC tier matching"""
     position_filter = request.args.get('position', 'ALL')
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     if position_filter != 'ALL':
-        c.execute('''SELECT player_name, position, team, elo_score, comparisons
+        c.execute('''SELECT player_name, position, team, elo_score, comparisons, COALESCE(ktc_tier, 10)
                     FROM vs_rankings WHERE position=?
                     ORDER BY comparisons ASC, RANDOM() LIMIT 80''', (position_filter,))
     else:
-        c.execute('''SELECT player_name, position, team, elo_score, comparisons
-                    FROM vs_rankings ORDER BY comparisons ASC, RANDOM() LIMIT 100''')
+        c.execute('''SELECT player_name, position, team, elo_score, comparisons, COALESCE(ktc_tier, 10)
+                    FROM vs_rankings ORDER BY comparisons ASC, RANDOM() LIMIT 120''')
     rows = c.fetchall()
     conn.close()
     if len(rows) < 2:
         return jsonify({"players": [], "success": False})
-    players = [{"name": r[0], "position": r[1], "team": r[2], "elo": r[3], "comparisons": r[4]} for r in rows]
 
-    def get_tier(elo):
-        if elo >= 2800: return 1
-        if elo >= 2400: return 2
-        if elo >= 2000: return 3
-        if elo >= 1600: return 4
-        if elo >= 1200: return 5
-        if elo >= 800: return 6
-        return 7
+    players = [{"name": r[0], "position": r[1], "team": r[2],
+                "elo": r[3], "comparisons": r[4], "ktc_tier": r[5]} for r in rows]
+
+    def get_comparison_tier(p):
+        if p['comparisons'] < 10:
+            kt = p['ktc_tier']
+            if kt <= 1: return 1
+            if kt <= 3: return 2
+            if kt <= 6: return 3
+            if kt <= 10: return 4
+            if kt <= 14: return 5
+            if kt <= 18: return 6
+            return 7
+        else:
+            elo = p['elo']
+            if elo >= 2800: return 1
+            if elo >= 2400: return 2
+            if elo >= 2000: return 3
+            if elo >= 1600: return 4
+            if elo >= 1200: return 5
+            if elo >= 800: return 6
+            return 7
 
     import random
+    is_filtered = position_filter != 'ALL'
     pool = sorted(players, key=lambda x: x['comparisons'])
     p1 = pool[random.randint(0, min(9, len(pool)-1))]
-    p1_tier = get_tier(p1['elo'])
+    p1_tier = get_comparison_tier(p1)
+
     rand = random.random()
     if rand < 0.60:
         target_tiers = [p1_tier]
@@ -1487,12 +1590,28 @@ def get_vs_pair():
     else:
         target_tiers = [p1_tier + i for i in range(-3, 4) if i != 0]
     target_tiers = [t for t in target_tiers if 1 <= t <= 7]
-    p2_candidates = [p for p in players if p['name'] != p1['name'] and get_tier(p['elo']) in target_tiers]
+
+    p2_candidates = [p for p in players
+                    if p['name'] != p1['name'] and get_comparison_tier(p) in target_tiers]
+
+    if not p2_candidates and is_filtered:
+        for spread in range(1, 4):
+            expanded = [p1_tier + i for i in range(-spread, spread+1) if i != 0]
+            expanded = [t for t in expanded if 1 <= t <= 7]
+            p2_candidates = [p for p in players
+                            if p['name'] != p1['name'] and get_comparison_tier(p) in expanded]
+            if p2_candidates:
+                break
+
     if not p2_candidates:
         p2_candidates = [p for p in players if p['name'] != p1['name']]
+
     p2_candidates.sort(key=lambda x: x['comparisons'])
     p2 = p2_candidates[random.randint(0, min(9, len(p2_candidates)-1))]
-    return jsonify({"players": [p1, p2], "success": True})
+    return jsonify({
+        "players": [p1, p2], "success": True,
+        "tiers": [p1_tier, get_comparison_tier(p2)]
+    })
 
 @app.route('/api/vs/vote', methods=['POST'])
 def vs_vote():
@@ -2068,6 +2187,504 @@ def seed_ddl_market_data():
     conn.close()
 
 seed_ddl_market_data()
+
+def seed_ktc_tiers():
+    """Populate ktc_tier column from market_data for all players in both ranking tables"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    # Get KTC rank data
+    c.execute("SELECT player_name, rank FROM market_data WHERE source='ktc'")
+    ktc_rows = {r[0]: r[1] for r in c.fetchall()}
+
+    # Map KTC rank to KTC tier (approximate from rank ranges)
+    def rank_to_ktc_tier(rank):
+        if rank <= 3: return 1
+        if rank <= 9: return 2
+        if rank <= 19: return 3
+        if rank <= 30: return 4
+        if rank <= 40: return 5
+        if rank <= 55: return 6
+        if rank <= 75: return 7
+        if rank <= 92: return 8
+        if rank <= 100: return 9
+        if rank <= 115: return 10
+        if rank <= 125: return 11
+        if rank <= 140: return 12
+        if rank <= 152: return 13
+        if rank <= 165: return 14
+        if rank <= 175: return 15
+        if rank <= 185: return 16
+        return 17
+
+    for name, rank in ktc_rows.items():
+        tier = rank_to_ktc_tier(rank)
+        c.execute("UPDATE player_rankings SET ktc_tier=? WHERE player_name=?", (tier, name))
+        c.execute("UPDATE vs_rankings SET ktc_tier=? WHERE player_name=?", (tier, name))
+
+    conn.commit()
+    conn.close()
+
+seed_ktc_tiers()
+
+# VS pick map — who holds each pick (updated as trades happen)
+VS_PICK_MAP = {
+    'pdwyer13': {'picks': ['1.01','2.12','3.12','4.01','5.12','6.01','7.12','8.01','9.12','10.01','11.12','12.01','13.12','14.01','15.12','16.01','17.12','18.01','19.12','20.01','21.12','22.01','23.12','24.01','25.12','26.01','27.12','28.01']},
+    'dcatlet':  {'picks': ['1.02','2.11','3.11','4.02','5.11','6.02','7.11','8.02','9.11','10.02','11.11','12.02','13.11','14.02','15.11','16.02','17.11','18.02','19.11','20.02','21.11','22.02','23.11','24.02','25.11','26.02','27.11','28.02']},
+    'yerkdog':  {'picks': ['1.03','2.10','3.10','4.03','5.10','6.03','7.10','8.03','9.10','10.03','11.10','12.03','13.10','14.03','15.10','16.03','17.10','18.03','19.10','20.03','21.10','22.03','23.10','24.03','25.10','26.03','27.10','28.03']},
+    'jefisk24': {'picks': ['1.04','2.09','3.09','4.04','5.09','6.04','7.09','8.04','9.09','10.04','11.09','12.04','13.09','14.04','15.09','16.04','17.09','18.04','19.09','20.04','21.09','22.04','23.09','24.04','25.09','26.04','27.09','28.04']},
+    'Smohr609': {'picks': ['1.05','2.08','3.08','4.05','5.08','6.05','7.08','8.05','9.08','10.05','11.08','12.05','13.08','14.05','15.08','16.05','17.08','18.05','19.08','20.05','21.08','22.05','23.08','24.05','25.08','26.05','27.08','28.05']},
+    'ColeTrain8300': {'picks': ['1.06','2.07','3.07','4.06','5.07','6.06','7.07','8.06','9.07','10.06','11.07','12.06','13.07','14.06','15.07','16.06','17.07','18.06','19.07','20.06','21.07','22.06','23.07','24.06','25.07','26.06','27.07','28.06']},
+    'DrTrollPhD': {'picks': ['1.07','2.06','3.06','4.07','5.06','6.07','7.06','8.07','9.06','10.07','11.06','12.07','13.06','14.07','15.06','16.07','17.06','18.07','19.06','20.07','21.06','22.07','23.06','24.07','25.06','26.07','27.06','28.07']},
+    'colinmonie': {'picks': ['1.08','2.05','3.05','4.08','5.05','6.08','7.05','8.08','9.05','10.08','11.05','12.08','13.05','14.08','15.05','16.08','17.05','18.08','19.05','20.08','21.05','22.08','23.05','24.08','25.05','26.08','27.05','28.08']},
+    'EazyDakar': {'picks': ['1.09','2.04','3.04','4.09','5.04','6.09','7.04','8.09','9.04','10.09','11.04','12.09','13.04','14.09','15.04','16.09','17.04','18.09','19.04','20.09','21.04','22.09','23.04','24.09','25.04','26.09','27.04','28.09']},
+    'jakemills69': {'picks': ['1.10','2.03','3.03','4.10','5.03','6.10','7.03','8.10','9.03','10.10','11.03','12.10','13.03','14.10','15.03','16.10','17.03','18.10','19.03','20.10','21.03','22.10','23.03','24.10','25.03','26.10','27.03','28.10']},
+    'NateSneller': {'picks': ['1.11','2.02','3.02','4.11','5.02','6.11','7.02','8.11','9.02','10.11','11.02','12.11','13.02','14.11','15.02','16.11','17.02','18.11','19.02','20.11','21.02','22.11','23.02','24.11','25.02','26.11','27.02','28.11']},
+    'sneller':  {'picks': ['1.12','2.01','3.01','4.12','5.01','6.12','7.01','8.12','9.01','10.12','11.01','12.12','13.01','14.12','15.01','16.12','17.01','18.12','19.01','20.12','21.01','22.12','23.01','24.12','25.01','26.12','27.01','28.12']},
+}
+
+# KTC value adjustment table for multi-asset trades
+# Based on KTC's published adjustment factors
+TRADE_ADJUSTMENT = {
+    1: 1.00,  # 1 asset: no adjustment
+    2: 0.90,  # 2 assets: each worth 90% (10% discount for complexity)
+    3: 0.80,  # 3 assets: each worth 80%
+    4: 0.72,  # 4 assets: each worth 72%
+    5: 0.65,  # 5+ assets: diminishing returns
+}
+
+def adjust_trade_value(assets_values):
+    """Apply KTC multi-asset discount"""
+    n = len(assets_values)
+    factor = TRADE_ADJUSTMENT.get(min(n, 5), 0.65)
+    return sum(v * factor for v in assets_values)
+
+def get_pick_owner(pick_slot):
+    """Get current owner of a pick slot from VS_PICK_MAP"""
+    for manager, data in VS_PICK_MAP.items():
+        if pick_slot in data['picks']:
+            return manager
+    return None
+
+def get_startup_pick_value(pick_slot):
+    """Get KTC startup value for a pick slot"""
+    STARTUP_VALUES = {
+        '1.01':9999,'1.02':9987,'1.03':9918,'1.04':9565,'1.05':9412,'1.06':8765,
+        '1.07':8603,'1.08':8337,'1.09':7935,'1.10':7861,'1.11':7838,'1.12':7778,
+        '2.01':7713,'2.02':7697,'2.03':7679,'2.04':7566,'2.05':7499,'2.06':7287,
+        '2.07':6888,'2.08':6887,'2.09':6818,'2.10':6814,'2.11':6702,'2.12':6692,
+        '3.01':6673,'3.02':6556,'3.03':6328,'3.04':6220,'3.05':6197,'3.06':6181,
+        '3.07':6139,'3.08':6056,'3.09':6044,'3.10':5957,'3.11':5841,'3.12':5830,
+        '4.01':5719,'4.02':5672,'4.03':5668,'4.04':5638,'4.05':5571,'4.06':5474,
+        '4.07':5461,'4.08':5459,'4.09':5402,'4.10':5373,'4.11':5357,'4.12':5356,
+        '5.01':5251,'5.02':5243,'5.03':5214,'5.04':5197,'5.05':5076,'5.06':5042,
+        '5.07':4993,'5.08':4992,'5.09':4929,'5.10':4925,'5.11':4920,'5.12':4904,
+        '6.01':4899,'6.02':4898,'6.03':4889,'6.04':4885,'6.05':4866,'6.06':4853,
+        '6.07':4850,'6.08':4810,'6.09':4747,'6.10':4741,'6.11':4710,'6.12':4696,
+        '7.01':4695,'7.02':4620,'7.03':4619,'7.04':4604,'7.05':4560,'7.06':4512,
+        '7.07':4494,'7.08':4464,'7.09':4454,'7.10':4428,'7.11':4417,'7.12':4338,
+        '8.01':4110,'8.02':4103,'8.03':4059,'8.04':3969,'8.05':3967,'8.06':3960,
+        '8.07':3945,'8.08':3924,'8.09':3915,'8.10':3880,'8.11':3866,'8.12':3825,
+    }
+    return STARTUP_VALUES.get(pick_slot, 3000)
+
+# ============================================================
+# DRAFT DECISION ENGINE
+# ============================================================
+
+@app.route('/api/draft/decisions', methods=['GET'])
+def get_draft_decisions():
+    """
+    Pre-draft and live decision signals for each of your 28 picks.
+    For each pick: Stick | Reach | Trade Up | Trade Back
+    With specific trade packages and manager targets.
+    """
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+
+    # Get your VS rankings
+    c.execute("SELECT player_name, position, elo_score FROM vs_rankings ORDER BY elo_score DESC LIMIT 200")
+    vs_rows = c.fetchall()
+    your_rank = {r[0]: {'rank': i+1, 'pos': r[1], 'elo': r[2]} for i, r in enumerate(vs_rows)}
+
+    # Get DDL ADP
+    c.execute("SELECT player_name, rank, team FROM market_data WHERE source='ddl' ORDER BY rank")
+    ddl_rows = c.fetchall()
+    ddl_rank = {}
+    for name, rank, adp_str in ddl_rows:
+        try: ddl_rank[name] = {'rank': rank, 'adp': float(adp_str)}
+        except: ddl_rank[name] = {'rank': rank, 'adp': rank}
+
+    # Get already drafted players
+    c.execute("SELECT pick_slot, player_name, manager FROM draft_activity WHERE draft_id='vs_2026' ORDER BY pick_slot")
+    drafted = {r[1]: {'slot': r[0], 'manager': r[2]} for r in c.fetchall()}
+    drafted_players = set(drafted.keys())
+
+    conn.close()
+
+    my_picks = ['1.02','2.11','3.11','4.02','5.11','6.02','7.11','8.02',
+                '9.11','10.02','11.11','12.02','13.11','14.02','15.11','16.02',
+                '17.11','18.02','19.11','20.02','21.11','22.02','23.11','24.02',
+                '25.11','26.02','27.11','28.02']
+
+    # Remove already used picks
+    remaining_picks = [p for p in my_picks if not any(d['slot'] == p for d in drafted.values() if d['manager'] == 'dcatlet')]
+
+    decisions = []
+
+    for i, my_pick in enumerate(remaining_picks[:14]):  # Focus on meaningful picks
+        my_pick_val = get_startup_pick_value(my_pick)
+        pick_num = my_picks.index(my_pick) + 1  # Overall pick number in draft order
+
+        # Find best available players at this pick window (±3 picks of my slot)
+        # by DDL ADP
+        pick_slot_num = int(my_pick.split('.')[0]) * 12 + int(my_pick.split('.')[1])
+
+        # Players likely available at this pick (DDL ADP within window)
+        available_window = []
+        for name, dd in ddl_rank.items():
+            if name in drafted_players:
+                continue
+            if abs(dd['adp'] - (pick_slot_num - 1)) <= 6:
+                yr = your_rank.get(name, {})
+                available_window.append({
+                    'name': name,
+                    'pos': yr.get('pos', 'WR'),
+                    'your_rank': yr.get('rank', 200),
+                    'ddl_adp': dd['adp'],
+                    'ddl_rank': dd['rank'],
+                    'delta': yr.get('rank', 200) - dd['rank'],
+                })
+
+        available_window.sort(key=lambda x: x['your_rank'])
+        top_target = available_window[0] if available_window else None
+
+        # Determine decision
+        decision = {'pick': my_pick, 'pick_value': my_pick_val, 'action': 'STICK',
+                   'target': None, 'reasoning': '', 'trade_package': None}
+
+        if top_target:
+            delta = top_target['delta']
+            adp = top_target['ddl_adp']
+            name = top_target['name']
+
+            # Find next pick after this one
+            next_pick = remaining_picks[i+1] if i+1 < len(remaining_picks) else None
+            next_pick_slot = (int(next_pick.split('.')[0]) * 12 + int(next_pick.split('.')[1])) if next_pick else 999
+            picks_until_next = next_pick_slot - pick_slot_num if next_pick else 999
+
+            if delta <= -20:
+                # Market values much higher than you — trade back
+                decision['action'] = 'TRADE BACK'
+                decision['target'] = name
+                decision['reasoning'] = f"You rank {name} #{top_target['your_rank']}, DDL has him at {adp:.1f}. Market overvalues him here. Trade back for future capital."
+                # Find who picks next in sequence
+                trade_back_target = _find_trade_back_target(my_pick, my_pick_val)
+                decision['trade_package'] = trade_back_target
+
+            elif delta >= 15 and picks_until_next > 8:
+                # You value player much more than market AND they won't last to your next pick
+                decision['action'] = 'TRADE UP'
+                decision['target'] = name
+                # Find who picks before this player goes
+                goes_at_slot = int(adp)
+                goes_at_pick = _slot_to_pick(goes_at_slot - 2)
+                trade_up = _build_trade_up(my_pick, goes_at_pick, my_pick_val, remaining_picks, i)
+                decision['trade_package'] = trade_up
+                decision['reasoning'] = f"{name} is your #{top_target['your_rank']} but DDL ADP is {adp:.1f} — goes {picks_until_next} picks before your next selection. Trade up now."
+
+            elif delta >= 10 and picks_until_next <= 5:
+                # You value higher, but next pick is close — just reach slightly
+                decision['action'] = 'REACH'
+                decision['target'] = name
+                decision['reasoning'] = f"{name}: your #{top_target['your_rank']} vs DDL {adp:.1f}. Next pick only {picks_until_next} slots away — slight reach is acceptable, don't risk losing him."
+
+            else:
+                decision['action'] = 'STICK'
+                decision['target'] = name
+                decision['reasoning'] = f"{name} projects available at {my_pick}. DDL ADP {adp:.1f} aligns with your slot. Draft as planned."
+
+        decisions.append(decision)
+
+    return jsonify({"decisions": decisions, "success": True,
+                   "picks_remaining": remaining_picks, "drafted_count": len(drafted)})
+
+def _slot_to_pick(slot_num):
+    """Convert sequential slot number to pick notation"""
+    if slot_num < 1: slot_num = 1
+    rnd = (slot_num - 1) // 12 + 1
+    pick = (slot_num - 1) % 12 + 1
+    return f"{rnd}.{str(pick).zfill(2)}"
+
+def _find_trade_back_target(my_pick, my_pick_val):
+    """Find who to trade back with and what to get"""
+    my_round = int(my_pick.split('.')[0])
+    my_slot = int(my_pick.split('.')[1])
+
+    # Find managers picking in the next 3 slots after mine
+    next_slots = []
+    for offset in range(1, 4):
+        target_slot = my_slot + offset
+        if target_slot > 12: break
+        target_pick = f"{my_round}.{str(target_slot).zfill(2)}"
+        owner = get_pick_owner(target_pick)
+        if owner and owner != 'dcatlet':
+            later_pick_val = get_startup_pick_value(f"{my_round + 2}.{str(my_slot).zfill(2)}")
+            next_slots.append({
+                'manager': owner,
+                'their_pick': target_pick,
+                'their_pick_val': get_startup_pick_value(target_pick),
+                'offer': f"Trade {my_pick} ({my_pick_val:,}) to {owner} for {target_pick} ({get_startup_pick_value(target_pick):,}) + future capital",
+                'value_gain': get_startup_pick_value(target_pick) - my_pick_val + later_pick_val,
+            })
+    return next_slots[0] if next_slots else None
+
+def _build_trade_up(my_pick, target_pick, my_val, remaining_picks, current_idx):
+    """Build a specific trade-up package with KTC value adjustment"""
+    target_val = get_startup_pick_value(target_pick)
+    target_owner = get_pick_owner(target_pick)
+    deficit = target_val - my_val
+
+    if deficit <= 0:
+        return {'owner': target_owner, 'offer': f"{my_pick} straight up for {target_pick}",
+                'value_check': 'Even value', 'deficit': 0}
+
+    # Find sweetener picks from remaining picks
+    sweetener_picks = []
+    sweetener_total = 0
+    for p in remaining_picks[current_idx+2:]:
+        if sweetener_total >= deficit * 0.85:
+            break
+        pv = get_startup_pick_value(p)
+        if pv < my_val * 0.4:  # Don't give up picks worth less than 40% of main pick
+            sweetener_picks.append(p)
+            sweetener_total += pv
+
+    all_giving = [my_pick] + sweetener_picks
+    giving_vals = [get_startup_pick_value(p) for p in all_giving]
+    adjusted_total = adjust_trade_value(giving_vals)
+
+    surplus_pct = round((adjusted_total - target_val) / target_val * 100, 1)
+    sweetener_str = ' + '.join(sweetener_picks) if sweetener_picks else 'straight up'
+
+    return {
+        'owner': target_owner or 'Unknown',
+        'target_pick': target_pick,
+        'offer': f"Offer {my_pick} + {sweetener_str} to {target_owner} for {target_pick}",
+        'your_total_raw': sum(giving_vals),
+        'your_total_adjusted': round(adjusted_total),
+        'their_value': target_val,
+        'surplus_pct': surplus_pct,
+        'verdict': 'Fair' if abs(surplus_pct) <= 10 else ('Overpay' if surplus_pct < 0 else 'Good value'),
+        'sweetener_picks': sweetener_picks,
+    }
+
+# ============================================================
+# SCREENSHOT PARSING — DRAFT BOARD + TRADE ACTIVITY
+# ============================================================
+
+@app.route('/api/draft/parse_screenshot', methods=['POST'])
+def parse_draft_screenshot():
+    """
+    Parse a Sleeper draft board screenshot using Claude vision.
+    Returns extracted picks for user confirmation before logging.
+    """
+    data = request.json
+    image_data = data.get('image', '')
+    draft_context = data.get('context', 'grid')  # 'grid' or 'trade'
+
+    if not image_data:
+        return jsonify({"success": False, "error": "No image provided"})
+
+    image_content = image_data.split(',')[1] if ',' in image_data else image_data
+    media_type = 'image/png' if 'png' in image_data[:30] else 'image/jpeg'
+
+    if draft_context == 'trade':
+        prompt = """This is a screenshot of a fantasy football draft trade or draft activity. 
+Extract any trade information: which picks or players were exchanged, between which managers.
+Return JSON only:
+{"type": "trade", "trades": [{"from": "manager1", "to": "manager2", "assets_sent": ["pick or player"], "assets_received": ["pick or player"]}]}"""
+    else:
+        prompt = """This is a screenshot of a Sleeper fantasy football startup draft board.
+The board shows a grid of picks already made (player name, team, position) and the current pick on clock.
+Extract all visible drafted picks. For each: pick slot (e.g. 1.01, 1.02), player name, manager/team name if visible.
+Return JSON only:
+{"picks": [{"slot": "1.01", "player": "Josh Allen", "manager": "pdwyer13", "position": "QB"}], "current_pick": "2.03", "notes": "any relevant observations"}
+If you cannot clearly read a pick, skip it rather than guess."""
+
+    try:
+        response = client.messages.create(
+            model="claude-sonnet-4-5",
+            max_tokens=1500,
+            messages=[{"role": "user", "content": [
+                {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": image_content}},
+                {"type": "text", "text": prompt}
+            ]}]
+        )
+        text = response.content[0].text.strip()
+        start = text.find('{')
+        end = text.rfind('}') + 1
+        if start >= 0 and end > start:
+            parsed = json.loads(text[start:end])
+            return jsonify({"parsed": parsed, "success": True, "confirmed": False})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+    return jsonify({"success": False, "error": "Could not parse image"})
+
+@app.route('/api/draft/confirm_picks', methods=['POST'])
+def confirm_draft_picks():
+    """Commit confirmed parsed picks to draft_activity table"""
+    data = request.json
+    picks = data.get('picks', [])
+    if not picks:
+        return jsonify({"success": False, "error": "No picks to commit"})
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    committed = 0
+    for pick in picks:
+        slot = pick.get('slot', '')
+        player = pick.get('player', '')
+        manager = pick.get('manager', '')
+        pos = pick.get('position', '')
+        if slot and player:
+            c.execute('''INSERT OR REPLACE INTO draft_activity
+                        (draft_id, pick_slot, player_name, manager, position, logged_at, source)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)''',
+                     ('vs_2026', slot, player, manager, pos,
+                      datetime.now().isoformat(), 'screenshot'))
+            committed += 1
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True, "committed": committed})
+
+@app.route('/api/draft/activity', methods=['GET'])
+def get_draft_activity():
+    """Get all logged draft activity"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('''SELECT pick_slot, player_name, manager, position, logged_at, source
+                FROM draft_activity WHERE draft_id='vs_2026'
+                ORDER BY pick_slot ASC''')
+    rows = c.fetchall()
+    conn.close()
+    picks = [{'slot': r[0], 'player': r[1], 'manager': r[2],
+              'position': r[3], 'logged_at': r[4], 'source': r[5]} for r in rows]
+
+    # Build manager pick counts for tendency analysis
+    from collections import defaultdict
+    manager_pos = defaultdict(lambda: defaultdict(int))
+    for p in picks:
+        if p['manager'] and p['position']:
+            manager_pos[p['manager']][p['position']] += 1
+
+    tendencies = {}
+    for mgr, pos_counts in manager_pos.items():
+        total = sum(pos_counts.values())
+        tendencies[mgr] = {pos: round(count/total*100) for pos, count in pos_counts.items() if total > 0}
+
+    return jsonify({"picks": picks, "total": len(picks), "tendencies": tendencies, "success": True})
+
+@app.route('/api/draft/live_recommendation', methods=['POST'])
+def live_draft_recommendation():
+    """
+    Real-time draft recommendation for your current pick.
+    Incorporates: your VS rankings, DDL ADP, picks already made,
+    manager tendencies, and positional scarcity.
+    """
+    data = request.json
+    current_pick = data.get('current_pick', '')
+    picks_made = data.get('picks_made', [])
+    my_roster = data.get('my_roster', [])
+    available_input = data.get('available', '')
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+
+    # Get manager tendencies from logged draft activity
+    c.execute('''SELECT manager, position, COUNT(*) as cnt FROM draft_activity
+                WHERE draft_id='vs_2026' GROUP BY manager, position''')
+    tendency_rows = c.fetchall()
+
+    # Get VS rankings top 50
+    c.execute("SELECT player_name, position, elo_score FROM vs_rankings ORDER BY elo_score DESC LIMIT 60")
+    vs_top = c.fetchall()
+
+    # Get DDL ADP top 100
+    c.execute("SELECT player_name, rank, team FROM market_data WHERE source='ddl' ORDER BY rank LIMIT 100")
+    ddl_top = {r[0]: {'rank': r[1], 'adp': float(r[2]) if r[2] else r[1]} for r in c.fetchall()}
+
+    conn.close()
+
+    # Build manager tendency summary
+    from collections import defaultdict
+    mgr_pos = defaultdict(lambda: defaultdict(int))
+    for mgr, pos, cnt in tendency_rows:
+        mgr_pos[mgr][pos] = cnt
+    mgr_summary = {}
+    for mgr, pos_counts in mgr_pos.items():
+        total = sum(pos_counts.values())
+        if total > 0:
+            top_pos = sorted(pos_counts.items(), key=lambda x: -x[1])[:2]
+            mgr_summary[mgr] = f"favors {', '.join([f'{p}({c})' for p,c in top_pos])}"
+
+    drafted_names = [p.get('player', '') for p in picks_made]
+    vs_available = [(r[0], r[1], r[2]) for r in vs_top if r[0] not in drafted_names]
+
+    pick_num = current_pick
+    my_next_picks = []
+    all_my = ['1.02','2.11','3.11','4.02','5.11','6.02','7.11','8.02',
+              '9.11','10.02','11.11','12.02','13.11','14.02','15.11','16.02',
+              '17.11','18.02','19.11','20.02','21.11','22.02','23.11','24.02',
+              '25.11','26.02','27.11','28.02']
+
+    if current_pick in all_my:
+        idx = all_my.index(current_pick)
+        my_next_picks = all_my[idx+1:idx+4]
+
+    prompt = f"""You are the draft assistant for MJBrutus (dcatlet) in the Velvet Spade startup draft.
+FORMAT: SuperFlex | TE Premium 1.5x | 6pt TDs | 12 teams | 28 rounds | Snake + 3rd round reversal
+
+CURRENT PICK: {current_pick}
+MY NEXT PICKS: {', '.join(my_next_picks)}
+MY CURRENT ROSTER: {', '.join(my_roster) if my_roster else 'None yet'}
+
+TOP AVAILABLE BY MY VS RANKINGS (6pt TD adjusted):
+{chr(10).join([f"#{i+1} {r[0]} ({r[1]})" for i, r in enumerate(vs_available[:15])])}
+
+DDL ADP CONTEXT: {', '.join([f"{n} (ADP {d['adp']:.1f})" for n, d in list(ddl_top.items())[:8] if n not in drafted_names])}
+
+PICKS MADE SO FAR ({len(picks_made)} total):
+{chr(10).join([f"{p.get('pick','?')} {p.get('player','?')} ({p.get('team','?')})" for p in picks_made[-12:]]) if picks_made else 'Draft just started'}
+
+MANAGER TENDENCIES FROM DRAFT SO FAR:
+{chr(10).join([f"{mgr}: {tendency}" for mgr, tendency in mgr_summary.items()]) if mgr_summary else 'Not enough data yet'}
+
+AVAILABLE INPUT: {available_input[:500] if available_input else 'Not provided'}
+
+Provide:
+1. PRIMARY RECOMMENDATION — specific player to draft with 2-sentence reason
+2. DECISION TYPE — one of: STICK (draft as planned) | REACH (take now before next pick) | TRADE UP (package to move up) | TRADE BACK (pick is weak, get future capital)
+3. If TRADE UP: who to approach and what to offer (use manager names from the pick map)
+4. If TRADE BACK: who picks next and what to request
+5. ALTERNATIVES — 2 backup options if primary goes
+6. POSITIONAL SCARCITY ALERT — flag any position tier breaks happening now
+
+Be decisive. One clear pick first. Mobile-friendly format."""
+
+    try:
+        response = client.messages.create(
+            model="claude-sonnet-4-5",
+            max_tokens=1000,
+            system=SYSTEM_PROMPT,
+            tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 1}],
+            messages=[{"role": "user", "content": prompt}]
+        )
+        rec = "".join(b.text for b in response.content if hasattr(b, 'text'))
+        return jsonify({"recommendation": rec, "success": True,
+                       "my_next_picks": my_next_picks})
+    except Exception as e:
+        return jsonify({"error": str(e), "success": False})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8080, debug=False)
