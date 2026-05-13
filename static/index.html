@@ -1524,60 +1524,94 @@ function renderTierView(el, d) {
     html += '<div class="div"></div>';
   }
 
-  // POSITIONAL TIER GRID — full width, all positions, no truncation
+  // POSITIONAL TIER GRID — full width, all positions
   const positions = ['QB','RB','WR','TE'];
   const posColors = {QB:'var(--ac)',RB:'var(--gn)',WR:'var(--pu)',TE:'var(--gd)'};
-  const posBg = {QB:'rgba(79,158,255,.06)',RB:'rgba(61,220,132,.06)',WR:'rgba(167,139,250,.06)',TE:'rgba(240,192,64,.06)'};
+  const posBg = {QB:'rgba(79,158,255,.05)',RB:'rgba(61,220,132,.05)',WR:'rgba(167,139,250,.05)',TE:'rgba(240,192,64,.05)'};
+  const compCounts = d.comp_counts || {};
 
-  html += '<div style="font-family:\"Bebas Neue\";font-size:13px;letter-spacing:2px;margin-bottom:8px;">📊 Positional Tier Breaks</div>';
-  html += '<div style="font-size:10px;color:var(--t2);padding:7px 9px;background:var(--s2);border-radius:7px;margin-bottom:10px;border:1px solid var(--b1);">🔴 Red border = major break &middot; 🟡 Gold = moderate &middot; ADP pick = typical startup draft slot (DDL)</div>';
+  html += '<div style="font-family:\"Bebas Neue\";font-size:13px;letter-spacing:2px;margin-bottom:6px;">📊 Positional Tier Breaks</div>';
+  html += '<div style="font-size:10px;color:var(--t2);padding:7px 9px;background:var(--s2);border-radius:7px;margin-bottom:10px;border:1px solid var(--b1);">' +
+    '🔴 Major break &middot; 🟡 Moderate break &middot; ADP col = DDL startup draft slot &middot; <strong style="color:var(--gd);">KTC baseline</strong> until 20+ comparisons per position</div>';
 
   positions.forEach(pos => {
     const tiers = d.tiers[pos];
     const pc = posColors[pos] || 'var(--tx)';
     const bg = posBg[pos] || 'transparent';
-    html += '<div style="background:' + bg + ';border:1px solid ' + pc.replace(')',', .2)').replace('var(','rgba(') + ';border-radius:11px;padding:12px;margin-bottom:10px;">';
-    html += '<div style="font-size:12px;font-weight:800;color:' + pc + ';letter-spacing:1.5px;margin-bottom:8px;">' + pos;
+    const comps = compCounts[pos] || 0;
+    const isPersonal = tiers && tiers.length && tiers[0].data_source === 'personal';
+    const srcLabel = isPersonal
+      ? '<span style="color:var(--gn);font-size:9px;font-weight:700;">● PERSONAL</span>'
+      : '<span style="color:var(--gd);font-size:9px;font-weight:700;">● KTC BASELINE (' + comps + '/20 comps)</span>';
+
+    html += '<div style="background:' + bg + ';border:1px solid ' + pc.replace('var(--','rgba(').replace(')',', .2)') + ';border-radius:11px;padding:12px;margin-bottom:10px;">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">';
+    html += '<div style="font-size:13px;font-weight:800;color:' + pc + ';letter-spacing:1.5px;">' + pos;
     if (tiers && tiers.length) html += ' <span style="font-size:10px;font-weight:400;color:var(--t2);">— ' + tiers.length + ' tiers</span>';
-    html += '</div>';
+    html += '</div>' + srcLabel + '</div>';
 
     if (!tiers || !tiers.length) {
-      html += '<div style="font-size:11px;color:var(--t2);">No data — do VS comparisons first.</div></div>';
+      html += '<div style="font-size:11px;color:var(--t2);">No data available.</div></div>';
       return;
     }
 
     tiers.forEach(tier => {
-      const borderC = tier.is_major ? 'var(--rd)' : tier.is_moderate ? 'var(--gd)' : 'var(--b1)';
+      const borderC = tier.is_major ? 'var(--rd)' : tier.is_moderate ? 'var(--gd)' : 'rgba(255,255,255,.08)';
       const labelC = tier.is_major ? 'var(--rd)' : tier.is_moderate ? 'var(--gd)' : 'var(--t2)';
       const breakIcon = tier.is_major ? '🔴' : tier.is_moderate ? '🟡' : '';
+      const tierLabel = tier.label ? (' — ' + tier.label) : '';
 
       html += '<div style="border:1px solid ' + borderC + ';border-radius:8px;padding:9px 10px;margin-bottom:6px;background:var(--s2);">';
 
-      // Tier header: tier number, player count, last player + ADP
-      html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">';
-      html += '<div style="font-size:10px;font-weight:800;color:' + pc + ';letter-spacing:.8px;">TIER ' + tier.tier_num + ' <span style="color:var(--t2);font-weight:400;">' + tier.count + ' player' + (tier.count !== 1 ? 's' : '') + '</span></div>';
+      // Tier header
+      html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:5px;">';
+      html += '<div><span style="font-size:10px;font-weight:800;color:' + pc + ';">TIER ' + tier.tier_num + tierLabel + '</span>';
+      html += ' <span style="font-size:10px;color:var(--t2);">· ' + tier.count + ' player' + (tier.count !== 1 ? 's' : '') + '</span></div>';
       if (tier.break_after) {
-        html += '<div style="text-align:right;"><div style="font-size:9px;color:' + labelC + ';font-weight:700;">' + breakIcon + ' Ends ~' + tier.last_adp_pick + '</div>';
-        html += '<div style="font-size:9px;color:var(--t2);">Last: ' + tier.last_player + '</div></div>';
+        html += '<div style="text-align:right;">';
+        html += '<div style="font-size:9px;color:' + labelC + ';font-weight:700;">' + breakIcon + ' Ends ~' + tier.last_adp_pick + '</div>';
+        html += '<div style="font-size:9px;color:var(--t2);">Floor: ' + tier.last_player + '</div>';
+        html += '</div>';
       }
       html += '</div>';
 
-      // ALL players in this tier — full first+last name, ADP pick
+      // Column headers
+      html += '<div style="display:flex;justify-content:space-between;padding:2px 4px;margin-bottom:3px;">';
+      html += '<div style="font-size:9px;color:var(--t2);font-weight:700;">PLAYER</div>';
+      html += '<div style="font-size:9px;color:var(--t2);font-weight:700;">ADP PICK</div></div>';
+
+      // All players
       tier.players.forEach((p, pi) => {
-        const isLast = pi === tier.players.length - 1;
-        const rowBg = isLast && tier.break_after ? 'rgba(255,92,92,.04)' : 'transparent';
-        html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 6px;background:' + rowBg + ';border-radius:5px' + (isLast && tier.break_after ? ';border:1px solid rgba(255,92,92,.15)' : '') + ';">';
-        html += '<div style="font-size:12px;font-weight:' + (isLast && tier.break_after ? '700' : '500') + ';color:' + (isLast && tier.break_after ? 'var(--tx)' : 'var(--tx)') + ';">' + p.name + '</div>';
-        html += '<div style="font-size:10px;color:var(--t2);font-family:\"JetBrains Mono\";">' + (p.adp_pick !== '—' ? p.adp_pick : '') + '</div>';
+        const isLast = pi === tier.players.length - 1 && !!tier.break_after;
+        const rowBg = isLast ? 'rgba(255,92,92,.06)' : (pi % 2 === 0 ? 'rgba(255,255,255,.02)' : 'transparent');
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 5px;border-radius:4px;background:' + rowBg + (isLast ? ';border:1px solid rgba(255,92,92,.2)' : '') + ';">';
+        html += '<div style="font-size:12px;font-weight:' + (isLast ? '700' : '500') + ';color:var(--tx);">' + p.name;
+        if (isLast) html += ' <span style="font-size:9px;color:var(--rd);font-weight:700;">FLOOR</span>';
+        html += '</div>';
+        html += '<div style="font-size:10px;color:' + (p.adp_pick !== '—' ? 'var(--ac)' : 'var(--t2)') + ';font-family:\"JetBrains Mono\";">' + (p.adp_pick !== '—' ? p.adp_pick : '—') + '</div>';
         html += '</div>';
       });
 
+      // Break indicator
       if (tier.break_after) {
-        const gapLabel = tier.is_major ? 'MAJOR DROP-OFF' : 'tier break';
-        html += '<div style="font-size:9px;color:' + labelC + ';margin-top:5px;padding:3px 6px;background:' + (tier.is_major ? 'rgba(255,92,92,.08)' : 'rgba(240,192,64,.06)') + ';border-radius:4px;">' + breakIcon + ' ' + gapLabel + ' after this tier (' + tier.gap + ' ELO gap)</div>';
+        const gapTxt = tier.gap > 0 ? ' (' + tier.gap + ' ELO gap)' : '';
+        const breakTxt = tier.is_major ? 'MAJOR DROP-OFF after this tier' : 'Tier break after this tier';
+        html += '<div style="font-size:9px;color:' + labelC + ';margin-top:5px;padding:3px 6px;background:' +
+          (tier.is_major ? 'rgba(255,92,92,.08)' : 'rgba(240,192,64,.06)') +
+          ';border-radius:4px;">' + breakIcon + ' ' + breakTxt + gapTxt + '</div>';
       }
       html += '</div>';
     });
+
+    // Progress bar toward personal tiers
+    if (!isPersonal) {
+      const pct = Math.min(100, (comps / 20) * 100);
+      html += '<div style="margin-top:6px;">';
+      html += '<div style="font-size:9px;color:var(--t2);margin-bottom:3px;">' + comps + '/20 comparisons to unlock personal tiers</div>';
+      html += '<div style="height:3px;background:var(--b1);border-radius:2px;"><div style="height:100%;width:' + pct + '%;background:var(--gd);border-radius:2px;transition:width .3s;"></div></div>';
+      html += '</div>';
+    }
+
     html += '</div>';
   });
 
