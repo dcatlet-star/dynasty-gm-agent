@@ -1139,6 +1139,214 @@ function renderManage(el) {
 }
 
 // My Rankings with adjust buttons
+// ── DRAG AND DROP RANKINGS ──
+let dragSrcName = null;
+let dragSrcIdx = null;
+let isDragging = false;
+
+function makeDraggableList(container, items, onReorder, onTap) {
+  // items: [{name, ...}]
+  // onReorder(newOrderedNames): called after drop
+  // onTap(name): called on tap without drag
+
+  let touchStartY = 0;
+  let touchItem = null;
+  let touchClone = null;
+  let touchPlaceholder = null;
+  let touchOriginalIdx = null;
+
+  function getRows() {
+    return Array.from(container.querySelectorAll('.rank-row[data-name]'));
+  }
+
+  function attachDesktop(row, name) {
+    row.setAttribute('draggable', 'true');
+
+    row.addEventListener('dragstart', function(e) {
+      isDragging = true;
+      dragSrcName = name;
+      dragSrcIdx = getRows().indexOf(row);
+      this.style.opacity = '0.4';
+      e.dataTransfer.effectAllowed = 'move';
+    });
+
+    row.addEventListener('dragend', function() {
+      isDragging = false;
+      this.style.opacity = '1';
+      container.querySelectorAll('.rank-row').forEach(r => {
+        r.classList.remove('drag-over');
+        r.style.borderTop = '';
+      });
+    });
+
+    row.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      container.querySelectorAll('.rank-row').forEach(r => r.style.borderTop = '');
+      this.style.borderTop = '2px solid var(--ac)';
+    });
+
+    row.addEventListener('dragleave', function() {
+      this.style.borderTop = '';
+    });
+
+    row.addEventListener('drop', function(e) {
+      e.preventDefault();
+      this.style.borderTop = '';
+      if (dragSrcName === name) return;
+
+      const rows = getRows();
+      const targetIdx = rows.indexOf(row);
+      const srcIdx = rows.findIndex(r => r.dataset.name === dragSrcName);
+
+      if (srcIdx === -1 || targetIdx === -1) return;
+
+      // Reorder the items array
+      const newItems = [...items];
+      const [moved] = newItems.splice(srcIdx, 1);
+      newItems.splice(targetIdx, 0, moved);
+
+      onReorder(newItems.map(i => i.name));
+    });
+  }
+
+  function attachTouch(row, name, idx) {
+    row.addEventListener('touchstart', function(e) {
+      touchStartY = e.touches[0].clientY;
+      touchOriginalIdx = idx;
+      touchItem = row;
+
+      // Long press to initiate drag (300ms)
+      this._longPress = setTimeout(() => {
+        isDragging = true;
+        const rect = row.getBoundingClientRect();
+
+        // Create ghost clone
+        touchClone = row.cloneNode(true);
+        touchClone.style.cssText = 'position:fixed;left:' + rect.left + 'px;top:' + rect.top + 'px;width:' + rect.width + 'px;opacity:0.85;z-index:9999;pointer-events:none;background:var(--ac);color:var(--bg);border-radius:10px;transform:scale(1.02);';
+        document.body.appendChild(touchClone);
+
+        // Placeholder
+        touchPlaceholder = document.createElement('div');
+        touchPlaceholder.style.cssText = 'height:' + rect.height + 'px;background:rgba(79,158,255,.15);border:2px dashed var(--ac);border-radius:10px;margin-bottom:4px;';
+        row.parentNode.insertBefore(touchPlaceholder, row);
+        row.style.display = 'none';
+
+        // Haptic if available
+        if (navigator.vibrate) navigator.vibrate(30);
+      }, 300);
+    }, {passive: true});
+
+    row.addEventListener('touchmove', function(e) {
+      if (!isDragging || !touchClone) return;
+      e.preventDefault();
+      const touch = e.touches[0];
+      const dy = touch.clientY - touchStartY;
+      touchClone.style.top = (parseFloat(touchClone.style.top) + dy) + 'px';
+      touchStartY = touch.clientY;
+
+      // Find target row under finger
+      touchClone.style.pointerEvents = 'none';
+      const el = document.elementFromPoint(touch.clientX, touch.clientY);
+      touchClone.style.pointerEvents = 'none';
+      const targetRow = el ? el.closest('.rank-row[data-name]') : null;
+
+      container.querySelectorAll('.rank-row').forEach(r => r.style.borderTop = '');
+      if (targetRow && targetRow !== row) {
+        targetRow.style.borderTop = '2px solid var(--ac)';
+      }
+    }, {passive: false});
+
+    row.addEventListener('touchend', function(e) {
+      clearTimeout(this._longPress);
+      if (!isDragging) {
+        // It was a tap
+        if (!isDragging) onTap(name);
+        return;
+      }
+      isDragging = false;
+
+      const touch = e.changedTouches[0];
+      if (touchClone) { document.body.removeChild(touchClone); touchClone = null; }
+      if (touchPlaceholder) { touchPlaceholder.remove(); touchPlaceholder = null; }
+      row.style.display = '';
+
+      container.querySelectorAll('.rank-row').forEach(r => r.style.borderTop = '');
+
+      const targetRow = document.elementFromPoint(touch.clientX, touch.clientY)?.closest('.rank-row[data-name]');
+      if (targetRow && targetRow.dataset.name !== name) {
+        const rows = getRows();
+        const targetIdx = rows.indexOf(targetRow);
+        const srcIdx = items.findIndex(i => i.name === name);
+        const newItems = [...items];
+        const [moved] = newItems.splice(srcIdx, 1);
+        newItems.splice(targetIdx, 0, moved);
+        onReorder(newItems.map(i => i.name));
+      }
+    });
+
+    row.addEventListener('touchcancel', function() {
+      clearTimeout(this._longPress);
+      isDragging = false;
+      if (touchClone) { document.body.removeChild(touchClone); touchClone = null; }
+      if (touchPlaceholder) { touchPlaceholder.remove(); touchPlaceholder = null; }
+      row.style.display = '';
+      container.querySelectorAll('.rank-row').forEach(r => r.style.borderTop = '');
+    });
+  }
+
+  // Render rows
+  container.innerHTML = '';
+  items.forEach((item, idx) => {
+    const row = document.createElement('div');
+    row.className = 'rank-row';
+    row.dataset.name = item.name;
+    row.style.cssText = 'cursor:grab;user-select:none;transition:border .1s;';
+
+    const ni = storeName(item.name);
+    row.innerHTML =
+      '<div style="width:20px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;opacity:.4;">' +
+      '<div style="width:14px;height:2px;background:currentColor;border-radius:1px;"></div>' +
+      '<div style="width:14px;height:2px;background:currentColor;border-radius:1px;"></div>' +
+      '<div style="width:14px;height:2px;background:currentColor;border-radius:1px;"></div>' +
+      '</div>' +
+      '<div class="rank-num">' + (idx+1) + '</div>' +
+      '<div class="pos-badge p' + item.position + '">' + item.position + '</div>' +
+      '<div class="rank-info" style="cursor:pointer;" data-name-idx="' + ni + '">' +
+        '<div class="rank-name">' + item.name + '</div>' +
+        '<div class="rank-meta">' + (item.team||'') + ' · ' + (item.elo||'') + ' ELO · ' + (item.comparisons||0) + ' comps</div>' +
+      '</div>';
+
+    container.appendChild(row);
+    attachDesktop(row, item.name);
+    attachTouch(row, item.name, idx);
+
+    row.querySelector('.rank-info').addEventListener('click', function(e) {
+      if (!isDragging) openProfile(playerNames[+this.dataset.nameIdx]||'');
+    });
+  });
+}
+
+async function applyRankReorder(names, apiPath, refreshFn) {
+  // Convert ordered names to sequential ELO adjustments via adjust endpoint
+  // We batch-adjust by walking through and ensuring ordering
+  const n = names.length;
+  for (let i = 0; i < Math.min(n, 5); i++) {
+    // Just re-save the order — use the adjust endpoint in sequence
+    // The cleanest approach: set each player's ELO based on their new position
+  }
+  // Trigger AI-powered reorder: POST new order to backend
+  try {
+    const r = await fetch(apiPath, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ordered_names: names})
+    });
+    const d = await r.json();
+    if (d.success) refreshFn();
+  } catch(e) { refreshFn(); }
+}
+
 async function renderMyRankings() {
   const el = document.getElementById('rank-content');
   el.innerHTML = '<div class="spin-wrap"><div class="spin"></div></div>';
@@ -1148,665 +1356,29 @@ async function renderMyRankings() {
     let filtered = d.rankings || [];
     if (currentPosFilter !== 'ALL') filtered = filtered.filter(p => p.position === currentPosFilter);
     if (!filtered.length) { el.innerHTML = '<div class="empty">No rankings yet. Start comparing!</div>'; return; }
-    let html = '<div style="display:flex;flex-direction:column;gap:4px;">';
-    filtered.forEach(p => {
-      const ni = storeName(p.name);
-      html += '<div class="rank-row">';
-      html += '<div class="rank-num">' + p.rank + '</div>';
-      html += '<div class="pos-badge p' + p.position + '">' + p.position + '</div>';
-      html += '<div class="rank-info" data-name-idx="' + ni + '"><div class="rank-name">' + p.name + '</div>';
-      html += '<div class="rank-meta">' + p.team + ' · ' + p.elo + ' ELO · ' + p.comparisons + ' comps</div></div>';
-      html += '<div class="adj-btns"><button class="adj-btn adj-up" data-name-idx="' + ni + '" data-dir="up">▲</button>';
-      html += '<button class="adj-btn adj-dn" data-name-idx="' + ni + '" data-dir="dn">▼</button></div>';
-      html += '</div>';
-    });
-    html += '</div>';
-    el.innerHTML = html;
-    el.querySelectorAll('.rank-info').forEach(info => {
-      info.addEventListener('click', function() { openProfile(playerNames[+this.dataset.nameIdx]||''); });
-    });
-    el.querySelectorAll('.adj-btn').forEach(btn => {
-      btn.addEventListener('click', async function(e) {
-        e.stopPropagation();
-        const name = playerNames[+this.dataset.nameIdx] || '';
-        const dir = this.dataset.dir === 'up' ? 'up' : 'down';
-        try {
-          const r = await fetch('/api/rankings/adjust',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,direction:dir,positions:5})});
-          const d = await r.json();
-          if (d.success) renderMyRankings();
-        } catch(e2) {}
-      });
-    });
-  } catch(e) { el.innerHTML = '<div class="empty">Error loading.</div>'; }
-}
 
-// ── TRADE ──
-document.getElementById('giving-add-btn').addEventListener('click', () => addAsset('giving'));
-document.getElementById('receiving-add-btn').addEventListener('click', () => addAsset('receiving'));
-document.getElementById('giving-inp').addEventListener('keydown', e => { if(e.key==='Enter') addAsset('giving'); });
-document.getElementById('receiving-inp').addEventListener('keydown', e => { if(e.key==='Enter') addAsset('receiving'); });
-
-function addAsset(side) {
-  const inp = document.getElementById(side + '-inp');
-  const val = inp.value.trim();
-  if (!val) return;
-  if (side === 'giving') givingAssets.push(val);
-  else receivingAssets.push(val);
-  inp.value = '';
-  renderAssets();
-}
-
-function removeAsset(side, idx) {
-  if (side === 'giving') givingAssets.splice(idx,1);
-  else receivingAssets.splice(idx,1);
-  renderAssets();
-}
-
-function renderAssets() {
-  ['giving','receiving'].forEach(side => {
-    const assets = side === 'giving' ? givingAssets : receivingAssets;
-    const el = document.getElementById(side + '-list');
-    el.innerHTML = assets.map((a,i) => '<div class="asset-item"><span style="font-size:13px;font-weight:600;">' + a + '</span><button class="asset-x" data-side="' + side + '" data-idx="' + i + '">×</button></div>').join('');
-    el.querySelectorAll('.asset-x').forEach(btn => {
-      btn.addEventListener('click', function() { removeAsset(this.dataset.side, +this.dataset.idx); });
-    });
-  });
-}
-
-document.getElementById('eval-btn').addEventListener('click', async function() {
-  if (!givingAssets.length && !receivingAssets.length) { alert('Add assets to evaluate.'); return; }
-  const league = document.getElementById('trade-league').value;
-  document.getElementById('trade-result').innerHTML = '<div class="spin-wrap"><div class="spin"></div><div class="spin-txt">EVALUATING...</div></div>';
-  try {
-    const r = await fetch('/api/trade/evaluate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({league,giving:givingAssets,receiving:receivingAssets})});
-    const d = await r.json();
-    if (d.success) renderTradeResult(d.result);
-    else document.getElementById('trade-result').innerHTML = '<div style="color:var(--rd);font-size:13px;">Error: ' + d.error + '</div>';
-  } catch(e) { document.getElementById('trade-result').innerHTML = '<div style="color:var(--rd);">Connection error.</div>'; }
-});
-
-function renderTradeResult(r) {
-  const pct = r.surplus_pct || ((r.value_receiving - r.value_giving) / Math.max(r.value_giving,1) * 100);
-  const pos = pct >= 0;
-  const vc = r.verdict === 'ACCEPT' ? 'vA' : r.verdict === 'DECLINE' ? 'vD' : 'vC';
-  let html = '<div class="trade-result"><div class="verdict ' + vc + '">' + r.verdict + '</div>';
-  html += '<div class="val-row">';
-  html += '<div class="val-item"><div class="val-lbl">Giving</div><div class="val-num">' + (r.value_giving||0).toLocaleString() + '</div></div>';
-  html += '<div class="val-item"><div class="val-lbl">Receiving</div><div class="val-num">' + (r.value_receiving||0).toLocaleString() + '</div></div>';
-  html += '<div class="val-item"><div class="val-lbl">Surplus</div><div class="val-num ' + (pos?'sp-pos':'sp-neg') + '">' + (pos?'+':'') + Math.round(pct) + '%</div></div></div>';
-  html += '<div style="font-size:12px;color:var(--t2);line-height:1.5;margin-bottom:8px;">' + (r.analysis||'') + '</div>';
-  if (r.my_perspective) html += '<div style="padding:9px;background:var(--s3);border-radius:7px;margin-bottom:6px;"><div style="font-size:9px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">Your Side</div><div style="font-size:11px;">' + r.my_perspective + '</div></div>';
-  if (r.their_perspective) html += '<div style="padding:9px;background:var(--s3);border-radius:7px;margin-bottom:8px;"><div style="font-size:9px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">Their Side</div><div style="font-size:11px;">' + r.their_perspective + '</div></div>';
-  if (r.trade_message) {
-    const mi = storeName(r.trade_message);
-    html += '<div class="tmsg-box">&ldquo;' + r.trade_message + '&rdquo;</div>';
-    html += '<button class="btn btn-g btn-sm" data-copy-idx="' + mi + '">📋 Copy Message</button>';
-  }
-  if (r.counter && r.verdict !== 'ACCEPT') html += '<div class="div"></div><div style="font-size:11px;color:var(--t2);margin-top:6px;"><strong style="color:var(--gd);">Counter:</strong> ' + r.counter + '</div>';
-  html += '</div>';
-  document.getElementById('trade-result').innerHTML = html;
-  document.querySelectorAll('#trade-result [data-copy-idx]').forEach(btn => {
-    btn.addEventListener('click', function() { copyText(playerNames[+this.dataset.copyIdx]||''); });
-  });
-}
-
-// ── DRAFT ──
-document.querySelectorAll('.draft-tab').forEach(tab => {
-  tab.addEventListener('click', function() {
-    document.querySelectorAll('.draft-tab').forEach(t => t.classList.remove('active'));
-    this.classList.add('active');
-    currentDraftTab = this.dataset.dtab;
-    renderDraftContent(this.dataset.dtab);
-  });
-});
-
-function renderDraftContent(tab) {
-  const el = document.getElementById('draft-content');
-  if (tab === 'vsrank') renderVSRankings(el);
-  else if (tab === 'tiers') renderTierBreaks(el);
-  else if (tab === 'chart') renderPickChart(el);
-  else if (tab === 'cumulative') renderCumulative(el);
-  else if (tab === 'assistant') { loadDraftState().then(() => renderDraftAssistant(el)); }
-  else renderAnalyzer(el);
-}
-
-function renderPickChart(el) {
-  // Show rounds in groups of 4 for readability across 28 rounds
-  const allRounds = Array.from({length:28}, (_,i) => String(i+1));
-  const picks = Array.from({length:12}, (_,i) => String(i+1).padStart(2,'0'));
-
-  // Group selector
-  const groups = [
-    {label:'R1-4 (Elite)',rounds:['1','2','3','4']},
-    {label:'R5-8 (Starters)',rounds:['5','6','7','8']},
-    {label:'R9-12 (Depth)',rounds:['9','10','11','12']},
-    {label:'R13-16',rounds:['13','14','15','16']},
-    {label:'R17-20',rounds:['17','18','19','20']},
-    {label:'R21-24',rounds:['21','22','23','24']},
-    {label:'R25-28 (Late)',rounds:['25','26','27','28']},
-  ];
-
-  let activeGroup = 0;
-
-  function buildGrid(groupIdx) {
-    const g = groups[groupIdx];
-    let html = '<div class="pick-grid">';
-    g.rounds.forEach(r => {
-      picks.forEach(p => {
-        const key = r + '.' + p;
-        const val = STARTUP_VALUES[key];
-        if (!val) return;
-        const mine = MY_VS_PICKS.includes(key) ? ' mine' : '';
-        html += '<div class="pick-cell' + mine + '" data-pick="' + key + '">';
-        html += '<div class="pick-slot">' + key + '</div>';
-        html += '<div class="pick-val">' + (val >= 1000 ? (val/1000).toFixed(1) + 'k' : val) + '</div></div>';
-      });
-    });
-    html += '</div>';
-    return html;
-  }
-
-  // Build tab buttons
-  const tabBtns = groups.map((g,i) =>
-    '<button class="chip' + (i===0?' active':'') + '" data-grp="' + i + '" style="font-size:10px;">' + g.label + '</button>'
-  ).join('');
-
-  el.innerHTML =
-    '<div style="display:flex;gap:5px;margin-bottom:10px;overflow-x:auto;scrollbar-width:none;padding-bottom:3px;">' + tabBtns + '</div>' +
-    '<div id="pick-grid-body">' + buildGrid(0) + '</div>' +
-    '<div class="card" style="margin-top:10px;margin-bottom:0;"><div style="font-size:11px;color:var(--t2);line-height:1.6;">' +
-    'Values mapped from KTC player rankings to draft position. <strong style="color:var(--gd);">Gold = your picks</strong> · ' +
-    'Odd rounds: pick 2nd · Even rounds: pick 11th · Rounds 2+3 both reversed (sneller gets 2.01+3.01)' +
-    '</div></div>';
-
-  el.querySelectorAll('[data-grp]').forEach(btn => {
-    btn.addEventListener('click', function() {
-      el.querySelectorAll('[data-grp]').forEach(b => b.classList.remove('active'));
-      this.classList.add('active');
-      document.getElementById('pick-grid-body').innerHTML = buildGrid(+this.dataset.grp);
-      attachPickClicks();
-    });
-  });
-
-  function attachPickClicks() {
-    document.querySelectorAll('.pick-cell').forEach(cell => {
-      cell.addEventListener('click', function() {
-        const key = this.dataset.pick;
-        const val = STARTUP_VALUES[key];
-        alert('Pick ' + key + '\nStartup Value: ' + (val ? val.toLocaleString() : 'N/A') + (MY_VS_PICKS.includes(key) ? '\n⭐ YOUR PICK' : ''));
-      });
-    });
-  }
-  attachPickClicks();
-}
-
-function renderCumulative(el) {
-  const ranked = MANAGERS.map(m => {
-    let total = 0;
-    let r1val = 0;
-    m.picks.forEach((p,i) => {
-      const v = STARTUP_VALUES[p] || 0;
-      total += v;
-      if (i === 0) r1val = v;
-    });
-    return {...m, total, r1val};
-  }).sort((a,b) => b.total - a.total);
-
-  // Also show breakdown by round groups
-  const myM = ranked.find(m => m.isMe);
-
-  let html = '<div class="card" style="margin-bottom:10px;">';
-  html += '<div style="font-size:11px;color:var(--t2);line-height:1.6;margin-bottom:10px;">Total startup draft capital across all 28 rounds using KTC-calibrated values.</div>';
-  if (myM) {
-    html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:4px;">';
-    const groups = [{l:'R1-7',s:0,e:6},{l:'R8-14',s:7,e:13},{l:'R15-28',s:14,e:27}];
-    groups.forEach(g => {
-      let gTotal = 0;
-      myM.picks.slice(g.s, g.e+1).forEach(p => { gTotal += STARTUP_VALUES[p]||0; });
-      html += '<div style="background:rgba(79,158,255,.08);border:1px solid rgba(79,158,255,.2);border-radius:8px;padding:8px;text-align:center;">';
-      html += '<div style="font-size:9px;color:var(--t2);font-weight:700;">' + g.l + '</div>';
-      html += '<div style="font-family:\'JetBrains Mono\';font-size:14px;font-weight:700;color:var(--ac);">' + Math.round(gTotal/1000) + 'k</div></div>';
-    });
-    html += '</div>';
-  }
-  html += '</div>';
-
-  html += '<div class="cum-tbl"><div class="cum-hdr">';
-  html += '<div class="cum-h">Manager</div>';
-  html += '<div class="cum-h" style="text-align:right;">Total (28R)</div>';
-  html += '<div class="cum-h" style="text-align:right;">1st Pick</div></div>';
-
-  ranked.forEach((m,i) => {
-    const mc = m.isMe ? ' me' : '';
-    const vc = m.isMe ? 'var(--gd)' : 'var(--tx)';
-    const r1str = m.picks[0] + ' (' + Math.round(m.r1val/1000) + 'k)';
-    html += '<div class="cum-row' + mc + '">';
-    html += '<div class="cum-mgr" style="color:' + vc + ';">' + m.name + '</div>';
-    html += '<div class="cum-v" style="color:' + vc + ';">' + Math.round(m.total/1000) + 'k</div>';
-    html += '<div class="cum-v" style="color:var(--t2);font-size:10px;">' + r1str + '</div></div>';
-  });
-  html += '</div>';
-  html += '<div style="font-size:10px;color:var(--t2);padding:8px 0;line-height:1.5;">Rounds 2+3 reversed — sneller holds 2.01 and 3.01. Your pick pattern: 2nd in odd rounds, 11th in even rounds.</div>';
-  el.innerHTML = html;
-}
-
-function renderAnalyzer(el) {
-  // Quick reference table including dynasty rookie picks
-  const myPicksRef = [
-    {label:'VS 1.02 (startup)', val:9987},
-    {label:'VS 2.11 (startup)', val:6702},
-    {label:'VS 3.11 (startup)', val:5841},
-    {label:'VS 4.02 (startup)', val:5672},
-    {label:'VS 5.11 (startup)', val:4920},
-    {label:'VS 6.02 (startup)', val:4898},
-    {label:'2027 Early 1st', val:7098},
-    {label:'2027 Mid 1st', val:5602},
-    {label:'2027 Late 1st', val:4889},
-    {label:'2028 Early 1st', val:4967},
-    {label:'2026 Early 1st', val:5719},
-  ];
-
-  let refHtml = myPicksRef.map(r =>
-    '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:11px;">' +
-    '<span style="color:var(--t2);">' + r.label + '</span>' +
-    '<span style="font-family:\'JetBrains Mono\';font-weight:700;">' + r.val.toLocaleString() + '</span></div>'
-  ).join('');
-
-  el.innerHTML =
-    '<div class="card" style="margin-bottom:10px;">' +
-    '<div style="font-family:\'Bebas Neue\';font-size:15px;letter-spacing:1.5px;margin-bottom:4px;">Pick Trade Analyzer</div>' +
-    '<div style="font-size:11px;color:var(--t2);margin-bottom:10px;">Supports startup picks (1.02), dynasty rookie picks (2027 Early 1st), and player names.</div>' +
-    '<input class="inp" id="pick-give" placeholder="Give: e.g. 2.11 + 3.11 or 2027 Early 1st" style="margin-bottom:8px;">' +
-    '<input class="inp" id="pick-get" placeholder="Get: e.g. 1.06 or 2027 Mid 1st" style="margin-bottom:8px;">' +
-    '<button class="btn btn-p" id="pick-analyze-btn" style="width:100%;margin-bottom:4px;">Analyze</button>' +
-    '<div style="font-size:10px;color:var(--t2);text-align:center;">Execute if within ±15% of fair value</div>' +
-    '<div id="pick-result"></div></div>' +
-    '<div class="card"><div style="font-family:\'Bebas Neue\';font-size:13px;letter-spacing:1px;margin-bottom:8px;color:var(--t2);">Key Reference Values</div>' +
-    refHtml + '</div>';
-
-  document.getElementById('pick-analyze-btn').addEventListener('click', analyzePicks);
-}
-
-function parsePicks(str) {
-  // Handle multi-word dynasty picks like "2027 Early 1st" by checking DYNASTY_PICKS first
-  const parts = [];
-  let remaining = str.trim();
-
-  // Try to match dynasty picks (multi-word) first
-  const dynastyKeys = Object.keys(DYNASTY_PICKS).sort((a,b) => b.length - a.length);
-  while (remaining.length > 0) {
-    let matched = false;
-    for (const key of dynastyKeys) {
-      if (remaining.toLowerCase().startsWith(key.toLowerCase())) {
-        parts.push({key, val: DYNASTY_PICKS[key], type: 'dynasty'});
-        remaining = remaining.slice(key.length).replace(/^[\s,+]+/, '');
-        matched = true;
-        break;
-      }
-    }
-    if (!matched) {
-      // Try startup pick format (e.g. 1.02)
-      const m = remaining.match(/^(\d{1,2}\.\d{2})/);
-      if (m) {
-        const key = m[1];
-        const val = STARTUP_VALUES[key];
-        parts.push({key, val: val || 5000, type: val ? 'startup' : 'estimate'});
-        remaining = remaining.slice(key.length).replace(/^[\s,+]+/, '');
-      } else {
-        // Skip unknown token
-        const next = remaining.search(/[\s,+]/);
-        if (next === -1) break;
-        remaining = remaining.slice(next).replace(/^[\s,+]+/, '');
-      }
-    }
-  }
-
-  let total = 0;
-  const detail = [];
-  parts.forEach(p => {
-    total += p.val;
-    const suffix = p.type === 'estimate' ? ' (~est)' : '';
-    detail.push(p.key + ' (' + p.val.toLocaleString() + suffix + ')');
-  });
-  return {total, detail};
-}
-
-function analyzePicks() {
-  const give = document.getElementById('pick-give').value.trim();
-  const get = document.getElementById('pick-get').value.trim();
-  if (!give || !get) { alert('Enter both sides.'); return; }
-  const g = parsePicks(give);
-  const rec = parsePicks(get);
-  const diff = rec.total - g.total;
-  const pct = (diff / g.total) * 100;
-  const execute = Math.abs(pct) <= 15;
-  const verdict = pct > 5 ? 'GOOD FOR YOU' : pct < -5 ? 'BAD FOR YOU' : 'FAIR';
-  const vc = verdict === 'GOOD FOR YOU' ? 'var(--gn)' : verdict === 'BAD FOR YOU' ? 'var(--rd)' : 'var(--gd)';
-  document.getElementById('pick-result').innerHTML = '<div style="background:var(--s3);border-radius:8px;padding:10px;margin-top:8px;">' +
-    '<div style="font-family:\'Bebas Neue\';font-size:20px;letter-spacing:2px;color:' + vc + ';margin-bottom:6px;">' + verdict + '</div>' +
-    '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px;"><span style="color:var(--t2);">You Give</span><span style="font-family:\'JetBrains Mono\';">' + g.total.toLocaleString() + '</span></div>' +
-    '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px;"><span style="color:var(--t2);">You Receive</span><span style="font-family:\'JetBrains Mono\';">' + rec.total.toLocaleString() + '</span></div>' +
-    '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px;"><span style="color:var(--t2);">Surplus</span><span style="font-family:\'JetBrains Mono\';color:' + (diff>=0?'var(--gn)':'var(--rd)') + ';">' + (diff>=0?'+':'') + Math.round(pct) + '%</span></div>' +
-    '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px;"><span style="color:var(--t2);">Execute?</span><span style="color:' + (execute?'var(--gn)':'var(--rd)') + ';font-weight:700;">' + (execute?'✓ YES':'✗ NO') + '</span></div>' +
-    '<div style="font-size:10px;color:var(--t2);margin-top:6px;">Giving: ' + g.detail.join(', ') + '<br>Receiving: ' + rec.detail.join(', ') + '</div></div>';
-}
-
-function renderDraftAssistant(el) {
-  const picksHtml = draftState.picks_made.map((p,i) =>
-    '<div style="display:flex;justify-content:space-between;padding:5px 8px;background:var(--s3);border-radius:5px;margin-bottom:3px;font-size:11px;">' +
-    '<span style="color:var(--t2);">' + p.pick + '</span><span style="font-weight:600;">' + p.player + '</span>' +
-    '<span style="color:var(--t2);">' + p.team + '</span>' +
-    '<button style="background:none;border:none;color:var(--rd);cursor:pointer;font-size:13px;" data-pick-idx="' + i + '">×</button></div>'
-  ).join('');
-  const rosterHtml = draftState.my_roster.map((p,i) =>
-    '<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 7px;background:rgba(79,158,255,.15);border:1px solid var(--ac);border-radius:20px;font-size:10px;margin:2px;">' +
-    p + '<button style="background:none;border:none;color:var(--rd);cursor:pointer;font-size:11px;" data-roster-idx="' + i + '">×</button></span>'
-  ).join('');
-
-  el.innerHTML = '<div style="background:rgba(255,92,92,.08);border:1px solid rgba(255,92,92,.3);border-radius:9px;padding:9px 11px;margin-bottom:10px;display:flex;align-items:center;gap:7px;">' +
-    '<div style="width:7px;height:7px;border-radius:50%;background:var(--rd);animation:pulse 1s infinite;"></div>' +
-    '<div style="font-family:\'Bebas Neue\';font-size:13px;letter-spacing:1.5px;color:var(--rd);">VELVET SPADE LIVE DRAFT MODE</div></div>' +
-    '<div class="da-section"><div class="da-lbl">Current Pick On Clock</div>' +
-    '<div style="display:flex;gap:8px;"><input class="inp" id="da-pick" placeholder="e.g. 2.11" value="' + draftState.current_pick + '" style="font-family:\'JetBrains Mono\';">' +
-    '<button class="btn btn-p" id="da-get-btn">Get Pick</button></div></div>' +
-    '<div class="da-section"><div class="da-lbl">Available Players (optional)</div>' +
-    '<textarea class="inp" id="da-avail" rows="3" placeholder="Paste available players..." style="font-size:11px;"></textarea></div>' +
-    '<div class="da-section"><div class="da-lbl">Log a Pick</div>' +
-    '<div style="display:flex;gap:5px;margin-bottom:5px;"><input class="inp" id="da-slot" placeholder="Pick slot" style="flex:1;font-size:12px;font-family:\'JetBrains Mono\';"><input class="inp" id="da-player" placeholder="Player name" style="flex:2;font-size:12px;"></div>' +
-    '<div style="display:flex;gap:5px;"><input class="inp" id="da-team" placeholder="Manager" style="flex:1;font-size:12px;"><button class="btn btn-s btn-sm" id="da-log-btn">Log Pick</button></div></div>' +
-    (draftState.picks_made.length ? '<div class="da-section"><div class="da-lbl">Picks Made (' + draftState.picks_made.length + ')</div><div id="picks-list" style="max-height:180px;overflow-y:auto;">' + picksHtml + '</div></div>' : '') +
-    (draftState.my_roster.length ? '<div class="da-section"><div class="da-lbl">My Roster (' + draftState.my_roster.length + ')</div><div>' + rosterHtml + '</div></div>' : '') +
-    '<div id="da-rec"></div>' +
-    '<button class="btn btn-g btn-sm" id="da-clear-btn" style="width:100%;margin-top:8px;">Clear Draft State</button>';
-
-  document.getElementById('da-get-btn').addEventListener('click', getDraftRecommendation);
-  document.getElementById('da-log-btn').addEventListener('click', logDraftPick);
-  document.getElementById('da-clear-btn').addEventListener('click', function() {
-    if (confirm('Clear draft state?')) { draftState = {picks_made:[],my_roster:[],current_pick:''}; renderDraftAssistant(el); }
-  });
-  el.querySelectorAll('[data-pick-idx]').forEach(btn => {
-    btn.addEventListener('click', function() {
-      const i = +this.dataset.pickIdx;
-      const pick = draftState.picks_made[i];
-      draftState.picks_made.splice(i,1);
-      const ri = draftState.my_roster.indexOf(pick.player);
-      if (ri >= 0) draftState.my_roster.splice(ri,1);
-      saveDraftState(); renderDraftAssistant(el);
-    });
-  });
-  el.querySelectorAll('[data-roster-idx]').forEach(btn => {
-    btn.addEventListener('click', function() {
-      draftState.my_roster.splice(+this.dataset.rosterIdx,1);
-      saveDraftState(); renderDraftAssistant(el);
-    });
-  });
-}
-
-function logDraftPick() {
-  const slot = document.getElementById('da-slot').value.trim();
-  const player = document.getElementById('da-player').value.trim();
-  const team = document.getElementById('da-team').value.trim();
-  if (!slot || !player) return;
-  draftState.picks_made.push({pick:slot, player, team});
-  if (MY_VS_PICKS.includes(slot) || team.toLowerCase().includes('dcatlet')) draftState.my_roster.push(player);
-  document.getElementById('da-slot').value = '';
-  document.getElementById('da-player').value = '';
-  document.getElementById('da-team').value = '';
-  saveDraftState();
-  renderDraftAssistant(document.getElementById('draft-content'));
-}
-
-async function getDraftRecommendation() {
-  const pick = document.getElementById('da-pick').value.trim();
-  const avail = document.getElementById('da-avail').value.trim();
-  draftState.current_pick = pick;
-  document.getElementById('da-rec').innerHTML = '<div class="spin-wrap"><div class="spin"></div><div class="spin-txt">ANALYZING...</div></div>';
-  try {
-    const r = await fetch('/api/draft/assistant',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({picks_made:draftState.picks_made,current_pick:pick,my_roster:draftState.my_roster,available:avail})});
-    const d = await r.json();
-    if (d.success) {
-      const fmt = d.recommendation.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\n\n/g,'</p><p>').replace(/\n/g,'<br>');
-      document.getElementById('da-rec').innerHTML = '<div class="card" style="border-color:var(--ac);"><div style="font-family:\'Bebas Neue\';font-size:13px;letter-spacing:1.5px;color:var(--ac);margin-bottom:7px;">📋 RECOMMENDATION</div><div style="font-size:12px;line-height:1.6;"><p>' + fmt + '</p></div></div>';
-    }
-  } catch(e) { document.getElementById('da-rec').innerHTML = '<div style="color:var(--rd);font-size:12px;">Error getting recommendation.</div>'; }
-}
-
-async function saveDraftState() {
-  try { await fetch('/api/draft/state',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({state:draftState})}); } catch(e) {}
-}
-
-async function loadDraftState() {
-  try { const r = await fetch('/api/draft/state'); const d = await r.json(); if (d.success && d.state && d.state.picks_made) draftState = d.state; } catch(e) {}
-}
-
-// ── PLAYER PROFILE ──
-async function openProfile(name) {
-  if (!name) return;
-  document.getElementById('profile-modal').classList.add('open');
-  document.getElementById('profile-body').innerHTML = '<div class="spin-wrap"><div class="spin"></div></div>';
-  try {
-    const r = await fetch('/api/player/profile',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({player:name,league:'all'})});
-    const d = await r.json();
-    if (d.success) renderProfile(d.profile);
-    else document.getElementById('profile-body').innerHTML = '<div class="empty">Could not load profile for ' + name + '.</div>';
-  } catch(e) { document.getElementById('profile-body').innerHTML = '<div class="empty">Error.</div>'; }
-}
-
-function renderProfile(p) {
-  const rc = p.recommendation==='BUY'?'rgba(61,220,132,.1)':p.recommendation==='SELL'?'rgba(255,92,92,.1)':'rgba(240,192,64,.1)';
-  const rbc = p.recommendation==='BUY'?'rgba(61,220,132,.3)':p.recommendation==='SELL'?'rgba(255,92,92,.3)':'rgba(240,192,64,.3)';
-  const rtc = p.recommendation==='BUY'?'var(--gn)':p.recommendation==='SELL'?'var(--rd)':'var(--gd)';
-  let html = '<div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:14px;">';
-  html += '<div class="pos-badge p' + p.position + '" style="width:40px;height:40px;border-radius:10px;font-size:12px;">' + p.position + '</div>';
-  html += '<div><div style="font-family:\'Bebas Neue\';font-size:20px;letter-spacing:2px;line-height:1;">' + p.name + '</div>';
-  html += '<div style="font-size:11px;color:var(--t2);margin-top:2px;">' + (p.team||'') + ' · Age ' + (p.age||'?') + ' · ' + (p.position_rank||'') + '</div></div></div>';
-  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:12px;">';
-  html += '<div style="background:var(--s2);border:1px solid var(--b1);border-radius:9px;padding:9px;"><div style="font-size:9px;color:var(--t2);font-weight:700;text-transform:uppercase;letter-spacing:.5px;">KTC Value</div><div style="font-family:\'JetBrains Mono\';font-size:16px;font-weight:700;color:var(--ac);margin-top:2px;">' + (p.ktc_value||0).toLocaleString() + '</div></div>';
-  const tc = (p.ktc_trend||'').startsWith('+') ? 'var(--gn)' : 'var(--rd)';
-  html += '<div style="background:var(--s2);border:1px solid var(--b1);border-radius:9px;padding:9px;"><div style="font-size:9px;color:var(--t2);font-weight:700;text-transform:uppercase;letter-spacing:.5px;">30d Trend</div><div style="font-family:\'JetBrains Mono\';font-size:16px;font-weight:700;color:' + tc + ';margin-top:2px;">' + (p.ktc_trend||'—') + '</div></div>';
-  html += '<div style="background:var(--s2);border:1px solid var(--b1);border-radius:9px;padding:9px;"><div style="font-size:9px;color:var(--t2);font-weight:700;text-transform:uppercase;letter-spacing:.5px;">PPG 2025</div><div style="font-family:\'JetBrains Mono\';font-size:16px;font-weight:700;margin-top:2px;">' + (p.ppg_2025||'—') + '</div></div>';
-  html += '<div style="background:var(--s2);border:1px solid var(--b1);border-radius:9px;padding:9px;"><div style="font-size:9px;color:var(--t2);font-weight:700;text-transform:uppercase;letter-spacing:.5px;">Liquidity</div><div style="font-size:13px;font-weight:700;margin-top:2px;">' + (p.trade_liquidity||'—') + '</div></div></div>';
-  html += '<div style="background:' + rc + ';border:1px solid ' + rbc + ';border-radius:9px;padding:11px;margin-bottom:12px;">';
-  html += '<div style="font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:' + rtc + ';margin-bottom:4px;">' + (p.recommendation||'HOLD') + '</div>';
-  html += '<div style="font-size:12px;line-height:1.4;">' + (p.recommendation_reason||'') + '</div></div>';
-  if (p.dynasty_outlook) html += '<div style="font-family:\'Bebas Neue\';font-size:12px;letter-spacing:1.5px;color:var(--t2);margin-bottom:7px;">DYNASTY OUTLOOK</div><div class="card"><div style="font-size:12px;color:var(--t2);line-height:1.5;">' + p.dynasty_outlook + '</div></div>';
-  if (p.latest_news && p.latest_news.length) {
-    html += '<div style="font-family:\'Bebas Neue\';font-size:12px;letter-spacing:1.5px;color:var(--t2);margin-bottom:7px;margin-top:10px;">LATEST NEWS</div>';
-    p.latest_news.forEach(n => { html += '<div style="font-size:11px;color:var(--t2);padding:7px 9px;background:var(--s2);border-radius:7px;margin-bottom:5px;border-left:2px solid var(--b2);">' + n + '</div>'; });
-  }
-  html += '<div style="height:16px;"></div>';
-  document.getElementById('profile-body').innerHTML = html;
-}
-
-// ── MODALS ──
-document.getElementById('profile-modal').addEventListener('click', function(e) {
-  if (e.target === this) this.classList.remove('open');
-});
-
-document.getElementById('ctx-modal').addEventListener('click', function(e) {
-  if (e.target === this) this.classList.remove('open');
-});
-
-document.getElementById('ctx-cancel-btn').addEventListener('click', function() {
-  document.getElementById('ctx-modal').classList.remove('open');
-});
-
-document.getElementById('ctx-submit-btn').addEventListener('click', function() {
-  const text = document.getElementById('ctx-ta').value.trim();
-  if (!text) return;
-  document.getElementById('ctx-modal').classList.remove('open');
-  // Switch to chat and send context update
-  document.querySelectorAll('.ni').forEach(n => n.classList.remove('active'));
-  document.querySelector('[data-page="chat"]').classList.add('active');
-  document.querySelectorAll('.page').forEach(p => { p.classList.remove('active'); p.style.display='none'; });
-  const chatEl = document.getElementById('page-chat');
-  chatEl.style.display = 'flex';
-  chatEl.classList.add('active');
-  document.getElementById('chat-ta').value = 'Please update your context with the following: ' + text;
-  sendChat();
-});
-
-// ── UTILS ──
-function copyText(text) {
-  navigator.clipboard.writeText(text).then(() => alert('Copied!')).catch(() => {
-    const el = document.createElement('textarea');
-    el.value = text;
-    document.body.appendChild(el);
-    el.select();
-    document.execCommand('copy');
-    document.body.removeChild(el);
-    alert('Copied!');
-  });
-}
-
-// ── VS RANKINGS (6PT TD SPECIFIC) ──
-let vsRankTab = 'compare';
-let vsPosFilt = 'ALL';
-let vsTotalComps = 0;
-let vsMatchupPlayers = [];
-let vsRankData = [];
-
-function renderVSRankings(el) {
-  const tabs = [
-    {k:'compare', l:'Head-to-Head'},
-    {k:'list', l:'My Top 150'},
-    {k:'paste', l:'📋 Paste Data'},
-    {k:'manage', l:'Manage'},
-  ];
-  const tabHtml = tabs.map(t =>
-    '<div class="draft-tab' + (vsRankTab===t.k?' active':'') + '" data-vstab="' + t.k + '" style="white-space:nowrap;font-size:11px;">' + t.l + '</div>'
-  ).join('');
-
-  const posHtml = ['ALL','QB','RB','WR','TE'].map(p =>
-    '<button class="chip' + (vsPosFilt===p?' active':'') + '" data-vspos="' + p + '">' + p + '</button>'
-  ).join('');
-
-  el.innerHTML =
-    '<div style="background:rgba(240,192,64,.06);border:1px solid rgba(240,192,64,.2);border-radius:9px;padding:9px 11px;margin-bottom:10px;display:flex;align-items:center;gap:8px;">' +
-    '<div style="font-size:15px;">⭐</div>' +
-    '<div><div style="font-size:11px;font-weight:700;color:var(--gd);">VELVET SPADE — 6PT TD RANKINGS</div>' +
-    '<div style="font-size:10px;color:var(--t2);">QB values boosted ~18% · 150-player personal board · Separate from standard rankings</div></div></div>' +
-    '<div style="display:flex;gap:5px;margin-bottom:8px;flex-wrap:wrap;">' + posHtml + '</div>' +
-    '<div style="display:flex;border-bottom:1px solid var(--b1);margin-bottom:10px;">' + tabHtml + '</div>' +
-    '<div id="vs-tab-body"></div>';
-
-  el.querySelectorAll('[data-vstab]').forEach(btn => {
-    btn.addEventListener('click', function() {
-      vsRankTab = this.dataset.vstab;
-      renderVSRankings(el);
-    });
-  });
-  el.querySelectorAll('[data-vspos]').forEach(btn => {
-    btn.addEventListener('click', function() {
-      vsPosFilt = this.dataset.vspos;
-      renderVSRankings(el);
-    });
-  });
-
-  const body = document.getElementById('vs-tab-body');
-  if (vsRankTab === 'compare') renderVSMatchup(body);
-  else if (vsRankTab === 'list') renderVSList(body);
-  else if (vsRankTab === 'paste') renderVSPaste(body);
-  else renderVSManage(body);
-}
-
-async function renderVSMatchup(el) {
-  el.innerHTML = '<div class="spin-wrap"><div class="spin"></div></div>';
-  try {
-    const r = await fetch('/api/vs/pair?position=' + vsPosFilt);
-    const d = await r.json();
-    if (!d.success || d.players.length < 2) {
-      el.innerHTML = '<div class="empty">Not enough players. Go to Manage tab to reset the pool.</div>';
-      return;
-    }
-    const [p1,p2] = d.players;
-    vsMatchupPlayers = [p1,p2];
-    const prog = Math.min((vsTotalComps/100)*100,100);
     el.innerHTML =
-      '<div class="matchup-card">' +
-      '<div style="font-family:\'Bebas Neue\';font-size:11px;letter-spacing:2px;color:var(--gd);margin-bottom:10px;">6PT TD · WHO WOULD YOU RATHER DRAFT?</div>' +
-      '<div class="matchup-vs">' +
-      '<div class="mp-player" id="vsmp-left">' +
-      '<span class="pos-badge p' + (p1.position||'WR') + '" style="font-size:9px;">' + (p1.position||'?') + '</span>' +
-      '<div class="mp-name">' + p1.name + '</div>' +
-      '<div class="mp-sub">' + (p1.team||'') + '</div>' +
-      '<div class="mp-sub" style="color:var(--gd);">ELO ' + Math.round(p1.elo) + '</div></div>' +
-      '<div class="vs">VS</div>' +
-      '<div class="mp-player" id="vsmp-right">' +
-      '<span class="pos-badge p' + (p2.position||'WR') + '" style="font-size:9px;">' + (p2.position||'?') + '</span>' +
-      '<div class="mp-name">' + p2.name + '</div>' +
-      '<div class="mp-sub">' + (p2.team||'') + '</div>' +
-      '<div class="mp-sub" style="color:var(--gd);">ELO ' + Math.round(p2.elo) + '</div></div>' +
-      '</div>' +
-      '<div class="prog-lbl">' + vsTotalComps + ' VS comparisons · ' + Math.round(prog) + '% to reliable board</div>' +
-      '<div class="prog-bar"><div class="prog-fill" style="width:' + prog + '%;background:linear-gradient(90deg,var(--gd),var(--ac));"></div></div>' +
-      '<button class="btn btn-g btn-sm" id="vs-skip-btn" style="width:100%;margin-top:8px;">Skip →</button>' +
-      '</div>';
-    document.getElementById('vsmp-left').addEventListener('click', () => castVSVote(0, el));
-    document.getElementById('vsmp-right').addEventListener('click', () => castVSVote(1, el));
-    document.getElementById('vs-skip-btn').addEventListener('click', () => renderVSMatchup(el));
-  } catch(e) {
-    el.innerHTML = '<div class="empty">Error loading matchup.</div>';
-  }
-}
+      '<div style="font-size:10px;color:var(--t2);margin-bottom:8px;padding:7px;background:var(--s2);border-radius:7px;border:1px solid var(--b1);">☰ Drag rows to reorder · Tap player name to view profile</div>' +
+      '<div id="rankings-drag-list" style="display:flex;flex-direction:column;gap:4px;"></div>';
 
-async function castVSVote(idx, el) {
-  if (vsMatchupPlayers.length < 2) return;
-  const winner = vsMatchupPlayers[idx].name;
-  const loser = vsMatchupPlayers[1-idx].name;
-  vsTotalComps++;
-  await fetch('/api/vs/vote', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({winner, loser})});
-  renderVSMatchup(el);
-}
-
-async function renderVSList(el) {
-  el.innerHTML = '<div class="spin-wrap"><div class="spin"></div></div>';
-  try {
-    const r = await fetch('/api/vs/list?position=' + vsPosFilt);
-    const d = await r.json();
-    vsRankData = d.rankings || [];
-    if (!vsRankData.length) {
-      el.innerHTML = '<div class="empty">No rankings yet. Do some head-to-head comparisons first.</div>';
-      return;
-    }
-    let html = '<div style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">';
-    html += '<div style="font-size:11px;color:var(--t2);">Top ' + vsRankData.length + ' · ' + vsPosFilt + ' · 6pt TD adjusted</div>';
-    html += '<button class="btn btn-g btn-sm" id="vs-export-btn">📋 Copy Board</button></div>';
-    html += '<div style="display:flex;flex-direction:column;gap:4px;">';
-    vsRankData.forEach(p => {
-      const ni = storeName(p.name);
-      html += '<div class="rank-row">';
-      html += '<div class="rank-num">' + p.rank + '</div>';
-      html += '<div class="pos-badge p' + p.position + '">' + p.position + '</div>';
-      html += '<div class="rank-info" data-name-idx="' + ni + '">';
-      html += '<div class="rank-name">' + p.name + '</div>';
-      html += '<div class="rank-meta">' + (p.team||'FA') + ' · ' + p.elo + ' ELO · ' + p.comparisons + ' comps</div></div>';
-      html += '<div class="adj-btns">';
-      html += '<button class="adj-btn adj-up" data-ni="' + ni + '" data-dir="up">▲</button>';
-      html += '<button class="adj-btn adj-dn" data-ni="' + ni + '" data-dir="dn">▼</button>';
-      html += '</div></div>';
-    });
-    html += '</div>';
-    el.innerHTML = html;
-    el.querySelectorAll('.rank-info').forEach(row => {
-      row.addEventListener('click', function() { openProfile(playerNames[+this.dataset.nameIdx]||''); });
-    });
-    el.querySelectorAll('.adj-btn').forEach(btn => {
-      btn.addEventListener('click', async function(e) {
-        e.stopPropagation();
-        const name = playerNames[+this.dataset.ni] || '';
-        const dir = this.dataset.dir === 'up' ? 'up' : 'down';
-        await fetch('/api/vs/adjust', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name, direction:dir, positions:5})});
-        renderVSList(el);
-      });
-    });
-    document.getElementById('vs-export-btn').addEventListener('click', function() {
-      const board = vsRankData.map(p => p.rank + '. ' + p.name + ' (' + p.position + ')').join('\n');
-      copyText(board);
-    });
-  } catch(e) {
-    el.innerHTML = '<div class="empty">Error loading.</div>';
-  }
+    const listEl = document.getElementById('rankings-drag-list');
+    makeDraggableList(
+      listEl,
+      filtered,
+      async (newOrder) => {
+        // Save new order to backend
+        try {
+          await fetch('/api/rankings/reorder', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ordered_names: newOrder, pool: 'standard'})
+          });
+        } catch(e) {}
+        renderMyRankings();
+      },
+      (name) => openProfile(name)
+    );
+  } catch(e) { el.innerHTML = '<div class="empty">Error loading.</div>'; }
 }
 
 function renderVSPaste(el) {
@@ -1913,123 +1485,298 @@ async function renderTierBreaks(el) {
 }
 
 function renderTierView(el, d) {
+  // Source status
+  const srcLabels = {ktc:'KTC', ddl:'DDL ADP', sleeper:'Sleeper'};
+  const srcStatus = ['ktc','ddl','sleeper'].map(s => {
+    const has = d.sources_available.includes(s);
+    return '<span style="padding:2px 7px;border-radius:20px;font-size:10px;font-weight:700;' +
+      (has ? 'background:rgba(61,220,132,.15);color:var(--gn);' : 'background:var(--s3);color:var(--t2);') + '">' +
+      (has ? '✓ ' : '○ ') + srcLabels[s] + (has && d[s+'_count'] ? ' (' + d[s+'_count'] + ')' : '') + '</span>';
+  }).join('');
+
+  const ACTION_COLORS = {'STRONG BUY':'#00e676','BUY':'var(--gn)','SLIGHT BUY':'#80ffb8','STRONG SELL':'var(--rd)','SELL':'var(--rd)','SLIGHT SELL':'#ffaa88'};
+  const ACTION_BG = {'STRONG BUY':'rgba(0,230,118,.08)','BUY':'rgba(61,220,132,.06)','SLIGHT BUY':'rgba(61,220,132,.04)','STRONG SELL':'rgba(255,92,92,.08)','SELL':'rgba(255,92,92,.06)','SLIGHT SELL':'rgba(255,92,92,.04)'};
+
+  let html = '<div style="display:flex;gap:5px;align-items:center;margin-bottom:8px;flex-wrap:wrap;">' +
+    '<span style="font-size:10px;color:var(--t2);">SOURCES:</span>' + srcStatus +
+    '<button class="btn btn-g btn-sm" id="paste-shortcut-btn" style="margin-left:auto;font-size:10px;">+ Paste Data</button></div>';
+
+  // TRADE TARGET SIGNALS
+  if (d.trade_targets && d.trade_targets.length) {
+    html += '<div style="font-family:'Bebas Neue';font-size:13px;letter-spacing:2px;margin-bottom:6px;">🎯 Draft Decision Signals</div>';
+
+    const signals = {
+      'STRONG BUY': d.trade_targets.filter(t => t.delta >= 30),
+      'BUY': d.trade_targets.filter(t => t.delta >= 15 && t.delta < 30),
+      'SLIGHT BUY': d.trade_targets.filter(t => t.delta >= 10 && t.delta < 15),
+      'SLIGHT SELL': d.trade_targets.filter(t => t.delta <= -10 && t.delta > -15),
+      'SELL': d.trade_targets.filter(t => t.delta <= -15 && t.delta > -30),
+      'STRONG SELL': d.trade_targets.filter(t => t.delta <= -30),
+    };
+
+    const actionLabels = {
+      'STRONG BUY': '▲ TRADE UP — You rate significantly above market',
+      'BUY': '▲ REACH / TRADE UP — You rate above market',
+      'SLIGHT BUY': '▲ SLIGHT REACH — Consider taking before next pick',
+      'SLIGHT SELL': '▼ MONITOR — Market rates slightly higher',
+      'SELL': '▼ TRADE BACK — Market rates much higher, pick is weak',
+      'STRONG SELL': '▼ TRADE BACK HARD — Major overvaluation by market',
+    };
+
+    ['STRONG BUY','BUY','SLIGHT BUY','SLIGHT SELL','SELL','STRONG SELL'].forEach(sig => {
+      const group = signals[sig];
+      if (!group || !group.length) return;
+      const sc = ACTION_COLORS[sig] || 'var(--t2)';
+      const bg = ACTION_BG[sig] || 'transparent';
+      html += '<div style="margin-bottom:8px;">';
+      html += '<div style="font-size:10px;font-weight:800;color:' + sc + ';letter-spacing:.8px;margin-bottom:4px;">' + actionLabels[sig] + '</div>';
+      group.slice(0,5).forEach(t => {
+        const adpStr = t.adp ? 'ADP ' + t.adp.toFixed(1) : '#' + t.market_rank;
+        html += '<div style="background:' + bg + ';border:1px solid ' + sc.replace(')',', .25)').replace('var(', 'rgba(') + ';border-radius:8px;padding:8px 10px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;">';
+        html += '<div><div style="font-size:12px;font-weight:700;">' + t.name + ' <span style="color:var(--t2);font-size:10px;font-weight:400;">(' + t.position + ')</span></div>';
+        html += '<div style="font-size:10px;color:var(--t2);">Your #' + t.my_rank + ' &middot; ' + t.market_source + ' ' + adpStr + ' (~' + t.est_draft_pick + ')</div></div>';
+        html += '<span style="font-size:11px;font-weight:800;color:' + sc + ';padding:2px 7px;background:rgba(0,0,0,.2);border-radius:20px;white-space:nowrap;">' + (t.delta > 0 ? '+' : '') + t.delta + '</span>';
+        html += '</div>';
+      });
+      html += '</div>';
+    });
+    html += '<div class="div"></div>';
+  }
+
+  // POSITIONAL TIER GRID — 2x2 then 2x1 layout
   const positions = ['QB','RB','WR','TE'];
   const posColors = {QB:'var(--ac)',RB:'var(--gn)',WR:'var(--pu)',TE:'var(--gd)'};
 
-  // Source status bar
-  const sourceLabels = {ktc:'KTC', ddl:'DDL ADP', sleeper:'Sleeper'};
-  const sourceStatus = ['ktc','ddl','sleeper'].map(s => {
-    const has = d.sources_available.includes(s);
-    const count = s === 'ktc' ? d.ktc_count : s === 'ddl' ? d.ddl_count : 0;
-    const label = sourceLabels[s];
-    return '<span style="padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;' +
-      (has ? 'background:rgba(61,220,132,.15);color:var(--gn);' : 'background:var(--s3);color:var(--t2);') + '">' +
-      (has ? '✓ ' : '○ ') + label + (has && count ? ' (' + count + ')' : '') + '</span>';
-  }).join('');
-
-  let html =
-    '<div style="display:flex;gap:5px;align-items:center;margin-bottom:10px;flex-wrap:wrap;">' +
-    '<span style="font-size:10px;color:var(--t2);">DATA SOURCES:</span>' + sourceStatus +
-    '<button class="btn btn-g btn-sm" id="paste-shortcut-btn" style="margin-left:auto;">+ Paste More</button></div>';
-
-  // Trade targets section
-  if (d.trade_targets && d.trade_targets.length) {
-    html += '<div style="font-family:\'Bebas Neue\';font-size:14px;letter-spacing:2px;color:var(--tx);margin-bottom:6px;">🎯 Trade Up / Down Targets</div>';
-    html += '<div style="font-size:10px;color:var(--t2);margin-bottom:8px;padding:7px;background:var(--s2);border-radius:7px;">Primary benchmark: <strong>DDL ADP</strong> (startup draft position). Delta = difference between your VS rank and market ADP rank.</div>';
-
-    const buys = d.trade_targets.filter(t => t.delta > 0).slice(0,8);
-    const sells = d.trade_targets.filter(t => t.delta < 0).slice(0,5);
-
-    if (buys.length) {
-      html += '<div style="font-size:11px;font-weight:700;color:var(--gn);margin-bottom:6px;letter-spacing:1px;">▲ TRADE UP TARGETS — You Value Higher Than Market</div>';
-      buys.forEach(t => {
-        const sigC = t.signal.includes('STRONG') ? 'var(--gn)' : t.signal.includes('BUY') ? '#80ffb8' : 'var(--gn)';
-        const adpStr = t.adp ? 'ADP ' + t.adp.toFixed(1) : 'Rank ' + t.market_rank;
-        html += '<div style="background:rgba(61,220,132,.05);border:1px solid rgba(61,220,132,.2);border-radius:9px;padding:10px;margin-bottom:5px;">' +
-          '<div style="display:flex;justify-content:space-between;align-items:flex-start;">' +
-          '<div>' +
-          '<div style="font-size:13px;font-weight:700;">' + t.name + ' <span style="font-size:10px;color:var(--t2);font-weight:400;">(' + t.position + ')</span></div>' +
-          '<div style="font-size:10px;color:var(--t2);margin-top:2px;">Your rank: <strong>#' + t.my_rank + '</strong> · ' + t.market_source + ' ' + adpStr + ' (~' + t.est_draft_pick + ')</div>' +
-          '<div style="font-size:10px;color:var(--gn);margin-top:3px;">⬆ Market takes him at ' + t.est_draft_pick + ' — consider trading up</div>' +
-          '</div>' +
-          '<span style="font-size:10px;font-weight:800;color:' + sigC + ';padding:2px 7px;background:rgba(61,220,132,.15);border-radius:20px;white-space:nowrap;margin-left:8px;">' + t.signal + ' <span style="opacity:.7;">+' + t.delta + '</span></span>' +
-          '</div></div>';
-      });
-    }
-
-    if (sells.length) {
-      html += '<div style="font-size:11px;font-weight:700;color:var(--rd);margin:10px 0 6px;letter-spacing:1px;">▼ POTENTIAL REACHES — Market Values Higher</div>';
-      sells.forEach(t => {
-        const adpStr = t.adp ? 'ADP ' + t.adp.toFixed(1) : 'Rank ' + t.market_rank;
-        html += '<div style="background:rgba(255,92,92,.05);border:1px solid rgba(255,92,92,.2);border-radius:9px;padding:10px;margin-bottom:5px;">' +
-          '<div style="display:flex;justify-content:space-between;align-items:flex-start;">' +
-          '<div>' +
-          '<div style="font-size:13px;font-weight:700;">' + t.name + ' <span style="font-size:10px;color:var(--t2);font-weight:400;">(' + t.position + ')</span></div>' +
-          '<div style="font-size:10px;color:var(--t2);margin-top:2px;">Your rank: <strong>#' + t.my_rank + '</strong> · ' + t.market_source + ' ' + adpStr + '</div>' +
-          '<div style="font-size:10px;color:var(--rd);margin-top:3px;">Market rates him higher — avoid reaching, let slide</div>' +
-          '</div>' +
-          '<span style="font-size:10px;font-weight:800;color:var(--rd);padding:2px 7px;background:rgba(255,92,92,.15);border-radius:20px;white-space:nowrap;margin-left:8px;">' + t.signal + ' <span style="opacity:.7;">' + t.delta + '</span></span>' +
-          '</div></div>';
-      });
-    }
-    html += '<div class="div"></div>';
-  } else {
-    html += '<div style="background:var(--s2);border:1px solid var(--b1);border-radius:9px;padding:14px;margin-bottom:10px;text-align:center;">' +
-      '<div style="font-size:12px;color:var(--t2);">No trade targets yet.<br>Do VS head-to-head comparisons first, then come back here.</div></div>';
-  }
-
-  // Positional tier breaks
-  html += '<div style="font-family:\'Bebas Neue\';font-size:14px;letter-spacing:2px;color:var(--tx);margin-bottom:8px;">📊 Positional Tier Breaks</div>';
-  html += '<div style="font-size:10px;color:var(--t2);margin-bottom:10px;">ELO gap of 120+ = tier break. Est. pick shows when tier ends based on your VS rankings.</div>';
+  html += '<div style="font-family:'Bebas Neue';font-size:13px;letter-spacing:2px;margin-bottom:8px;">📊 Positional Tier Breaks</div>';
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">';
 
   positions.forEach(pos => {
     const tiers = d.tiers[pos];
-    if (!tiers || !tiers.length) return;
     const pc = posColors[pos] || 'var(--tx)';
+    if (!tiers || !tiers.length) {
+      html += '<div style="background:var(--s2);border:1px solid var(--b1);border-radius:9px;padding:10px;">';
+      html += '<div style="font-size:11px;font-weight:700;color:' + pc + ';margin-bottom:4px;">' + pos + '</div>';
+      html += '<div style="font-size:10px;color:var(--t2);">No tier data. Do VS comparisons first.</div></div>';
+      return;
+    }
 
-    html += '<div style="margin-bottom:12px;">';
-    html += '<div style="font-family:\'Bebas Neue\';font-size:13px;letter-spacing:1.5px;color:' + pc + ';margin-bottom:6px;">' + pos + ' TIERS</div>';
+    html += '<div style="background:var(--s2);border:1px solid var(--b1);border-radius:9px;padding:10px;">';
+    html += '<div style="font-size:11px;font-weight:700;color:' + pc + ';letter-spacing:1px;margin-bottom:6px;">' + pos + ' — ' + tiers.length + ' tiers</div>';
 
-    tiers.forEach(tier => {
-      const isAlert = tier.break_after && tier.gap > 200;
-      const alertBg = isAlert ? 'rgba(255,92,92,.06)' : 'var(--s2)';
-      const alertBorder = isAlert ? 'rgba(255,92,92,.25)' : 'var(--b1)';
-
-      html += '<div style="background:' + alertBg + ';border:1px solid ' + alertBorder + ';border-radius:8px;padding:9px;margin-bottom:5px;">';
-      html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">';
-      html += '<div style="font-size:10px;font-weight:700;color:' + pc + ';letter-spacing:1px;">TIER ' + tier.tier_num + ' · ' + tier.players.length + ' players</div>';
-      if (tier.break_after) {
-        html += '<div style="font-size:10px;color:' + (isAlert?'var(--rd)':'var(--t2)') + ';">';
-        html += (isAlert ? '⚠️ ' : '') + 'Drop-off after ~' + tier.est_pick + ' · gap: ' + tier.gap + ' ELO</div>';
-      }
-      html += '</div>';
-
-      // Show players in this tier
-      const names = tier.players.slice(0,8).map(p => p.name).join(' · ');
-      const more = tier.players.length > 8 ? ' +' + (tier.players.length-8) + ' more' : '';
-      html += '<div style="font-size:11px;color:var(--tx);line-height:1.5;">' + names + '<span style="color:var(--t2);">' + more + '</span></div>';
-
-      if (tier.break_after && isAlert) {
-        html += '<div style="font-size:10px;color:var(--rd);margin-top:4px;padding:4px 7px;background:rgba(255,92,92,.08);border-radius:5px;">🔴 Major positional drop-off. Last of this tier: <strong>' + tier.break_after + '</strong></div>';
-      } else if (tier.break_after) {
-        html += '<div style="font-size:10px;color:var(--t2);margin-top:4px;">↓ Tier drop after <strong>' + tier.break_after + '</strong> (' + tier.gap + ' ELO gap)</div>';
+    tiers.slice(0,4).forEach(tier => {
+      const isMajor = tier.gap > 200;
+      const isModerate = tier.gap > 120 && !isMajor;
+      const borderC = isMajor ? 'var(--rd)' : isModerate ? 'var(--gd)' : 'var(--b1)';
+      const names = tier.players.slice(0,4).map(p => p.name.split(' ').pop()).join(', ');
+      const more = tier.players.length > 4 ? ' +' + (tier.players.length-4) : '';
+      html += '<div style="margin-bottom:5px;padding:5px 7px;border:1px solid ' + borderC + ';border-radius:6px;background:var(--s3);">';
+      html += '<div style="font-size:9px;font-weight:700;color:' + pc + ';margin-bottom:2px;">T' + tier.tier_num + (tier.break_after ? ' · drops after ~' + tier.est_pick : '') + '</div>';
+      html += '<div style="font-size:10px;color:var(--tx);line-height:1.3;">' + names + more + '</div>';
+      if (isMajor && tier.break_after) {
+        html += '<div style="font-size:9px;color:var(--rd);margin-top:2px;font-weight:700;">🔴 Last: ' + tier.break_after + '</div>';
       }
       html += '</div>';
     });
     html += '</div>';
   });
 
+  html += '</div>';
   el.innerHTML = html;
 
-  // Paste shortcut button
   const psBtn = document.getElementById('paste-shortcut-btn');
   if (psBtn) {
     psBtn.addEventListener('click', function() {
       vsRankTab = 'paste';
-      const draftEl = document.getElementById('draft-content');
-      renderVSRankings(draftEl);
+      renderVSRankings(document.getElementById('draft-content'));
     });
   }
+}
+
+
+async function renderVSList(el) {
+  el.innerHTML = '<div class="spin-wrap"><div class="spin"></div></div>';
+  try {
+    const r = await fetch('/api/vs/list?position=' + vsPosFilt);
+    const d = await r.json();
+    vsRankData = d.rankings || [];
+    if (!vsRankData.length) {
+      el.innerHTML = '<div class="empty">No rankings yet. Do some head-to-head comparisons first.</div>';
+      return;
+    }
+    let filtered = vsRankData;
+    if (vsPosFilt !== 'ALL') filtered = vsRankData.filter(p => p.position === vsPosFilt);
+    el.innerHTML =
+      '<div style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">' +
+      '<div style="font-size:10px;color:var(--t2);padding:6px 8px;background:var(--s2);border-radius:7px;border:1px solid var(--b1);">☰ Drag to reorder · Tap name for profile</div>' +
+      '<button class="btn btn-g btn-sm" id="vs-export-btn">📋 Copy</button></div>' +
+      '<div id="vs-drag-list" style="display:flex;flex-direction:column;gap:4px;"></div>';
+    const listEl = document.getElementById('vs-drag-list');
+    makeDraggableList(
+      listEl, filtered,
+      async (newOrder) => {
+        try {
+          await fetch('/api/rankings/reorder', {method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ordered_names: newOrder, pool: 'vs'})});
+        } catch(e) {}
+        renderVSList(el);
+      },
+      (name) => openProfile(name)
+    );
+    document.getElementById('vs-export-btn').addEventListener('click', function() {
+      const board = filtered.map((p,i) => (i+1) + '. ' + p.name + ' (' + p.position + ')').join('\n');
+      copyText(board);
+    });
+  } catch(e) { el.innerHTML = '<div class="empty">Error loading.</div>'; }
+}
+
+
+
+function renderDraftAssistant(el) {
+  const picksHtml = draftState.picks_made.map((p,i) =>
+    '<div style="display:flex;justify-content:space-between;padding:5px 8px;background:var(--s3);border-radius:5px;margin-bottom:3px;font-size:11px;">' +
+    '<span style="color:var(--t2);">' + p.pick + '</span><span style="font-weight:600;">' + p.player + '</span>' +
+    '<span style="color:var(--t2);">' + (p.team||'') + '</span>' +
+    '<button style="background:none;border:none;color:var(--rd);cursor:pointer;font-size:13px;" data-pick-idx="' + i + '">×</button></div>'
+  ).join('');
+  const rosterHtml = draftState.my_roster.map((p,i) =>
+    '<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 7px;background:rgba(79,158,255,.15);border:1px solid var(--ac);border-radius:20px;font-size:10px;margin:2px;">' +
+    p + '<button style="background:none;border:none;color:var(--rd);cursor:pointer;font-size:11px;" data-roster-idx="' + i + '">×</button></span>'
+  ).join('');
+  el.innerHTML =
+    '<div style="background:rgba(255,92,92,.08);border:1px solid rgba(255,92,92,.3);border-radius:9px;padding:9px 11px;margin-bottom:10px;display:flex;align-items:center;gap:7px;">' +
+    '<div style="width:7px;height:7px;border-radius:50%;background:var(--rd);animation:pulse 1s infinite;"></div>' +
+    '<div style="font-family:'Bebas Neue';font-size:13px;letter-spacing:1.5px;color:var(--rd);">VELVET SPADE — LIVE DRAFT</div></div>' +
+    '<div class="da-section"><div class="da-lbl">Current Pick On Clock</div>' +
+    '<div style="display:flex;gap:8px;"><input class="inp" id="da-pick" placeholder="e.g. 2.11" value="' + draftState.current_pick + '" style="font-family:'JetBrains Mono';"><button class="btn btn-p" id="da-get-btn">Get Rec</button></div></div>' +
+    '<div class="da-section"><div class="da-lbl">Upload Draft Board Screenshot</div>' +
+    '<div style="display:flex;gap:8px;"><input type="file" id="da-screenshot" accept="image/*" style="display:none;"><button class="btn btn-s btn-sm" id="da-upload-btn">📷 Upload Screenshot</button><span style="font-size:10px;color:var(--t2);align-self:center;">Auto-logs picks from image</span></div>' +
+    '<div id="da-parse-result" style="margin-top:8px;"></div></div>' +
+    '<div class="da-section"><div class="da-lbl">Log a Pick Manually</div>' +
+    '<div style="display:flex;gap:5px;margin-bottom:5px;"><input class="inp" id="da-slot" placeholder="Pick slot" style="flex:1;font-size:12px;font-family:'JetBrains Mono';"><input class="inp" id="da-player" placeholder="Player name" style="flex:2;font-size:12px;"></div>' +
+    '<div style="display:flex;gap:5px;"><input class="inp" id="da-team" placeholder="Manager" style="flex:1;font-size:12px;"><button class="btn btn-s btn-sm" id="da-log-btn">Log</button></div></div>' +
+    '<div class="da-section"><div class="da-lbl">Available Players (optional)</div>' +
+    '<textarea class="inp" id="da-avail" rows="2" placeholder="Paste available players from Sleeper..." style="font-size:11px;"></textarea></div>' +
+    (draftState.picks_made.length ? '<div class="da-section"><div class="da-lbl">Picks Logged (' + draftState.picks_made.length + ')</div><div id="picks-list" style="max-height:160px;overflow-y:auto;">' + picksHtml + '</div></div>' : '') +
+    (draftState.my_roster.length ? '<div class="da-section"><div class="da-lbl">My Roster (' + draftState.my_roster.length + ')</div><div>' + rosterHtml + '</div></div>' : '') +
+    '<div id="da-rec"></div>' +
+    '<button class="btn btn-g btn-sm" id="da-clear-btn" style="width:100%;margin-top:8px;">Clear Draft State</button>';
+
+  document.getElementById('da-get-btn').addEventListener('click', getDraftRecommendation);
+  document.getElementById('da-log-btn').addEventListener('click', logDraftPick);
+  document.getElementById('da-clear-btn').addEventListener('click', function() {
+    if (confirm('Clear?')) { draftState = {picks_made:[],my_roster:[],current_pick:''}; renderDraftAssistant(el); }
+  });
+  document.getElementById('da-upload-btn').addEventListener('click', function() {
+    document.getElementById('da-screenshot').click();
+  });
+  document.getElementById('da-screenshot').addEventListener('change', async function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const parseRes = document.getElementById('da-parse-result');
+    parseRes.innerHTML = '<div class="spin-wrap" style="padding:10px;"><div class="spin"></div><div class="spin-txt">Reading draft board...</div></div>';
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      try {
+        const r = await fetch('/api/draft/parse_screenshot', {method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({image: ev.target.result, context: 'grid'})});
+        const d = await r.json();
+        if (d.success && d.parsed && d.parsed.picks) {
+          const picks = d.parsed.picks;
+          let html = '<div style="background:rgba(79,158,255,.08);border:1px solid rgba(79,158,255,.2);border-radius:8px;padding:10px;">';
+          html += '<div style="font-size:11px;font-weight:700;margin-bottom:6px;">Found ' + picks.length + ' picks — confirm to log:</div>';
+          picks.slice(0,10).forEach(p => {
+            html += '<div style="font-size:11px;padding:3px 0;color:var(--t2);">' + (p.slot||'?') + ' · <strong style="color:var(--tx);">' + p.player + '</strong> · ' + (p.manager||'?') + '</div>';
+          });
+          if (picks.length > 10) html += '<div style="font-size:10px;color:var(--t2);">+' + (picks.length-10) + ' more</div>';
+          html += '<div style="display:flex;gap:7px;margin-top:8px;">';
+          html += '<button class="btn btn-p btn-sm" id="confirm-picks-btn" style="flex:1;">✓ Confirm & Log All</button>';
+          html += '<button class="btn btn-g btn-sm" id="cancel-picks-btn">Cancel</button></div></div>';
+          parseRes.innerHTML = html;
+          document.getElementById('confirm-picks-btn').addEventListener('click', async function() {
+            const cr = await fetch('/api/draft/confirm_picks', {method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({picks})});
+            const cd = await cr.json();
+            parseRes.innerHTML = '<div style="color:var(--gn);font-size:12px;">✅ Logged ' + cd.committed + ' picks</div>';
+            picks.forEach(p => {
+              if (!draftState.picks_made.find(e => e.pick === p.slot)) {
+                draftState.picks_made.push({pick: p.slot, player: p.player, team: p.manager});
+                if (p.manager === 'dcatlet') draftState.my_roster.push(p.player);
+              }
+            });
+            saveDraftState();
+            setTimeout(() => renderDraftAssistant(el), 1500);
+          });
+          document.getElementById('cancel-picks-btn').addEventListener('click', function() {
+            parseRes.innerHTML = '';
+          });
+        } else {
+          parseRes.innerHTML = '<div style="color:var(--rd);font-size:12px;">Could not read picks from image. Try a clearer screenshot.</div>';
+        }
+      } catch(err) {
+        parseRes.innerHTML = '<div style="color:var(--rd);font-size:12px;">Error processing image.</div>';
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  });
+
+  el.querySelectorAll('[data-pick-idx]').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const i = +this.dataset.pickIdx;
+      const pick = draftState.picks_made[i];
+      draftState.picks_made.splice(i,1);
+      const ri = draftState.my_roster.indexOf(pick.player);
+      if (ri >= 0) draftState.my_roster.splice(ri,1);
+      saveDraftState(); renderDraftAssistant(el);
+    });
+  });
+  el.querySelectorAll('[data-roster-idx]').forEach(btn => {
+    btn.addEventListener('click', function() {
+      draftState.my_roster.splice(+this.dataset.rosterIdx,1);
+      saveDraftState(); renderDraftAssistant(el);
+    });
+  });
+}
+
+function logDraftPick() {
+  const slot = document.getElementById('da-slot').value.trim();
+  const player = document.getElementById('da-player').value.trim();
+  const team = document.getElementById('da-team').value.trim();
+  if (!slot || !player) return;
+  draftState.picks_made.push({pick:slot, player, team});
+  if (['1.02','2.11','3.11','4.02','5.11','6.02','7.11','8.02','9.11','10.02','11.11','12.02','13.11','14.02'].includes(slot) || team.toLowerCase().includes('dcatlet')) draftState.my_roster.push(player);
+  document.getElementById('da-slot').value = '';
+  document.getElementById('da-player').value = '';
+  document.getElementById('da-team').value = '';
+  saveDraftState();
+  renderDraftAssistant(document.getElementById('draft-content'));
+}
+
+async function getDraftRecommendation() {
+  const pick = document.getElementById('da-pick').value.trim();
+  const avail = document.getElementById('da-avail') ? document.getElementById('da-avail').value.trim() : '';
+  draftState.current_pick = pick;
+  document.getElementById('da-rec').innerHTML = '<div class="spin-wrap"><div class="spin"></div><div class="spin-txt">ANALYZING...</div></div>';
+  try {
+    const r = await fetch('/api/draft/live_recommendation', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({picks_made:draftState.picks_made, current_pick:pick, my_roster:draftState.my_roster, available:avail})});
+    const d = await r.json();
+    if (d.success) {
+      const fmt = d.recommendation.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/
+
+/g,'</p><p>').replace(/
+/g,'<br>');
+      document.getElementById('da-rec').innerHTML = '<div class="card" style="border-color:var(--ac);"><div style="font-family:'Bebas Neue';font-size:13px;letter-spacing:1.5px;color:var(--ac);margin-bottom:7px;">📋 PICK RECOMMENDATION</div><div style="font-size:12px;line-height:1.6;"><p>' + fmt + '</p></div></div>';
+    }
+  } catch(e) { document.getElementById('da-rec').innerHTML = '<div style="color:var(--rd);font-size:12px;">Error.</div>'; }
+}
+
+async function saveDraftState() {
+  try { await fetch('/api/draft/state',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({state:draftState})}); } catch(e) {}
+}
+
+async function loadDraftState() {
+  try { const r = await fetch('/api/draft/state'); const d = await r.json(); if (d.success && d.state && d.state.picks_made) draftState = d.state; } catch(e) {}
 }
 
 // ── INIT ──
