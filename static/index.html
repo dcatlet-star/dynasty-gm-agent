@@ -1327,25 +1327,7 @@ function makeDraggableList(container, items, onReorder, onTap) {
   });
 }
 
-async function applyRankReorder(names, apiPath, refreshFn) {
-  // Convert ordered names to sequential ELO adjustments via adjust endpoint
-  // We batch-adjust by walking through and ensuring ordering
-  const n = names.length;
-  for (let i = 0; i < Math.min(n, 5); i++) {
-    // Just re-save the order — use the adjust endpoint in sequence
-    // The cleanest approach: set each player's ELO based on their new position
-  }
-  // Trigger AI-powered reorder: POST new order to backend
-  try {
-    const r = await fetch(apiPath, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ordered_names: names})
-    });
-    const d = await r.json();
-    if (d.success) refreshFn();
-  } catch(e) { refreshFn(); }
-}
+
 
 async function renderMyRankings() {
   const el = document.getElementById('rank-content');
