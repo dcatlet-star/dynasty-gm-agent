@@ -1849,162 +1849,200 @@ def get_market_data():
 @app.route('/api/tiers', methods=['GET'])
 def get_tiers():
     """
-    Compute positional tier breaks and trade targets comparing:
-    - VS personal rankings (ELO-based)
-    - KTC stored values (market baseline)
-    - DDL ADP (startup draft position benchmark)
+    Compute positional tier breaks per position.
+    - < 10 comparisons for a position: use KTC tier groupings (labeled 'KTC baseline')
+    - >= 10 comparisons: use personal ELO gaps (labeled 'Personal')
+    DDL ADP used for draft slot context throughout.
     """
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
 
-    # Get VS personal rankings
-    c.execute("SELECT player_name, position, elo_score FROM vs_rankings ORDER BY elo_score DESC LIMIT 200")
+    # VS rankings with comparison counts and ktc_tier
+    c.execute("""SELECT player_name, position, elo_score, comparisons, COALESCE(ktc_tier, 10)
+                FROM vs_rankings ORDER BY elo_score DESC LIMIT 300""")
     vs_rows = c.fetchall()
-    vs_rank = {r[0]: {'rank': i+1, 'pos': r[1], 'elo': r[2]} for i, r in enumerate(vs_rows)}
+    vs_rank = {r[0]: {
+        'rank': i+1, 'pos': r[1], 'elo': r[2],
+        'comparisons': r[3], 'ktc_tier': r[4]
+    } for i, r in enumerate(vs_rows)}
 
-    # Get KTC ranks from market_data
+    # KTC data
     c.execute("SELECT player_name, rank, value FROM market_data WHERE source='ktc' ORDER BY rank ASC")
     ktc_rank_map = {r[0]: {'rank': r[1], 'value': r[2]} for r in c.fetchall()}
 
-    # Get DDL ADP from market_data (value stored as adp*10, team field has raw adp string)
+    # DDL ADP
     c.execute("SELECT player_name, rank, team FROM market_data WHERE source='ddl' ORDER BY rank ASC")
-    ddl_rows = c.fetchall()
     ddl_rank_map = {}
-    for name, rank, adp_str in ddl_rows:
+    for name, rank, adp_str in c.fetchall():
         try:
             ddl_rank_map[name] = {'rank': rank, 'adp': float(adp_str)}
         except:
-            ddl_rank_map[name] = {'rank': rank, 'adp': rank}
+            ddl_rank_map[name] = {'rank': rank, 'adp': float(rank)}
 
     conn.close()
 
     has_ktc = len(ktc_rank_map) > 10
     has_ddl = len(ddl_rank_map) > 10
 
-    # Build position-specific tier analysis from VS rankings
-    # Use DDL ADP as the draft slot reference for each player
-    positions = ['QB', 'RB', 'WR', 'TE']
-    tier_data = {}
+    def adp_to_pick(adp):
+        if not adp:
+            return '—'
+        r = int(adp // 12) + 1
+        s = int(adp % 12) + 1
+        return f"{r}.{str(s).zfill(2)}"
 
-    for pos in positions:
-        pos_players = [(name, d['rank'], d['elo']) for name, d in vs_rank.items() if d['pos'] == pos]
-        pos_players.sort(key=lambda x: x[1])
-        if len(pos_players) < 2:
-            continue
+    def enrich_player(name, rank, elo, ktc_tier):
+        ddl = ddl_rank_map.get(name, {})
+        adp = ddl.get('adp')
+        return {
+            'name': name,
+            'vs_rank': rank,
+            'elo': round(elo),
+            'ktc_tier': ktc_tier,
+            'adp': adp,
+            'adp_pick': adp_to_pick(adp),
+        }
 
-        # Step 1: detect raw breaks with adaptive threshold
-        # Use a percentage-based gap relative to the ELO range for this position
-        if len(pos_players) >= 2:
-            pos_elo_max = pos_players[0][2]
-            pos_elo_min = pos_players[-1][2]
-            pos_elo_range = max(pos_elo_max - pos_elo_min, 1)
-            # Gap threshold: 8% of position ELO range, minimum 80 ELO
-            gap_threshold = max(80, pos_elo_range * 0.08)
-        else:
-            gap_threshold = 120
+    def build_ktc_tiers(pos_players):
+        """
+        Group players by KTC tier directly.
+        KTC tiers 1-21 → logical groups of 2-4 adjacent tiers.
+        Groups: 1-2 (elite), 3-5, 6-8, 9-11, 12-14, 15-17, 18+
+        """
+        KTC_GROUPS = [
+            (range(1, 3),  'Elite'),
+            (range(3, 6),  'Premium'),
+            (range(6, 9),  'Strong'),
+            (range(9, 12), 'Solid'),
+            (range(12, 15),'Value'),
+            (range(15, 18),'Late'),
+            (range(18, 25),'Deep'),
+        ]
+
+        tiers = []
+        for group_range, group_label in KTC_GROUPS:
+            group_players = [p for p in pos_players if p[3] in group_range]
+            if not group_players:
+                continue
+            # Sort by KTC tier then by ELO within tier
+            group_players.sort(key=lambda x: (x[3], -x[2]))
+            last = group_players[-1]
+            last_ddl = ddl_rank_map.get(last[0], {})
+            last_adp = last_ddl.get('adp')
+            last_pick = adp_to_pick(last_adp)
+            tiers.append({
+                'tier_num': len(tiers) + 1,
+                'label': group_label,
+                'players': [enrich_player(p[0], p[1], p[2], p[3]) for p in group_players],
+                'count': len(group_players),
+                'break_after': last[0],
+                'last_player': last[0],
+                'last_adp_pick': last_pick,
+                'gap': 0,
+                'is_major': False,
+                'is_moderate': False,
+                'data_source': 'ktc',
+            })
+        return tiers
+
+    def build_elo_tiers(pos_players_raw, pos):
+        """Build tiers from personal ELO gaps. pos_players_raw: (name, rank, elo, ktc_tier)"""
+        pos_players = [(p[0], p[1], p[2]) for p in pos_players_raw]
+
+        pos_elo_max = pos_players[0][2]
+        pos_elo_min = pos_players[-1][2]
+        pos_elo_range = max(pos_elo_max - pos_elo_min, 1)
+        gap_threshold = max(80, pos_elo_range * 0.08)
 
         raw_tiers = []
         current_tier = []
         for i, (name, rank, elo) in enumerate(pos_players):
-            # Enrich with DDL ADP
-            ddl_info = ddl_rank_map.get(name, {})
-            adp = ddl_info.get('adp', None)
-            adp_str = f"{adp:.1f}" if adp else '—'
-            # Convert DDL ADP to startup pick slot
-            if adp:
-                pick_round = int(adp // 12) + 1
-                pick_slot_n = int(adp % 12) + 1
-                adp_pick = f"{pick_round}.{str(pick_slot_n).zfill(2)}"
-            else:
-                adp_pick = '—'
-            current_tier.append({
-                'name': name,
-                'vs_rank': rank,
-                'elo': round(elo),
-                'adp': adp,
-                'adp_pick': adp_pick,
-            })
+            p_data = vs_rank.get(name, {})
+            current_tier.append(enrich_player(name, rank, elo, p_data.get('ktc_tier', 10)))
             if i < len(pos_players) - 1:
-                next_elo = pos_players[i+1][2]
-                gap = elo - next_elo
+                gap = elo - pos_players[i+1][2]
                 if gap >= gap_threshold:
-                    raw_tiers.append({
-                        'players': current_tier.copy(),
-                        'gap': round(gap),
-                        'break_after': name,
-                        'break_adp': adp_pick,
-                    })
+                    raw_tiers.append({'players': current_tier.copy(), 'gap': round(gap),
+                                     'break_after': name, 'gap_threshold': gap_threshold})
                     current_tier = []
         if current_tier:
-            raw_tiers.append({
-                'players': current_tier.copy(),
-                'gap': 0,
-                'break_after': None,
-                'break_adp': None,
-            })
+            raw_tiers.append({'players': current_tier.copy(), 'gap': 0,
+                             'break_after': None, 'gap_threshold': gap_threshold})
 
-        # Step 2: merge single-player tiers into adjacent tiers
-        # A tier with 1 player merges with the next tier unless its gap > 2x threshold (elite singleton OK)
+        # Merge single-player tiers
         merged = []
         i = 0
         while i < len(raw_tiers):
             t = raw_tiers[i]
-            # Merge forward if single-player and not a massive break
             if len(t['players']) == 1 and i + 1 < len(raw_tiers) and t['gap'] < gap_threshold * 2:
                 combined = t['players'] + raw_tiers[i+1]['players']
-                merged.append({
-                    'players': combined,
-                    'gap': raw_tiers[i+1]['gap'],
-                    'break_after': raw_tiers[i+1]['break_after'],
-                    'break_adp': raw_tiers[i+1].get('break_adp'),
-                })
+                merged.append({'players': combined, 'gap': raw_tiers[i+1]['gap'],
+                               'break_after': raw_tiers[i+1]['break_after'],
+                               'gap_threshold': gap_threshold})
                 i += 2
             else:
                 merged.append(t)
                 i += 1
 
-        # Step 3: number the tiers and compute last-player draft slot
         tiers = []
         for ti, t in enumerate(merged):
-            last_player = t['players'][-1]
-            last_adp = last_player.get('adp')
-            if last_adp:
-                last_round = int(last_adp // 12) + 1
-                last_slot = int(last_adp % 12) + 1
-                last_pick = f"{last_round}.{str(last_slot).zfill(2)}"
-            else:
-                last_pick = '—'
-
+            last = t['players'][-1]
             is_major = t['gap'] > gap_threshold * 2
             is_moderate = gap_threshold <= t['gap'] <= gap_threshold * 2
-
             tiers.append({
                 'tier_num': ti + 1,
+                'label': None,
                 'players': t['players'],
                 'count': len(t['players']),
                 'break_after': t['break_after'],
-                'break_adp': t.get('break_adp', last_pick),
-                'last_player': last_player['name'],
-                'last_adp_pick': last_pick,
+                'last_player': last['name'],
+                'last_adp_pick': last['adp_pick'],
                 'gap': t['gap'],
                 'is_major': is_major,
                 'is_moderate': is_moderate,
+                'data_source': 'personal',
             })
+        return tiers
 
-        tier_data[pos] = tiers
+    # Build tiers per position
+    positions = ['QB', 'RB', 'WR', 'TE']
+    tier_data = {}
+    comp_counts = {}
 
-    # Trade targets: compare VS rank vs DDL ADP rank (primary) and KTC rank (secondary)
+    for pos in positions:
+        # (name, vs_rank, elo, ktc_tier)
+        pos_players = [
+            (name, d['rank'], d['elo'], d['ktc_tier'])
+            for name, d in vs_rank.items() if d['pos'] == pos
+        ]
+        if len(pos_players) < 2:
+            continue
+
+        # Count total comparisons for this position
+        total_comps = sum(vs_rank[p[0]]['comparisons'] for p in pos_players)
+        comp_counts[pos] = total_comps
+
+        # Threshold: 10 comparisons per position player on average (so ~10*n total)
+        # Simpler: just use total > 20 as minimum meaningful signal
+        has_enough_data = total_comps >= 20
+
+        pos_players.sort(key=lambda x: x[1])  # sort by vs_rank
+
+        if has_enough_data:
+            tier_data[pos] = build_elo_tiers(pos_players, pos)
+        else:
+            tier_data[pos] = build_ktc_tiers(pos_players)
+
+    # Trade targets (unchanged)
     trade_targets = []
     for name, vd in vs_rank.items():
         if vd['rank'] > 150:
             continue
-
         my_rank = vd['rank']
         market_rank = None
         market_source = None
         adp_float = None
 
-        # Prefer DDL ADP as market benchmark (most accurate for startup)
         if name in ddl_rank_map:
             market_rank = ddl_rank_map[name]['rank']
             adp_float = ddl_rank_map[name]['adp']
@@ -2016,44 +2054,25 @@ def get_tiers():
         if not market_rank:
             continue
 
-        delta = market_rank - my_rank  # positive = I rank higher than market
-
+        delta = market_rank - my_rank
         if abs(delta) < 10:
             continue
 
-        if delta >= 30:
-            signal = 'STRONG BUY'
-        elif delta >= 15:
-            signal = 'BUY'
-        elif delta >= 10:
-            signal = 'SLIGHT BUY'
-        elif delta <= -30:
-            signal = 'STRONG SELL'
-        elif delta <= -15:
-            signal = 'SELL'
-        else:
-            signal = 'SLIGHT SELL'
+        if delta >= 30: signal = 'STRONG BUY'
+        elif delta >= 15: signal = 'BUY'
+        elif delta >= 10: signal = 'SLIGHT BUY'
+        elif delta <= -30: signal = 'STRONG SELL'
+        elif delta <= -15: signal = 'SELL'
+        else: signal = 'SLIGHT SELL'
 
-        # Estimate draft pick from DDL ADP
-        if adp_float:
-            est_pick_round = int(adp_float // 12) + 1
-            est_pick_slot = int(adp_float % 12) + 1
-            est_draft_pick = f"{est_pick_round}.{str(est_pick_slot).zfill(2)}"
-        else:
-            est_draft_pick = f"{(market_rank//12)+1}.{str((market_rank%12)+1).zfill(2)}"
+        est_draft_pick = adp_to_pick(adp_float) if adp_float else adp_to_pick(market_rank)
 
         trade_targets.append({
-            'name': name,
-            'position': vd['pos'],
-            'my_rank': my_rank,
-            'market_rank': market_rank,
-            'market_source': market_source,
-            'adp': adp_float,
-            'delta': delta,
-            'signal': signal,
-            'est_draft_pick': est_draft_pick,
-            'note': f"Market goes at ~{est_draft_pick} ({market_source} ADP {adp_float or market_rank})" if delta > 0
-                   else f"Market values higher — slides to ~{est_draft_pick}",
+            'name': name, 'position': vd['pos'],
+            'my_rank': my_rank, 'market_rank': market_rank,
+            'market_source': market_source, 'adp': adp_float,
+            'delta': delta, 'signal': signal, 'est_draft_pick': est_draft_pick,
+            'note': f"Market ~{est_draft_pick}" if delta > 0 else f"Slides to ~{est_draft_pick}",
         })
 
     trade_targets.sort(key=lambda x: abs(x['delta']), reverse=True)
@@ -2061,6 +2080,7 @@ def get_tiers():
     return jsonify({
         "tiers": tier_data,
         "trade_targets": trade_targets[:40],
+        "comp_counts": comp_counts,
         "sources_available": (['ktc'] if has_ktc else []) + (['ddl'] if has_ddl else []),
         "ktc_count": len(ktc_rank_map),
         "ddl_count": len(ddl_rank_map),
