@@ -610,7 +610,6 @@ document.querySelectorAll('.ni').forEach(btn => {
 });
 
 // ── HOME ──
-document.getElementById('home-date').textContent = new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
 
 function renderStaticHome(d) {
   let html = '<div class="sec"><div class="sec-title">📋 League Snapshot</div>';
@@ -2018,6 +2017,59 @@ function analyzePicks() {
     '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px;"><span style="color:var(--t2);">Execute?</span><span style="color:' + (execute?'var(--gn)':'var(--rd)') + ';font-weight:700;">' + (execute?'✓ YES':'✗ NO — negotiate') + '</span></div>' +
     '<div style="font-size:10px;color:var(--t2);margin-top:6px;">Give: ' + g.detail.join(', ') + '<br>Get: ' + rec.detail.join(', ') + '</div></div>';
 }
+
+// ── DRAFT TAB LISTENERS ──
+document.querySelectorAll('.draft-tab').forEach(tab => {
+  tab.addEventListener('click', function() {
+    document.querySelectorAll('.draft-tab').forEach(t => t.classList.remove('active'));
+    this.classList.add('active');
+    renderDraftContent(this.dataset.dtab);
+  });
+});
+
+// ── TRADE LISTENERS ──
+document.getElementById('giving-add-btn').addEventListener('click', () => addAsset('giving'));
+document.getElementById('receiving-add-btn').addEventListener('click', () => addAsset('receiving'));
+document.getElementById('giving-inp').addEventListener('keydown', e => { if(e.key==='Enter') addAsset('giving'); });
+document.getElementById('receiving-inp').addEventListener('keydown', e => { if(e.key==='Enter') addAsset('receiving'); });
+document.getElementById('eval-btn').addEventListener('click', async function() {
+  if (!givingAssets.length && !receivingAssets.length) { alert('Add assets to evaluate.'); return; }
+  const league = document.getElementById('trade-league').value;
+  document.getElementById('trade-result').innerHTML = '<div class="spin-wrap"><div class="spin"></div><div class="spin-txt">EVALUATING...</div></div>';
+  try {
+    const r = await fetch('/api/trade/evaluate',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({league,giving:givingAssets,receiving:receivingAssets})});
+    const d = await r.json();
+    if (d.success) renderTradeResult(d.result);
+    else document.getElementById('trade-result').innerHTML = '<div style="color:var(--rd);font-size:13px;">Error: ' + (d.error||'Unknown') + '</div>';
+  } catch(e) { document.getElementById('trade-result').innerHTML = '<div style="color:var(--rd);">Connection error.</div>'; }
+});
+
+// ── MODAL LISTENERS ──
+document.getElementById('profile-modal').addEventListener('click', function(e) {
+  if (e.target === this) this.classList.remove('open');
+});
+document.getElementById('ctx-modal').addEventListener('click', function(e) {
+  if (e.target === this) this.classList.remove('open');
+});
+document.getElementById('ctx-cancel-btn').addEventListener('click', function() {
+  document.getElementById('ctx-modal').classList.remove('open');
+});
+document.getElementById('ctx-submit-btn').addEventListener('click', function() {
+  const text = document.getElementById('ctx-ta').value.trim();
+  if (!text) return;
+  document.getElementById('ctx-modal').classList.remove('open');
+  document.querySelectorAll('.ni').forEach(n => n.classList.remove('active'));
+  document.querySelector('[data-page="chat"]').classList.add('active');
+  document.querySelectorAll('.page').forEach(p => { p.classList.remove('active'); p.style.display='none'; });
+  const chatEl = document.getElementById('page-chat');
+  chatEl.style.display = 'flex'; chatEl.classList.add('active');
+  document.getElementById('chat-ta').value = 'Please update your context: ' + text;
+  sendChat();
+});
+
+// ── HOME DATE (live) ──
+document.getElementById('home-date').textContent = new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
 
 // ── INIT ──
 loadStaticHome();
