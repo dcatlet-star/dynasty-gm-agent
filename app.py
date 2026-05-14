@@ -1,16 +1,16 @@
 from flask import Flask, request, jsonify, send_from_directory
 import anthropic
 import os
+import re
 import json
 import sqlite3
-import os
-
-DB_PATH = os.environ.get('DB_PATH', '/data/dynasty.db')
-# Falls back to local dynasty.db if /data doesn't exist (local dev)
-if not os.path.exists('/data'):
-    DB_PATH = 'dynasty.db'
 from datetime import datetime, timedelta
 import requests
+import random
+
+DB_PATH = os.environ.get('DB_PATH', '/data/dynasty.db')
+if not os.path.exists('/data'):
+    DB_PATH = 'dynasty.db'
 
 app = Flask(__name__, static_folder='static')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
@@ -940,7 +940,6 @@ def get_ranking_pair():
             if elo >= 800: return 6
             return 7
 
-    import random
 
     # Position-filtered pools are smaller — relax tier constraints
     is_filtered = position_filter != 'ALL'
@@ -1583,7 +1582,6 @@ def get_vs_pair():
             if elo >= 800: return 6
             return 7
 
-    import random
     is_filtered = position_filter != 'ALL'
     pool = sorted(players, key=lambda x: x['comparisons'])
     p1 = pool[random.randint(0, min(9, len(pool)-1))]
@@ -1725,7 +1723,6 @@ def paste_market_data():
     if not source or not raw_text:
         return jsonify({"success": False, "error": "source and text required"})
 
-    import re
     players_parsed = []
 
     if source == 'ktc':
@@ -1861,10 +1858,9 @@ def get_tiers():
     - avg >= 5 comps per player: personal ELO tiers
     DDL ADP used for draft slot context with fuzzy name matching.
     """
-    import re as _re
 
     def normalize(name):
-        return _re.sub(r"[^a-z0-9]", "", name.lower())
+        return re.sub(r"[^a-z0-9]", "", name.lower())
 
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -2554,7 +2550,6 @@ def seed_ktc_tiers():
         return 17
 
     def normalize(name):
-        import re
         return re.sub(r"[^a-z0-9]", "", name.lower())
 
     # Build normalized lookup
