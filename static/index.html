@@ -1063,41 +1063,84 @@ function renderCompositeList(tab) {
   });
 }
 
+let boundaryMode = false;  // toggle between random and boundary training
+let vsBoundaryMode = false;
+
 async function renderMatchup(el) {
   el.innerHTML = '<div class="spin-wrap"><div class="spin"></div></div>';
-  // Position filter buttons
   const posHtml = ['ALL','QB','RB','WR','TE'].map(p => {
     const active = p === matchupPosFilter ? ' active' : '';
     return '<button class="chip' + active + '" data-mpos="' + p + '">' + p + '</button>';
   }).join('');
+  const modeHtml =
+    '<div style="display:flex;gap:6px;align-items:center;margin-bottom:8px;">' +
+    '<button class="chip' + (!boundaryMode?' active':'') + '" id="mode-random">🎲 Random</button>' +
+    '<button class="chip' + (boundaryMode?' active':'') + '" id="mode-boundary" style="' + (boundaryMode?'background:rgba(240,192,64,.15);border-color:var(--gd);color:var(--gd);':'') + '">🎯 Boundary Training</button>' +
+    (boundaryMode ? '<span style="font-size:10px;color:var(--gd);">Calibrates tier edges in ~30 comparisons</span>' : '') +
+    '</div>';
+
   try {
-    const r = await fetch('/api/rankings/pair?position=' + matchupPosFilter);
+    const url = boundaryMode
+      ? '/api/rankings/boundary_pair?position=' + matchupPosFilter + '&pool=standard'
+      : '/api/rankings/pair?position=' + matchupPosFilter;
+    const r = await fetch(url);
     const d = await r.json();
-    if (!d.success || d.players.length < 2) {
-      el.innerHTML = '<div style="display:flex;gap:5px;margin-bottom:10px;flex-wrap:wrap;">' + posHtml + '</div><div class="empty">Not enough players. Go to Manage tab to reset the pool.</div>';
+
+    if (!d.success || !d.players || d.players.length < 2) {
+      el.innerHTML = modeHtml + '<div style="display:flex;gap:5px;margin-bottom:8px;flex-wrap:wrap;">' + posHtml + '</div>' +
+        '<div class="empty">' + (d.error || 'Not enough players. Go to Manage → Reset Pool or Refresh KTC Tiers.') + '</div>';
       attachMPosButtons(el);
+      attachModeButtons(el, 'standard');
       return;
     }
-    const [p1,p2] = d.players;
-    currentMatchupPlayers = [p1,p2];
-    const prog = Math.min((totalComparisons/100)*100,100);
-    const p1c = 'p' + (p1.position||'WR');
-    const p2c = 'p' + (p2.position||'WR');
-    el.innerHTML = '<div style="display:flex;gap:5px;margin-bottom:10px;flex-wrap:wrap;">' + posHtml + '</div>' +
+
+    const [p1, p2] = d.players;
+    currentMatchupPlayers = [p1, p2];
+    const prog = Math.min((totalComparisons / 100) * 100, 100);
+    const p1c = 'p' + (p1.position || 'WR');
+    const p2c = 'p' + (p2.position || 'WR');
+
+    // Boundary context banner
+    const boundaryBanner = (boundaryMode && d.boundary) ?
+      '<div style="background:rgba(240,192,64,.08);border:1px solid rgba(240,192,64,.2);border-radius:8px;padding:8px 10px;margin-bottom:10px;">' +
+      '<div style="font-size:10px;font-weight:700;color:var(--gd);margin-bottom:2px;">🎯 BOUNDARY: ' + d.boundary + '</div>' +
+      '<div style="font-size:11px;color:var(--t2);">' + (d.boundary_context || '') + '</div>' +
+      '<div style="font-size:10px;color:var(--t2);margin-top:4px;">' +
+      '<div style="height:3px;background:var(--b1);border-radius:2px;margin-top:4px;"><div style="height:100%;width:' + (d.pct_done||0) + '%;background:var(--gd);border-radius:2px;"></div></div>' +
+      d.calibrated_boundaries + '/' + d.total_boundaries + ' boundaries calibrated' +
+      '</div></div>' : '';
+
+    el.innerHTML =
+      modeHtml +
+      '<div style="display:flex;gap:5px;margin-bottom:8px;flex-wrap:wrap;">' + posHtml + '</div>' +
+      boundaryBanner +
       '<div class="matchup-card">' +
-      '<div style="font-family:\'Bebas Neue\';font-size:12px;letter-spacing:2px;color:var(--t2);margin-bottom:12px;">WHO WOULD YOU RATHER HAVE?</div>' +
+      '<div style="font-family:\'Bebas Neue\';font-size:12px;letter-spacing:2px;color:var(--t2);margin-bottom:10px;">' +
+      (boundaryMode ? 'WHICH BELONGS IN THE HIGHER TIER?' : 'WHO WOULD YOU RATHER HAVE?') + '</div>' +
       '<div class="matchup-vs">' +
-      '<div class="mp-player" id="mp-left"><span class="pos-badge ' + p1c + '" style="font-size:9px;">' + (p1.position||'?') + '</span><div class="mp-name">' + p1.name + '</div><div class="mp-sub">' + (p1.team||'') + '</div><div class="mp-sub">ELO ' + Math.round(p1.elo) + '</div></div>' +
+      '<div class="mp-player" id="mp-left">' +
+      '<span class="pos-badge ' + p1c + '" style="font-size:9px;">' + (p1.position||'?') + '</span>' +
+      (boundaryMode && p1.ktc_tier ? '<div style="font-size:9px;color:var(--gd);font-weight:700;margin-top:2px;">KTC T' + p1.ktc_tier + '</div>' : '') +
+      '<div class="mp-name">' + p1.name + '</div>' +
+      '<div class="mp-sub">' + (p1.team||'') + '</div>' +
+      '<div class="mp-sub">ELO ' + Math.round(p1.elo) + '</div></div>' +
       '<div class="vs">VS</div>' +
-      '<div class="mp-player" id="mp-right"><span class="pos-badge ' + p2c + '" style="font-size:9px;">' + (p2.position||'?') + '</span><div class="mp-name">' + p2.name + '</div><div class="mp-sub">' + (p2.team||'') + '</div><div class="mp-sub">ELO ' + Math.round(p2.elo) + '</div></div>' +
+      '<div class="mp-player" id="mp-right">' +
+      '<span class="pos-badge ' + p2c + '" style="font-size:9px;">' + (p2.position||'?') + '</span>' +
+      (boundaryMode && p2.ktc_tier ? '<div style="font-size:9px;color:var(--gd);font-weight:700;margin-top:2px;">KTC T' + p2.ktc_tier + '</div>' : '') +
+      '<div class="mp-name">' + p2.name + '</div>' +
+      '<div class="mp-sub">' + (p2.team||'') + '</div>' +
+      '<div class="mp-sub">ELO ' + Math.round(p2.elo) + '</div></div>' +
       '</div>' +
-      '<div class="prog-lbl">' + totalComparisons + ' comparisons · ' + Math.round(prog) + '% to reliable rankings</div>' +
+      '<div class="prog-lbl">' + totalComparisons + ' total comparisons</div>' +
       '<div class="prog-bar"><div class="prog-fill" style="width:' + prog + '%"></div></div>' +
       '<div style="display:flex;gap:8px;margin-top:10px;">' +
       '<button class="btn btn-g btn-sm" id="skip-matchup-btn" style="flex:1;">Skip →</button>' +
       '<button class="btn btn-s btn-sm" id="manage-pool-btn" style="flex:1;">Manage Pool</button>' +
       '</div></div>';
+
     attachMPosButtons(el);
+    attachModeButtons(el, 'standard');
     document.getElementById('mp-left').addEventListener('click', () => voteMatchup(0));
     document.getElementById('mp-right').addEventListener('click', () => voteMatchup(1));
     document.getElementById('skip-matchup-btn').addEventListener('click', () => renderMatchup(el));
@@ -1107,7 +1150,8 @@ async function renderMatchup(el) {
       renderManage(el);
     });
   } catch(e) {
-    el.innerHTML = '<div class="empty">Error loading matchup.</div>';
+    el.innerHTML = modeHtml + '<div class="empty">Error loading matchup. Try Refresh KTC Tiers in Manage tab.</div>';
+    attachModeButtons(el, 'standard');
   }
 }
 
@@ -1120,12 +1164,25 @@ function attachMPosButtons(el) {
   });
 }
 
+function attachModeButtons(el, pool) {
+  const randBtn = document.getElementById('mode-random');
+  const boundBtn = document.getElementById('mode-boundary');
+  if (randBtn) randBtn.addEventListener('click', function() {
+    if (pool === 'vs') { vsBoundaryMode = false; renderVSMatchup(el); }
+    else { boundaryMode = false; renderMatchup(el); }
+  });
+  if (boundBtn) boundBtn.addEventListener('click', function() {
+    if (pool === 'vs') { vsBoundaryMode = true; renderVSMatchup(el); }
+    else { boundaryMode = true; renderMatchup(el); }
+  });
+}
+
 async function voteMatchup(idx) {
   if (currentMatchupPlayers.length < 2) return;
   const winner = currentMatchupPlayers[idx].name;
   const loser = currentMatchupPlayers[1-idx].name;
   totalComparisons++;
-  await fetch('/api/rankings/vote', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({winner,loser})});
+  await fetch('/api/rankings/vote', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({winner, loser})});
   await renderMatchup(document.getElementById('rank-content'));
 }
 
@@ -1915,32 +1972,56 @@ function renderVSRankings(el) {
 
 async function renderVSMatchup(el) {
   el.innerHTML = '<div class="spin-wrap"><div class="spin"></div></div>';
+  const modeHtml =
+    '<div style="display:flex;gap:6px;align-items:center;margin-bottom:8px;">' +
+    '<button class="chip' + (!vsBoundaryMode?' active':'') + '" id="mode-random">🎲 Random</button>' +
+    '<button class="chip' + (vsBoundaryMode?' active':'') + '" id="mode-boundary" style="' + (vsBoundaryMode?'background:rgba(240,192,64,.15);border-color:var(--gd);color:var(--gd);':'') + '">🎯 Boundary Training</button>' +
+    (vsBoundaryMode ? '<span style="font-size:10px;color:var(--gd);align-self:center;">~30 comps to calibrate</span>' : '') +
+    '</div>';
   try {
-    const r = await fetch('/api/vs/pair?position=' + vsPosFilt);
+    const url = vsBoundaryMode
+      ? '/api/rankings/boundary_pair?position=' + vsPosFilt + '&pool=vs'
+      : '/api/vs/pair?position=' + vsPosFilt;
+    const r = await fetch(url);
     const d = await r.json();
-    if (!d.success || d.players.length < 2) {
-      el.innerHTML = '<div class="empty">Not enough players. Go to Manage to reset.</div>'; return;
+    if (!d.success || !d.players || d.players.length < 2) {
+      el.innerHTML = modeHtml + '<div class="empty">' + (d.error || 'Not enough players. Run Refresh KTC Tiers in Manage.') + '</div>';
+      attachModeButtons(el, 'vs'); return;
     }
     const [p1,p2] = d.players;
     vsMatchupPlayers = [p1,p2];
     const prog = Math.min((vsTotalComps/100)*100, 100);
-    el.innerHTML =
+    const boundaryBanner = (vsBoundaryMode && d.boundary) ?
+      '<div style="background:rgba(240,192,64,.08);border:1px solid rgba(240,192,64,.2);border-radius:8px;padding:8px 10px;margin-bottom:10px;">' +
+      '<div style="font-size:10px;font-weight:700;color:var(--gd);">🎯 BOUNDARY: ' + d.boundary + '</div>' +
+      '<div style="font-size:11px;color:var(--t2);">' + (d.boundary_context||'') + '</div>' +
+      '<div style="height:3px;background:var(--b1);border-radius:2px;margin-top:6px;"><div style="height:100%;width:' + (d.pct_done||0) + '%;background:var(--gd);border-radius:2px;"></div></div>' +
+      '<div style="font-size:9px;color:var(--t2);margin-top:2px;">' + (d.calibrated_boundaries||0) + '/' + (d.total_boundaries||0) + ' boundaries calibrated</div></div>' : '';
+    el.innerHTML = modeHtml + boundaryBanner +
       '<div class="matchup-card">' +
-      '<div style="font-family:\'Bebas Neue\';font-size:11px;letter-spacing:2px;color:var(--gd);margin-bottom:10px;">6PT TD · WHO WOULD YOU RATHER DRAFT?</div>' +
+      '<div style="font-family:\"Bebas Neue\";font-size:11px;letter-spacing:2px;color:var(--gd);margin-bottom:10px;">' +
+      (vsBoundaryMode ? 'WHICH BELONGS IN THE HIGHER TIER? (6PT TD)' : '6PT TD — WHO WOULD YOU RATHER DRAFT?') + '</div>' +
       '<div class="matchup-vs">' +
-      '<div class="mp-player" id="vsmp-left"><span class="pos-badge p' + (p1.position||'WR') + '" style="font-size:9px;">' + (p1.position||'?') + '</span><div class="mp-name">' + p1.name + '</div><div class="mp-sub">' + (p1.team||'') + '</div><div class="mp-sub" style="color:var(--gd);">ELO ' + Math.round(p1.elo) + '</div></div>' +
+      '<div class="mp-player" id="vsmp-left"><span class="pos-badge p' + (p1.position||'WR') + '" style="font-size:9px;">' + (p1.position||'?') + '</span>' +
+      (vsBoundaryMode && p1.ktc_tier ? '<div style="font-size:9px;color:var(--gd);font-weight:700;">KTC T' + p1.ktc_tier + '</div>' : '') +
+      '<div class="mp-name">' + p1.name + '</div><div class="mp-sub">' + (p1.team||'') + '</div><div class="mp-sub" style="color:var(--gd);">ELO ' + Math.round(p1.elo) + '</div></div>' +
       '<div class="vs">VS</div>' +
-      '<div class="mp-player" id="vsmp-right"><span class="pos-badge p' + (p2.position||'WR') + '" style="font-size:9px;">' + (p2.position||'?') + '</span><div class="mp-name">' + p2.name + '</div><div class="mp-sub">' + (p2.team||'') + '</div><div class="mp-sub" style="color:var(--gd);">ELO ' + Math.round(p2.elo) + '</div></div>' +
+      '<div class="mp-player" id="vsmp-right"><span class="pos-badge p' + (p2.position||'WR') + '" style="font-size:9px;">' + (p2.position||'?') + '</span>' +
+      (vsBoundaryMode && p2.ktc_tier ? '<div style="font-size:9px;color:var(--gd);font-weight:700;">KTC T' + p2.ktc_tier + '</div>' : '') +
+      '<div class="mp-name">' + p2.name + '</div><div class="mp-sub">' + (p2.team||'') + '</div><div class="mp-sub" style="color:var(--gd);">ELO ' + Math.round(p2.elo) + '</div></div>' +
       '</div>' +
-      '<div class="prog-lbl">' + vsTotalComps + ' comparisons · ' + Math.round(prog) + '% to reliable board</div>' +
+      '<div class="prog-lbl">' + vsTotalComps + ' VS comparisons</div>' +
       '<div class="prog-bar"><div class="prog-fill" style="width:' + prog + '%;background:linear-gradient(90deg,var(--gd),var(--ac));"></div></div>' +
-      '<button class="btn btn-g btn-sm" id="vs-skip-btn" style="width:100%;margin-top:8px;">Skip →</button></div>';
+      '<button class="btn btn-g btn-sm" id="vs-skip-btn" style="width:100%;margin-top:8px;">Skip &#8594;</button></div>';
+    attachModeButtons(el, 'vs');
     document.getElementById('vsmp-left').addEventListener('click', () => castVSVote(0, el));
     document.getElementById('vsmp-right').addEventListener('click', () => castVSVote(1, el));
     document.getElementById('vs-skip-btn').addEventListener('click', () => renderVSMatchup(el));
-  } catch(e) { el.innerHTML = '<div class="empty">Error loading matchup.</div>'; }
+  } catch(e) {
+    el.innerHTML = modeHtml + '<div class="empty">Error loading matchup.</div>';
+    attachModeButtons(el, 'vs');
+  }
 }
-
 async function castVSVote(idx, el) {
   if (vsMatchupPlayers.length < 2) return;
   const winner = vsMatchupPlayers[idx].name;
