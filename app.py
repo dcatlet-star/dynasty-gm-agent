@@ -939,7 +939,108 @@ def get_ranking_pair():
     return jsonify({"players": [p1, p2], "success": True,
                    "tiers": [p1_tier, get_comp_tier(p2)]})
 
-@app.route('/api/rankings/vote', methods=['POST'])
+@app.route('/api/rankings/boundary_pair', methods=['GET'])
+def get_boundary_pair():
+    """
+    Boundary Training mode: serves comparisons specifically designed
+    to calibrate tier break points. Always pairs one player from the
+    bottom of a tier with one from the top of the adjacent tier.
+    
+    Strategy:
+    - Find all KTC tier boundaries (e.g. T3/T4, T6/T7, T7/T8)
+    - Pick a boundary that has the least comparison data
+    - Return one player from each side of that boundary
+    - After ~3-5 votes per boundary, that break point is calibrated
+    
+    With 8 meaningful tier boundaries and 4 votes each = 32 comparisons
+    to get accurate personal tiers.
+    """
+    position_filter = request.args.get('position', 'ALL')
+    pool_type = request.args.get('pool', 'standard')  # 'standard' or 'vs'
+    table = 'vs_rankings' if pool_type == 'vs' else 'player_rankings'
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+
+    if position_filter != 'ALL':
+        c.execute(f"""SELECT player_name, position, team, elo_score, comparisons, COALESCE(ktc_tier, 10)
+                    FROM {table} WHERE position=? AND ktc_tier IS NOT NULL
+                    ORDER BY ktc_tier ASC, elo_score DESC""", (position_filter,))
+    else:
+        c.execute(f"""SELECT player_name, position, team, elo_score, comparisons, COALESCE(ktc_tier, 10)
+                    FROM {table} WHERE ktc_tier IS NOT NULL
+                    ORDER BY ktc_tier ASC, elo_score DESC""")
+
+    rows = c.fetchall()
+    conn.close()
+
+    if len(rows) < 4:
+        return jsonify({"players": [], "success": False,
+                       "error": "Not enough players with KTC tier data. Run Refresh KTC Tiers first."})
+
+    # Group players by KTC tier
+    from collections import defaultdict
+    tier_groups = defaultdict(list)
+    for name, pos, team, elo, comps, kt in rows:
+        tier_groups[kt].append({
+            "name": name, "position": pos, "team": team,
+            "elo": elo, "comparisons": comps, "ktc_tier": kt
+        })
+
+    # Find all adjacent tier boundaries that have players on both sides
+    sorted_tiers = sorted(tier_groups.keys())
+    boundaries = []
+    for i in range(len(sorted_tiers) - 1):
+        t_low = sorted_tiers[i]
+        t_high = sorted_tiers[i + 1]
+        low_players = tier_groups[t_low]
+        high_players = tier_groups[t_high]
+        if not low_players or not high_players:
+            continue
+        # Boundary "hardness": avg comparisons of players at this boundary
+        # Pick players at the boundary edge (worst of lower tier, best of upper tier)
+        # Sort: lower tier players by ELO ascending (weakest last in tier)
+        # Upper tier players by ELO descending (strongest first in tier)
+        low_edge = sorted(low_players, key=lambda x: x['elo'])[:3]   # bottom of lower tier
+        high_edge = sorted(high_players, key=lambda x: -x['elo'])[:3]  # top of upper tier
+        avg_comps = sum(p['comparisons'] for p in low_edge + high_edge) / max(len(low_edge + high_edge), 1)
+        boundaries.append({
+            'tier_low': t_low,
+            'tier_high': t_high,
+            'low_edge': low_edge,
+            'high_edge': high_edge,
+            'avg_comps': avg_comps,
+            'boundary_label': f"KTC T{t_low} / T{t_high}",
+        })
+
+    if not boundaries:
+        return jsonify({"players": [], "success": False, "error": "No tier boundaries found"})
+
+    # Pick the boundary with fewest comparisons (most needs calibration)
+    # Add slight randomness so we don't always pick same boundary
+    boundaries.sort(key=lambda b: b['avg_comps'] + random.uniform(0, 2))
+    chosen = boundaries[0]
+
+    # Pick one player from each side
+    p_low = random.choice(chosen['low_edge'])
+    p_high = random.choice(chosen['high_edge'])
+
+    # Count remaining boundaries that need work (avg < 5 comps)
+    uncalibrated = sum(1 for b in boundaries if b['avg_comps'] < 5)
+    total_boundaries = len(boundaries)
+    calibrated = total_boundaries - uncalibrated
+
+    return jsonify({
+        "players": [p_low, p_high],
+        "success": True,
+        "boundary": chosen['boundary_label'],
+        "boundary_context": f"Is the bottom of KTC T{chosen['tier_low']} better or worse than the top of KTC T{chosen['tier_high']}?",
+        "calibrated_boundaries": calibrated,
+        "total_boundaries": total_boundaries,
+        "pct_done": round(calibrated / total_boundaries * 100) if total_boundaries else 0,
+    })
+
+
 def vote_ranking():
     """Record comparison vote and update ELO"""
     data = request.json
@@ -3085,6 +3186,72 @@ Be decisive. One clear pick first. Mobile-friendly format."""
                        "my_next_picks": my_next_picks})
     except Exception as e:
         return jsonify({"error": str(e), "success": False})
+
+@app.route('/api/trade/evaluate', methods=['POST'])
+def trade_evaluate():
+    """Evaluate a trade using Claude with full league context and KTC values"""
+    data = request.json
+    league = data.get('league', '')
+    giving = data.get('giving', [])
+    receiving = data.get('receiving', [])
+
+    if not giving and not receiving:
+        return jsonify({"success": False, "error": "No assets provided"})
+
+    # Look up KTC values for mentioned players
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    ktc_context = {}
+    for asset in giving + receiving:
+        norm = re.sub(r"[^a-z0-9]", "", asset.lower())
+        c.execute("SELECT player_name, value FROM market_data WHERE source='ktc' ORDER BY rank LIMIT 200")
+        all_ktc = c.fetchall()
+        for name, val in all_ktc:
+            if re.sub(r"[^a-z0-9]", "", name.lower()) == norm:
+                ktc_context[asset] = val
+                break
+    conn.close()
+
+    ktc_str = "\n".join([f"  {k}: {v:,}" for k, v in ktc_context.items()]) if ktc_context else "  (No KTC data found — use your judgment)"
+
+    prompt = f"""Evaluate this dynasty fantasy football trade for {league}.
+
+GIVING: {', '.join(giving)}
+RECEIVING: {', '.join(receiving)}
+
+KTC VALUES (SuperFlex+TE):
+{ktc_str}
+
+Provide:
+1. VERDICT: ACCEPT / DECLINE / COUNTER
+2. value_giving: total KTC value of assets given
+3. value_receiving: total KTC value of assets received  
+4. surplus_pct: percentage surplus (positive = receiving more)
+5. analysis: 2-3 sentences on the deal
+6. my_perspective: how this fits MJBrutus's roster/strategy
+7. their_perspective: why the other side takes this
+8. trade_message: under 20 words to send the offer
+9. counter: if declining, what counter to propose
+
+Respond as JSON only. No markdown, no preamble."""
+
+    try:
+        response = client.messages.create(
+            model="claude-sonnet-4-5",
+            max_tokens=800,
+            system=SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        text = response.content[0].text.strip()
+        start = text.find('{')
+        end = text.rfind('}') + 1
+        if start >= 0 and end > start:
+            result = json.loads(text[start:end])
+            return jsonify({"success": True, "result": result})
+        return jsonify({"success": False, "error": "Could not parse response"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
 
 @app.route('/api/trade/analyze_negotiation', methods=['POST'])
 def analyze_negotiation():
