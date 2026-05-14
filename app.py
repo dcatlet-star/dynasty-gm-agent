@@ -872,16 +872,23 @@ def get_player_profile():
 
 @app.route('/api/rankings/reset', methods=['POST'])
 def reset_rankings():
-    """Reset all rankings and re-seed with full player list"""
+    """Reset all rankings and re-seed with full player list + KTC tiers"""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("DELETE FROM player_rankings")
     conn.commit()
     conn.close()
     seed_players()
-    return jsonify({"success": True, "message": f"Rankings reset with {len(DEFAULT_PLAYERS)} players"})
+    seed_ktc_tiers()
+    return jsonify({"success": True, "message": f"Rankings reset with {len(DEFAULT_PLAYERS)} players and KTC tiers applied"})
 
-@app.route('/api/rankings/pair', methods=['GET'])
+@app.route('/api/rankings/refresh_tiers', methods=['POST'])
+def refresh_ktc_tiers():
+    """Re-run KTC tier seeding on existing rankings without wiping comparison history"""
+    seed_ktc_tiers()
+    return jsonify({"success": True, "message": "KTC tiers refreshed on all players"})
+
+
 def get_ranking_pair():
     """
     Proximity-based matchup using hybrid tier system:
@@ -1849,11 +1856,245 @@ def get_market_data():
 @app.route('/api/tiers', methods=['GET'])
 def get_tiers():
     """
-    Compute positional tier breaks per position.
-    - < 10 comparisons for a position: use KTC tier groupings (labeled 'KTC baseline')
-    - >= 10 comparisons: use personal ELO gaps (labeled 'Personal')
-    DDL ADP used for draft slot context throughout.
+    Positional tier breaks.
+    - avg < 5 comps per player in position: KTC tier baseline
+    - avg >= 5 comps per player: personal ELO tiers
+    DDL ADP used for draft slot context with fuzzy name matching.
     """
+    import re as _re
+
+    def normalize(name):
+        return _re.sub(r"[^a-z0-9]", "", name.lower())
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+
+    c.execute("""SELECT player_name, position, elo_score, comparisons, COALESCE(ktc_tier, 10)
+                FROM vs_rankings ORDER BY elo_score DESC LIMIT 300""")
+    vs_rows = c.fetchall()
+    vs_rank = {r[0]: {
+        'rank': i+1, 'pos': r[1], 'elo': r[2],
+        'comparisons': r[3], 'ktc_tier': r[4]
+    } for i, r in enumerate(vs_rows)}
+
+    c.execute("SELECT player_name, rank, value FROM market_data WHERE source='ktc' ORDER BY rank")
+    ktc_rank_map = {normalize(r[0]): {'rank': r[1], 'value': r[2], 'name': r[0]} for r in c.fetchall()}
+
+    c.execute("SELECT player_name, rank, team FROM market_data WHERE source='ddl' ORDER BY rank")
+    ddl_raw = c.fetchall()
+    conn.close()
+
+    # Build DDL with fuzzy key
+    ddl_rank_map = {}
+    for name, rank, adp_str in ddl_raw:
+        try:
+            adp = float(adp_str)
+        except:
+            adp = float(rank)
+        ddl_rank_map[normalize(name)] = {'rank': rank, 'adp': adp, 'name': name}
+
+    has_ktc = len(ktc_rank_map) > 10
+    has_ddl = len(ddl_rank_map) > 10
+
+    def adp_to_pick(adp):
+        if not adp:
+            return '—'
+        r = int(adp // 12) + 1
+        s = int(adp % 12) + 1
+        return f"{r}.{str(s).zfill(2)}"
+
+    def get_ddl(player_name):
+        key = normalize(player_name)
+        return ddl_rank_map.get(key, {})
+
+    def enrich(name, rank, elo, ktc_tier):
+        ddl = get_ddl(name)
+        adp = ddl.get('adp')
+        return {
+            'name': name,
+            'vs_rank': rank,
+            'elo': round(elo),
+            'ktc_tier': ktc_tier,
+            'adp': adp,
+            'adp_pick': adp_to_pick(adp),
+        }
+
+    def build_ktc_tiers(pos_players):
+        """Group by KTC tier bands. pos_players: (name, rank, elo, ktc_tier)"""
+        # Sort by ktc_tier then ELO within tier
+        pos_players = sorted(pos_players, key=lambda x: (x[3], -x[2]))
+
+        # Group consecutive players with same or adjacent ktc_tier into logical bands
+        # Band boundaries at tier jumps of 3+
+        bands = []
+        current_band = [pos_players[0]]
+        for i in range(1, len(pos_players)):
+            prev_tier = pos_players[i-1][3]
+            curr_tier = pos_players[i][3]
+            if curr_tier - prev_tier >= 3:
+                bands.append(current_band)
+                current_band = [pos_players[i]]
+            else:
+                current_band.append(pos_players[i])
+        if current_band:
+            bands.append(current_band)
+
+        # Build tier objects
+        tiers = []
+        for ti, band in enumerate(bands):
+            # Re-sort by ELO within band for display
+            band_sorted = sorted(band, key=lambda x: -x[2])
+            last = band_sorted[-1]
+            last_ddl = get_ddl(last[0])
+            last_adp = last_ddl.get('adp')
+            first_tier = min(p[3] for p in band)
+            last_tier = max(p[3] for p in band)
+            tier_label = f"KTC T{first_tier}" if first_tier == last_tier else f"KTC T{first_tier}-{last_tier}"
+            tiers.append({
+                'tier_num': ti + 1,
+                'label': tier_label,
+                'players': [enrich(p[0], p[1], p[2], p[3]) for p in band_sorted],
+                'count': len(band),
+                'break_after': last[0],
+                'last_player': last[0],
+                'last_adp_pick': adp_to_pick(last_adp),
+                'gap': 0,
+                'is_major': False,
+                'is_moderate': False,
+                'data_source': 'ktc',
+            })
+        return tiers
+
+    def build_elo_tiers(pos_players):
+        """Build tiers from ELO gaps. pos_players: (name, rank, elo, ktc_tier)"""
+        pos_elo_max = pos_players[0][2]
+        pos_elo_min = pos_players[-1][2]
+        pos_elo_range = max(pos_elo_max - pos_elo_min, 1)
+        # Use 6% of range as threshold — more sensitive than before
+        gap_threshold = max(60, pos_elo_range * 0.06)
+
+        raw_tiers = []
+        current = []
+        for i, (name, rank, elo, ktc_tier) in enumerate(pos_players):
+            current.append(enrich(name, rank, elo, ktc_tier))
+            if i < len(pos_players) - 1:
+                gap = elo - pos_players[i+1][2]
+                if gap >= gap_threshold:
+                    raw_tiers.append({'players': current.copy(), 'gap': round(gap), 'break_after': name})
+                    current = []
+        if current:
+            raw_tiers.append({'players': current.copy(), 'gap': 0, 'break_after': None})
+
+        # Merge isolated single-player tiers (not at very top)
+        merged = []
+        i = 0
+        while i < len(raw_tiers):
+            t = raw_tiers[i]
+            if len(t['players']) == 1 and i > 0 and i + 1 < len(raw_tiers) and t['gap'] < gap_threshold * 1.5:
+                # Merge into previous tier
+                merged[-1]['players'].extend(t['players'])
+                merged[-1]['gap'] = t['gap']
+                merged[-1]['break_after'] = t['break_after']
+            else:
+                merged.append(t)
+            i += 1
+
+        tiers = []
+        for ti, t in enumerate(merged):
+            last = t['players'][-1]
+            is_major = t['gap'] > gap_threshold * 2.5
+            is_moderate = gap_threshold * 1.5 <= t['gap'] <= gap_threshold * 2.5
+            tiers.append({
+                'tier_num': ti + 1,
+                'label': None,
+                'players': t['players'],
+                'count': len(t['players']),
+                'break_after': t['break_after'],
+                'last_player': last['name'],
+                'last_adp_pick': last['adp_pick'],
+                'gap': t['gap'],
+                'is_major': is_major,
+                'is_moderate': is_moderate,
+                'data_source': 'personal',
+            })
+        return tiers
+
+    positions = ['QB', 'RB', 'WR', 'TE']
+    tier_data = {}
+    comp_counts = {}
+
+    for pos in positions:
+        pos_players = [
+            (name, d['rank'], d['elo'], d['ktc_tier'])
+            for name, d in vs_rank.items() if d['pos'] == pos
+        ]
+        if len(pos_players) < 2:
+            continue
+
+        total_comps = sum(vs_rank[p[0]]['comparisons'] for p in pos_players)
+        n_players = len(pos_players)
+        avg_comps = total_comps / n_players if n_players > 0 else 0
+        comp_counts[pos] = round(avg_comps, 1)
+
+        pos_players.sort(key=lambda x: x[1])  # sort by vs_rank
+
+        # Switch to personal at avg 5 comps per player
+        if avg_comps >= 5:
+            tier_data[pos] = build_elo_tiers(pos_players)
+        else:
+            tier_data[pos] = build_ktc_tiers(pos_players)
+
+    # Trade targets
+    trade_targets = []
+    for name, vd in vs_rank.items():
+        if vd['rank'] > 150:
+            continue
+        ddl = get_ddl(name)
+        ktc_norm = normalize(name)
+        my_rank = vd['rank']
+
+        if ddl:
+            market_rank = ddl['rank']
+            adp_float = ddl.get('adp')
+            market_source = 'DDL'
+        elif ktc_norm in ktc_rank_map:
+            market_rank = ktc_rank_map[ktc_norm]['rank']
+            adp_float = None
+            market_source = 'KTC'
+        else:
+            continue
+
+        delta = market_rank - my_rank
+        if abs(delta) < 10:
+            continue
+
+        if delta >= 30: signal = 'STRONG BUY'
+        elif delta >= 15: signal = 'BUY'
+        elif delta >= 10: signal = 'SLIGHT BUY'
+        elif delta <= -30: signal = 'STRONG SELL'
+        elif delta <= -15: signal = 'SELL'
+        else: signal = 'SLIGHT SELL'
+
+        est_pick = adp_to_pick(adp_float) if adp_float else adp_to_pick(market_rank)
+        trade_targets.append({
+            'name': name, 'position': vd['pos'],
+            'my_rank': my_rank, 'market_rank': market_rank,
+            'market_source': market_source, 'adp': adp_float,
+            'delta': delta, 'signal': signal, 'est_draft_pick': est_pick,
+        })
+
+    trade_targets.sort(key=lambda x: abs(x['delta']), reverse=True)
+
+    return jsonify({
+        "tiers": tier_data,
+        "trade_targets": trade_targets[:40],
+        "comp_counts": comp_counts,
+        "sources_available": (['ktc'] if has_ktc else []) + (['ddl'] if has_ddl else []),
+        "ktc_count": len(ktc_rank_map),
+        "ddl_count": len(ddl_rank_map),
+        "success": True
+    })
+
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
 
@@ -2286,14 +2527,13 @@ def seed_ddl_market_data():
 seed_ddl_market_data()
 
 def seed_ktc_tiers():
-    """Populate ktc_tier column from market_data for all players in both ranking tables"""
+    """Populate ktc_tier from market_data KTC source using fuzzy name matching"""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    # Get KTC rank data
-    c.execute("SELECT player_name, rank FROM market_data WHERE source='ktc'")
-    ktc_rows = {r[0]: r[1] for r in c.fetchall()}
 
-    # Map KTC rank to KTC tier (approximate from rank ranges)
+    c.execute("SELECT player_name, rank FROM market_data WHERE source='ktc'")
+    ktc_rows = c.fetchall()
+
     def rank_to_ktc_tier(rank):
         if rank <= 3: return 1
         if rank <= 9: return 2
@@ -2313,10 +2553,23 @@ def seed_ktc_tiers():
         if rank <= 185: return 16
         return 17
 
-    for name, rank in ktc_rows.items():
-        tier = rank_to_ktc_tier(rank)
-        c.execute("UPDATE player_rankings SET ktc_tier=? WHERE player_name=?", (tier, name))
-        c.execute("UPDATE vs_rankings SET ktc_tier=? WHERE player_name=?", (tier, name))
+    def normalize(name):
+        import re
+        return re.sub(r"[^a-z0-9]", "", name.lower())
+
+    # Build normalized lookup
+    ktc_normalized = {normalize(name): rank_to_ktc_tier(rank) for name, rank in ktc_rows}
+
+    # Update both ranking tables
+    for table in ['player_rankings', 'vs_rankings']:
+        c.execute(f"SELECT player_name FROM {table}")
+        all_players = c.fetchall()
+        for (player_name,) in all_players:
+            norm = normalize(player_name)
+            tier = ktc_normalized.get(norm)
+            if tier:
+                c.execute(f"UPDATE {table} SET ktc_tier=? WHERE player_name=?", (tier, player_name))
+            # If not found, leave as default 10 (mid-tier)
 
     conn.commit()
     conn.close()
@@ -2783,5 +3036,56 @@ Be decisive. One clear pick first. Mobile-friendly format."""
     except Exception as e:
         return jsonify({"error": str(e), "success": False})
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080, debug=False)
+@app.route('/api/trade/analyze_negotiation', methods=['POST'])
+def analyze_negotiation():
+    """
+    Analyze trade negotiation screenshots.
+    Accepts up to 5 images, reads the conversation,
+    and returns strategic analysis of partner positioning.
+    """
+    data = request.json
+    images = data.get('images', [])[:5]
+    context = data.get('context', '')
+    league = data.get('league', '')
+
+    if not images:
+        return jsonify({"success": False, "error": "No images provided"})
+
+    # Build multi-image message content
+    content_parts = []
+    for i, img_data in enumerate(images):
+        img_b64 = img_data.split(',')[1] if ',' in img_data else img_data
+        media_type = 'image/png' if 'png' in img_data[:30] else 'image/jpeg'
+        content_parts.append({
+            "type": "image",
+            "source": {"type": "base64", "media_type": media_type, "data": img_b64}
+        })
+
+    prompt = f"""You are analyzing trade negotiation screenshots from a dynasty fantasy football chat.
+League: {league or 'Dynasty league'}
+Additional context: {context or 'None provided'}
+
+These {len(images)} screenshot(s) show trade negotiation messages between MJBrutus and a trade partner.
+
+Analyze:
+1. PARTNER POSITIONING — What does the partner want? What are their pain points? Are they motivated sellers or just fishing?
+2. OFFER ASSESSMENT — What was offered, counter-offered? Who has leverage?
+3. NEGOTIATION SIGNALS — Any tells? Urgency? Reluctance? Specific language that indicates willingness to deal?
+4. RECOMMENDED STRATEGY — Exactly how should MJBrutus respond? What counter-offer, what framing, what to emphasize?
+5. DRAFT A RESPONSE — Write a ready-to-send reply (under 40 words) that advances MJBrutus's position.
+
+Be direct and specific. Reference actual players/picks mentioned in the screenshots."""
+
+    content_parts.append({"type": "text", "text": prompt})
+
+    try:
+        response = client.messages.create(
+            model="claude-sonnet-4-5",
+            max_tokens=1200,
+            system=SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": content_parts}]
+        )
+        analysis = response.content[0].text
+        return jsonify({"success": True, "analysis": analysis})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
