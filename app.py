@@ -870,6 +870,102 @@ def get_player_profile():
     except Exception as e:
         return jsonify({"error": str(e), "success": False})
 
+@app.route('/api/rankings/pair', methods=['GET'])
+def get_ranking_pair():
+    """
+    Proximity-based matchup using hybrid tier system:
+    - Uses KTC tier until player has 10+ comparisons, then ELO-based tier
+    - 60% same tier, 30% 1 tier apart, 10% 2-3 tiers apart
+    """
+    position_filter = request.args.get('position', 'ALL')
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    if position_filter != 'ALL':
+        c.execute("""SELECT player_name, position, team, elo_score, comparisons, COALESCE(ktc_tier, 10)
+                    FROM player_rankings WHERE position=?
+                    ORDER BY comparisons ASC, RANDOM() LIMIT 80""", (position_filter,))
+    else:
+        c.execute("""SELECT player_name, position, team, elo_score, comparisons, COALESCE(ktc_tier, 10)
+                    FROM player_rankings ORDER BY comparisons ASC, RANDOM() LIMIT 120""")
+    rows = c.fetchall()
+    conn.close()
+    if len(rows) < 2:
+        return jsonify({"players": [], "success": False, "error": "Not enough players"})
+    players = [{"name": r[0], "position": r[1], "team": r[2],
+                "elo": r[3], "comparisons": r[4], "ktc_tier": r[5]} for r in rows]
+
+    def get_comp_tier(p):
+        if p['comparisons'] < 10:
+            kt = p['ktc_tier']
+            if kt <= 1: return 1
+            if kt <= 3: return 2
+            if kt <= 6: return 3
+            if kt <= 10: return 4
+            if kt <= 14: return 5
+            if kt <= 18: return 6
+            return 7
+        else:
+            elo = p['elo']
+            if elo >= 2800: return 1
+            if elo >= 2400: return 2
+            if elo >= 2000: return 3
+            if elo >= 1600: return 4
+            if elo >= 1200: return 5
+            if elo >= 800:  return 6
+            return 7
+
+    is_filtered = position_filter != 'ALL'
+    pool = sorted(players, key=lambda x: x['comparisons'])
+    p1 = pool[random.randint(0, min(9, len(pool)-1))]
+    p1_tier = get_comp_tier(p1)
+    rand = random.random()
+    if rand < 0.60:
+        target_tiers = [p1_tier]
+    elif rand < 0.90:
+        target_tiers = [p1_tier - 1, p1_tier + 1]
+    else:
+        target_tiers = [p1_tier + i for i in range(-3, 4) if i != 0]
+    target_tiers = [t for t in target_tiers if 1 <= t <= 7]
+    p2_candidates = [p for p in players if p['name'] != p1['name'] and get_comp_tier(p) in target_tiers]
+    if not p2_candidates and is_filtered:
+        for spread in range(1, 4):
+            expanded = [p1_tier + i for i in range(-spread, spread+1) if i != 0]
+            p2_candidates = [p for p in players if p['name'] != p1['name'] and get_comp_tier(p) in [t for t in expanded if 1<=t<=7]]
+            if p2_candidates: break
+    if not p2_candidates:
+        p2_candidates = [p for p in players if p['name'] != p1['name']]
+    p2_candidates.sort(key=lambda x: x['comparisons'])
+    p2 = p2_candidates[random.randint(0, min(9, len(p2_candidates)-1))]
+    return jsonify({"players": [p1, p2], "success": True,
+                   "tiers": [p1_tier, get_comp_tier(p2)]})
+
+@app.route('/api/rankings/vote', methods=['POST'])
+def vote_ranking():
+    """Record comparison vote and update ELO"""
+    data = request.json
+    winner = data.get('winner', '')
+    loser = data.get('loser', '')
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT elo_score, comparisons FROM player_rankings WHERE player_name=?", (winner,))
+    wr = c.fetchone()
+    c.execute("SELECT elo_score, comparisons FROM player_rankings WHERE player_name=?", (loser,))
+    lr = c.fetchone()
+    if wr and lr:
+        K = 32
+        we, le = wr[0], lr[0]
+        exp_w = 1 / (1 + 10 ** ((le - we) / 400))
+        new_we = we + K * (1 - exp_w)
+        new_le = le + K * (0 - (1 - exp_w))
+        c.execute("UPDATE player_rankings SET elo_score=?, comparisons=comparisons+1, last_updated=? WHERE player_name=?",
+                 (new_we, datetime.now().isoformat(), winner))
+        c.execute("UPDATE player_rankings SET elo_score=?, comparisons=comparisons+1, last_updated=? WHERE player_name=?",
+                 (new_le, datetime.now().isoformat(), loser))
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True})
+
+
 @app.route('/api/rankings/reset', methods=['POST'])
 def reset_rankings():
     """Reset all rankings and re-seed with full player list + KTC tiers"""
@@ -1916,50 +2012,51 @@ def get_tiers():
         }
 
     def build_ktc_tiers(pos_players):
-        """Group by KTC tier bands. pos_players: (name, rank, elo, ktc_tier)"""
-        # Sort by ktc_tier then ELO within tier
-        pos_players = sorted(pos_players, key=lambda x: (x[3], -x[2]))
+        """
+        One tier per KTC tier number. Each KTC tier = one logical tier break.
+        This gives 5-12 tiers per position with 1-9 players each.
+        pos_players: list of (name, rank, elo, ktc_tier)
+        """
+        from collections import OrderedDict
 
-        # Group consecutive players with same or adjacent ktc_tier into logical bands
-        # Band boundaries at tier jumps of 3+
-        bands = []
-        current_band = [pos_players[0]]
-        for i in range(1, len(pos_players)):
-            prev_tier = pos_players[i-1][3]
-            curr_tier = pos_players[i][3]
-            if curr_tier - prev_tier >= 3:
-                bands.append(current_band)
-                current_band = [pos_players[i]]
-            else:
-                current_band.append(pos_players[i])
-        if current_band:
-            bands.append(current_band)
+        KTC_TIER_LABELS = {
+            1: 'Generational', 2: 'Elite', 3: 'Premium',
+            4: 'Strong', 5: 'Strong', 6: 'Solid', 7: 'Solid',
+            8: 'Value', 9: 'Value', 10: 'Deep Value', 11: 'Deep Value',
+            12: 'Late Round', 13: 'Late Round', 14: 'Speculative',
+            15: 'Speculative', 16: 'Deep Spec', 17: 'Very Deep',
+        }
 
-        # Build tier objects
+        # Group by exact KTC tier number
+        tier_groups = OrderedDict()
+        for p in pos_players:
+            kt = p[3]
+            if kt not in tier_groups:
+                tier_groups[kt] = []
+            tier_groups[kt].append(p)
+
         tiers = []
-        for ti, band in enumerate(bands):
-            # Re-sort by ELO within band for display
-            band_sorted = sorted(band, key=lambda x: -x[2])
-            last = band_sorted[-1]
+        for kt, group in sorted(tier_groups.items()):
+            group_sorted = sorted(group, key=lambda x: -x[2])  # ELO desc
+            last = group_sorted[-1]
             last_ddl = get_ddl(last[0])
             last_adp = last_ddl.get('adp')
-            first_tier = min(p[3] for p in band)
-            last_tier = max(p[3] for p in band)
-            tier_label = f"KTC T{first_tier}" if first_tier == last_tier else f"KTC T{first_tier}-{last_tier}"
+            label = f"KTC T{kt} — {KTC_TIER_LABELS.get(kt, 'Deep')}"
             tiers.append({
-                'tier_num': ti + 1,
-                'label': tier_label,
-                'players': [enrich(p[0], p[1], p[2], p[3]) for p in band_sorted],
-                'count': len(band),
+                'tier_num': len(tiers) + 1,
+                'label': label,
+                'players': [enrich(p[0], p[1], p[2], p[3]) for p in group_sorted],
+                'count': len(group_sorted),
                 'break_after': last[0],
                 'last_player': last[0],
                 'last_adp_pick': adp_to_pick(last_adp),
                 'gap': 0,
-                'is_major': False,
-                'is_moderate': False,
+                'is_major': kt <= 3,
+                'is_moderate': 4 <= kt <= 6,
                 'data_source': 'ktc',
             })
         return tiers
+
 
     def build_elo_tiers(pos_players):
         """Build tiers from ELO gaps. pos_players: (name, rank, elo, ktc_tier)"""
@@ -2139,48 +2236,6 @@ def get_tiers():
             'adp': adp,
             'adp_pick': adp_to_pick(adp),
         }
-
-    def build_ktc_tiers(pos_players):
-        """
-        Group players by KTC tier directly.
-        KTC tiers 1-21 → logical groups of 2-4 adjacent tiers.
-        Groups: 1-2 (elite), 3-5, 6-8, 9-11, 12-14, 15-17, 18+
-        """
-        KTC_GROUPS = [
-            (range(1, 3),  'Elite'),
-            (range(3, 6),  'Premium'),
-            (range(6, 9),  'Strong'),
-            (range(9, 12), 'Solid'),
-            (range(12, 15),'Value'),
-            (range(15, 18),'Late'),
-            (range(18, 25),'Deep'),
-        ]
-
-        tiers = []
-        for group_range, group_label in KTC_GROUPS:
-            group_players = [p for p in pos_players if p[3] in group_range]
-            if not group_players:
-                continue
-            # Sort by KTC tier then by ELO within tier
-            group_players.sort(key=lambda x: (x[3], -x[2]))
-            last = group_players[-1]
-            last_ddl = ddl_rank_map.get(last[0], {})
-            last_adp = last_ddl.get('adp')
-            last_pick = adp_to_pick(last_adp)
-            tiers.append({
-                'tier_num': len(tiers) + 1,
-                'label': group_label,
-                'players': [enrich_player(p[0], p[1], p[2], p[3]) for p in group_players],
-                'count': len(group_players),
-                'break_after': last[0],
-                'last_player': last[0],
-                'last_adp_pick': last_pick,
-                'gap': 0,
-                'is_major': False,
-                'is_moderate': False,
-                'data_source': 'ktc',
-            })
-        return tiers
 
     def build_elo_tiers(pos_players_raw, pos):
         """Build tiers from personal ELO gaps. pos_players_raw: (name, rank, elo, ktc_tier)"""
@@ -3084,3 +3139,9 @@ Be direct and specific. Reference actual players/picks mentioned in the screensh
         return jsonify({"success": True, "analysis": analysis})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
+
+
+
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 8080))
+    app.run(host='0.0.0.0', port=port, debug=False)
