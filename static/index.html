@@ -236,6 +236,7 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--tx);display:
     <button class="chip" data-quick="waiver">🎯 Waivers</button>
     <button class="chip" data-quick="rookies">🏈 Rookies</button>
     <button class="chip" data-quick="briefing">📊 Briefing</button>
+    <button class="chip" data-quick="leagueupdate">🔄 League Update</button>
     <button class="chip" id="search-chat-btn">🔍 Search</button>
     <button class="chip" id="clear-chat-btn">🗑 Clear</button>
   </div>
@@ -771,7 +772,8 @@ document.querySelectorAll('.chat-bar .chip').forEach(btn => {
       buysell: 'Top 3 buy-low and top 3 sell-high targets across all my leagues right now.',
       waiver: 'Best waiver wire adds available across all my leagues?',
       rookies: 'Current top 10 rookie rankings SuperFlex TE premium with recent movement.',
-      briefing: 'Weekly GM briefing — all 4 leagues, roster status, trade opportunities, waiver priorities, action items.'
+      briefing: 'Weekly GM briefing — all 4 leagues, roster status, trade opportunities, waiver priorities, action items.',
+      leagueupdate: 'I need to update you on recent activity: '
     };
     if (msgs[q]) {
       document.getElementById('chat-ta').value = msgs[q];
@@ -1165,8 +1167,8 @@ function attachMPosButtons(el) {
 }
 
 function attachModeButtons(el, pool) {
-  const randBtn = document.getElementById('mode-random');
-  const boundBtn = document.getElementById('mode-boundary');
+  const randBtn = el.querySelector('#mode-random');
+  const boundBtn = el.querySelector('#mode-boundary');
   if (randBtn) randBtn.addEventListener('click', function() {
     if (pool === 'vs') { vsBoundaryMode = false; renderVSMatchup(el); }
     else { boundaryMode = false; renderMatchup(el); }
@@ -1536,22 +1538,34 @@ function renderVSPaste(el) {
 function renderVSManage(el) {
   el.innerHTML =
     '<div class="card" style="margin-bottom:10px;">' +
-    '<div style="font-size:13px;font-weight:700;margin-bottom:6px;">Reset VS Player Pool</div>' +
-    '<div style="font-size:11px;color:var(--t2);margin-bottom:10px;">Pulls from your standard player pool and applies 6pt TD QB boost. QBs start ~18% higher in ELO.</div>' +
-    '<button class="btn btn-p" id="vs-reset-btn" style="width:100%;">↺ Reset VS Rankings</button></div>' +
-    '<div class="card">' +
-    '<div style="font-size:13px;font-weight:700;margin-bottom:8px;">Add Player to VS Pool</div>' +
+    '<div style="font-size:13px;font-weight:700;margin-bottom:6px;">Refresh KTC Tiers</div>' +
+    '<div style="font-size:11px;color:var(--t2);margin-bottom:10px;">Re-applies KTC tier data to VS rankings using fuzzy name matching. Run this to enable Boundary Training. Does NOT wipe your comparison history.</div>' +
+    '<button class="btn btn-s" id="vs-refresh-tiers-btn" style="width:100%;margin-bottom:4px;">&#8635; Refresh KTC Tiers (keep history)</button></div>' +
+    '<div class="card" style="margin-bottom:10px;"><div style="font-size:13px;font-weight:700;margin-bottom:6px;">Full Reset VS Pool</div>' +
+    '<div style="font-size:11px;color:var(--t2);margin-bottom:10px;">Wipes all VS comparison history. Re-seeds with 6pt TD QB boost + KTC tiers. Use only if starting fresh.</div>' +
+    '<button class="btn btn-p" id="vs-reset-btn" style="width:100%;">&#8634; Full Reset VS Rankings</button></div>' +
+    '<div class="card"><div style="font-size:13px;font-weight:700;margin-bottom:8px;">Add Player</div>' +
     '<input class="inp" id="vs-add-name" placeholder="Player name" style="margin-bottom:7px;">' +
     '<div style="display:flex;gap:7px;margin-bottom:7px;">' +
     '<select class="sel" id="vs-add-pos" style="flex:1;"><option value="QB">QB</option><option value="RB">RB</option><option value="WR" selected>WR</option><option value="TE">TE</option></select>' +
     '<input class="inp" id="vs-add-team" placeholder="Team" style="flex:1;"></div>' +
     '<button class="btn btn-s" id="vs-add-btn" style="width:100%;">Add Player</button></div>';
 
+  document.getElementById('vs-refresh-tiers-btn').addEventListener('click', async function() {
+    this.textContent = 'Refreshing...'; this.disabled = true;
+    try {
+      const r = await fetch('/api/vs/refresh_tiers', {method:'POST'});
+      const d = await r.json();
+      alert(d.success ? 'KTC tiers refreshed on VS rankings. Boundary Training is now active.' : 'Failed: ' + (d.message||''));
+    } catch(e) { alert('Error.'); }
+    this.textContent = '&#8635; Refresh KTC Tiers (keep history)'; this.disabled = false;
+  });
+
   document.getElementById('vs-reset-btn').addEventListener('click', async function() {
-    if (!confirm('Reset VS rankings? Comparison history will be lost.')) return;
+    if (!confirm('Reset VS rankings? This wipes all your VS comparison history.')) return;
     const r = await fetch('/api/vs/reset', {method:'POST'});
     const d = await r.json();
-    alert(d.success ? 'VS rankings reset with 6pt TD adjustments!' : 'Reset failed.');
+    alert(d.success ? 'Reset with 6pt TD adjustments and KTC tiers!' : 'Failed.');
     vsTotalComps = 0; vsMatchupPlayers = [];
   });
 
@@ -1561,12 +1575,11 @@ function renderVSManage(el) {
     const team = document.getElementById('vs-add-team').value.trim();
     if (!name) return;
     await fetch('/api/rankings/add', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name, position:pos, team})});
-    await fetch('/api/vs/reset', {method:'POST'}); // re-seed to pick up new player
-    alert(name + ' added to both pools!');
+    await fetch('/api/vs/refresh_tiers', {method:'POST'});
+    alert(name + ' added and KTC tiers refreshed!');
     document.getElementById('vs-add-name').value = '';
   });
 }
-
 // ── TIER BREAKS + TRADE TARGETS ──
 async function renderTierBreaks(el) {
   el.innerHTML = '<div class="spin-wrap"><div class="spin"></div><div class="spin-txt">COMPUTING TIERS...</div></div>';
@@ -2307,41 +2320,20 @@ document.getElementById('trade-screenshot-input').addEventListener('change', asy
         headers:{'Content-Type':'application/json'},
         body: JSON.stringify({image: ev.target.result, context: 'trade'})});
       const d = await r.json();
-      if (d.success && d.parsed) {
-        const parsed = d.parsed;
-        // If it's a trade format, try to extract giving/receiving
-        let html = '<div style="background:rgba(79,158,255,.08);border:1px solid rgba(79,158,255,.2);border-radius:8px;padding:10px;margin-bottom:8px;">';
-        html += '<div style="font-size:11px;font-weight:700;color:var(--ac);margin-bottom:6px;">📷 Screenshot parsed — review and apply:</div>';
-        if (parsed.trades && parsed.trades.length) {
-          parsed.trades.forEach((t, i) => {
-            html += '<div style="font-size:11px;margin-bottom:4px;"><strong>Trade ' + (i+1) + ':</strong><br>';
-            html += 'Sent: ' + (t.assets_sent||[]).join(', ') + '<br>';
-            html += 'Received: ' + (t.assets_received||[]).join(', ') + '</div>';
-            const idx_t = i;
-            html += '<div style="display:flex;gap:6px;margin-top:4px;">';
-            html += '<button class="btn btn-g btn-sm apply-trade-btn" data-idx="' + idx_t + '" data-side="giving" data-assets="' + encodeURIComponent(JSON.stringify(t.assets_sent||[])) + '">→ Set as Giving</button>';
-            html += '<button class="btn btn-g btn-sm apply-trade-btn" data-idx="' + idx_t + '" data-side="receiving" data-assets="' + encodeURIComponent(JSON.stringify(t.assets_received||[])) + '">→ Set as Receiving</button>';
-            html += '</div>';
-          });
-        } else if (parsed.picks) {
-          html += '<div style="font-size:11px;color:var(--t2);">Detected as draft board — use Trade Calculator manually.</div>';
-        } else {
-          html += '<div style="font-size:11px;color:var(--t2);">' + JSON.stringify(parsed).substring(0, 200) + '</div>';
-        }
-        html += '</div>';
-        res.innerHTML = html;
-        res.querySelectorAll('.apply-trade-btn').forEach(btn => {
-          btn.addEventListener('click', function() {
-            const side = this.dataset.side;
-            const assets = JSON.parse(decodeURIComponent(this.dataset.assets));
-            if (side === 'giving') givingAssets = assets;
-            else receivingAssets = assets;
-            renderAssets();
-            res.innerHTML = '<div style="color:var(--gn);font-size:11px;padding:4px;">✓ Applied to ' + side + '</div>';
-          });
-        });
+      if (d.success && d.parsed && d.parsed.trades && d.parsed.trades.length) {
+        const t = d.parsed.trades[0];
+        // Auto-fill both sides immediately — no confirm step
+        givingAssets = t.assets_sent || [];
+        receivingAssets = t.assets_received || [];
+        renderAssets();
+        res.innerHTML =
+          '<div style="background:rgba(61,220,132,.1);border:1px solid rgba(61,220,132,.3);border-radius:8px;padding:8px 10px;font-size:11px;">' +
+          '<div style="color:var(--gn);font-weight:700;margin-bottom:4px;">&#10003; Trade loaded automatically</div>' +
+          '<div style="color:var(--t2);">Giving: ' + givingAssets.join(', ') + '</div>' +
+          '<div style="color:var(--t2);">Receiving: ' + receivingAssets.join(', ') + '</div>' +
+          '<div style="color:var(--t2);font-size:10px;margin-top:4px;">Edit manually above if needed, then tap Evaluate.</div></div>';
       } else {
-        res.innerHTML = '<div style="color:var(--rd);font-size:11px;">Could not parse trade. Try a clearer screenshot.</div>';
+        res.innerHTML = '<div style="color:var(--rd);font-size:11px;">Could not parse trade. Make sure the screenshot shows the trade offer clearly.</div>';
       }
     } catch(err) {
       res.innerHTML = '<div style="color:var(--rd);font-size:11px;">Error reading screenshot.</div>';
@@ -2350,7 +2342,6 @@ document.getElementById('trade-screenshot-input').addEventListener('change', asy
   reader.readAsDataURL(file);
   e.target.value = '';
 });
-
 // Negotiation analyzer — multi-image
 let negImages = [];
 document.getElementById('neg-upload-btn').addEventListener('click', function() {
