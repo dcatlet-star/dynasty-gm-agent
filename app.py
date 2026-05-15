@@ -1896,14 +1896,21 @@ def vs_adjust():
 
 @app.route('/api/vs/reset', methods=['POST'])
 def vs_reset():
-    """Reset VS rankings and re-seed from standard rankings with QB boost"""
+    """Reset VS rankings, re-seed from standard rankings with QB boost, then apply KTC tiers"""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("DELETE FROM vs_rankings")
     conn.commit()
     conn.close()
     seed_vs_players()
-    return jsonify({"success": True, "message": "VS rankings reset with 6pt TD QB adjustments"})
+    seed_ktc_tiers()  # Critical: populate ktc_tier for boundary training
+    return jsonify({"success": True, "message": "VS rankings reset with 6pt TD QB adjustments and KTC tiers applied"})
+
+@app.route('/api/vs/refresh_tiers', methods=['POST'])
+def vs_refresh_tiers():
+    """Re-apply KTC tiers to VS rankings without wiping comparison history"""
+    seed_ktc_tiers()
+    return jsonify({"success": True, "message": "KTC tiers refreshed on VS rankings"})
 
 # ============================================================
 # MARKET DATA — PASTE KTC / DDL / SLEEPER ADP
