@@ -264,7 +264,7 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--tx);display:
     <div class="input-row">
       <textarea class="chat-ta" id="chat-ta" placeholder="Ask your GM anything..." rows="1"></textarea>
       <div style="display:flex;gap:5px;align-items:center;">
-        <input type="file" id="file-input" accept="image/*,application/pdf">
+        <input type="file" id="file-input" accept="image/*,application/pdf,.xlsx,.xls,.csv,.txt">
         <button class="ico-btn attach-btn" id="attach-btn">📎</button>
         <button class="ico-btn send-btn" id="send-btn">↑</button>
       </div>
@@ -596,6 +596,7 @@ const ROSTERS = {
 // ── STATE ──
 let leaguePrefix = '';
 let selectedImage = null;
+let selectedFile  = null;
 let chatLoading = false;
 let givingAssets = [];
 let receivingAssets = [];
@@ -817,21 +818,66 @@ document.getElementById('attach-btn').addEventListener('click', function() {
 document.getElementById('file-input').addEventListener('change', function(e) {
   const f = e.target.files[0];
   if (!f) return;
-  if (f.size > 5*1024*1024) { alert('File too large. Keep screenshots under 5MB.'); return; }
+  if (f.size > 20*1024*1024) { alert('File too large (max 20MB).'); return; }
+  const isImage = f.type.startsWith('image/');
+  const isPDF   = f.type === 'application/pdf';
+  const isExcel = f.name.endsWith('.xlsx') || f.name.endsWith('.xls') || f.type.includes('spreadsheet');
+  const isText  = f.type.startsWith('text/') || f.name.endsWith('.txt') || f.name.endsWith('.csv');
+
   const r = new FileReader();
   r.onload = ev => {
-    selectedImage = ev.target.result;
-    document.getElementById('img-thumb').src = selectedImage;
-    document.getElementById('img-preview').style.display = 'block';
+    if (isImage) {
+      selectedImage = ev.target.result;
+      selectedFile  = null;
+      document.getElementById('img-thumb').src = selectedImage;
+      document.getElementById('img-preview').style.display = 'block';
+      document.getElementById('img-preview').querySelector('.img-file-label')?.remove();
+    } else {
+      // Non-image: store as file attachment
+      selectedFile  = { name: f.name, data: ev.target.result, type: f.type,
+                        isExcel, isPDF, isText };
+      selectedImage = null;
+      document.getElementById('img-thumb').src = '';
+      document.getElementById('img-preview').style.display = 'block';
+      // Show file label instead of image
+      let lbl = document.getElementById('img-preview').querySelector('.img-file-label');
+      if (!lbl) {
+        lbl = document.createElement('div');
+        lbl.className = 'img-file-label';
+        lbl.style.cssText = 'padding:8px 10px;font-size:12px;font-weight:600;color:var(--ac);background:var(--s2);border-radius:6px;margin:4px;';
+        document.getElementById('img-preview').insertBefore(lbl, document.getElementById('img-x-btn'));
+      }
+      const icon = isExcel ? '📊' : isPDF ? '📄' : '📎';
+      lbl.textContent = icon + ' ' + f.name;
+    }
   };
-  r.readAsDataURL(f);
+  if (isImage) {
+    r.readAsDataURL(f);
+  } else if (isPDF) {
+    r.readAsDataURL(f);  // send as base64 for Claude document API
+  } else {
+    r.readAsText(f);     // Excel/CSV/text — read as text, extract on backend
+  }
+  // For Excel we need binary read
+  if (isExcel) {
+    const rb = new FileReader();
+    rb.onload = ev2 => {
+      selectedFile = { name: f.name, data: ev2.target.result, type: f.type,
+                       isExcel: true, isPDF: false, isText: false };
+      selectedImage = null;
+    };
+    rb.readAsDataURL(f);
+  }
   e.target.value = '';
 });
 
 document.getElementById('img-x-btn').addEventListener('click', function() {
   selectedImage = null;
+  selectedFile  = null;
   document.getElementById('img-preview').style.display = 'none';
   document.getElementById('img-thumb').src = '';
+  const lbl = document.getElementById('img-preview').querySelector('.img-file-label');
+  if (lbl) lbl.remove();
 });
 
 document.getElementById('send-btn').addEventListener('click', sendChat);
@@ -908,20 +954,31 @@ async function sendChat() {
   const ta = document.getElementById('chat-ta');
   const raw = ta.value.trim();
   const msg = leaguePrefix + raw;
-  if (!msg && !selectedImage) return;
+  if (!msg && !selectedImage && !selectedFile) return;
   chatLoading = true;
   document.getElementById('send-btn').disabled = true;
-  addBubble('user', raw || 'Screenshot analysis', selectedImage);
-  ta.value = '';
-  ta.style.height = 'auto';
-  const img = selectedImage;
+
+  const img  = selectedImage;
+  const file = selectedFile;
   selectedImage = null;
+  selectedFile  = null;
+
+  const displayMsg = raw || (img ? 'Screenshot analysis' : (file ? '📊 ' + file.name : ''));
+  addBubble('user', displayMsg, img);
+  ta.value = ''; ta.style.height = 'auto';
   document.getElementById('img-preview').style.display = 'none';
   document.getElementById('img-thumb').src = '';
+  const lbl = document.getElementById('img-preview').querySelector('.img-file-label');
+  if (lbl) lbl.remove();
   addTyping();
+
   try {
+    const payload = { message: msg || (file ? 'Analyze this file for my dynasty draft.' : 'Analyze screenshot.') };
+    if (img)  payload.image     = img;
+    if (file) payload.file_data = file;
+
     const r = await fetch('/api/chat', {method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({message: msg || 'Analyze screenshot for dynasty leagues.', image: img})});
+      body: JSON.stringify(payload)});
     const d = await r.json();
     document.getElementById('typing-indicator')?.remove();
     addBubble('agent', d.success ? d.response : ('❌ ' + d.response));
