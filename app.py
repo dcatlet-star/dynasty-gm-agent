@@ -638,18 +638,72 @@ def index():
 def chat():
     data = request.json
     user_message = data.get('message', '')
-    image_data = data.get('image', None)
+    image_data   = data.get('image', None)
+    file_data    = data.get('file_data', None)
     week_key = get_week_key()
+
+    content = []
 
     if image_data:
         image_content = image_data.split(',')[1] if ',' in image_data else image_data
-        media_type = 'image/png' if 'png' in image_data else 'image/jpeg'
-        content = [
-            {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": image_content}},
-            {"type": "text", "text": user_message if user_message else "Analyze this screenshot for my dynasty leagues."}
-        ]
-    else:
-        content = user_message
+        media_type = 'image/png' if 'png' in image_data[:30].lower() else 'image/jpeg'
+        content.append({"type": "image", "source": {"type": "base64", "media_type": media_type, "data": image_content}})
+
+    elif file_data:
+        fname    = file_data.get('name', 'file')
+        raw_data = file_data.get('data', '')
+        is_excel = file_data.get('isExcel', False)
+        is_pdf   = file_data.get('isPDF', False)
+
+        if is_pdf and raw_data:
+            pdf_b64 = raw_data.split(',')[1] if ',' in raw_data else raw_data
+            content.append({"type": "document",
+                "source": {"type": "base64", "media_type": "application/pdf", "data": pdf_b64}})
+
+        elif is_excel and raw_data:
+            try:
+                import io, base64 as b64lib
+                from openpyxl import load_workbook as _lwb
+                excel_b64 = raw_data.split(',')[1] if ',' in raw_data else raw_data
+                excel_bytes = b64lib.b64decode(excel_b64)
+                wb_xl = _lwb(io.BytesIO(excel_bytes), data_only=True)
+
+                text_parts = [f"[Excel file: {fname}]"]
+                priority = ['📊 Draft Board', '📋 Pick Map', '👥 Manager Rosters']
+                sheets = [s for s in priority if s in wb_xl.sheetnames]
+                for s in wb_xl.sheetnames:
+                    if s not in sheets and not s.startswith('_') and wb_xl[s].sheet_state == 'visible':
+                        sheets.append(s)
+
+                for sname in sheets[:6]:
+                    ws_xl = wb_xl[sname]
+                    text_parts.append(f"\n=== {sname} ===")
+                    rows_added = 0
+                    for row in ws_xl.iter_rows(min_row=1, max_row=500, values_only=True):
+                        if all(v is None for v in row): continue
+                        text_parts.append('\t'.join([str(v) if v is not None else '' for v in row]))
+                        rows_added += 1
+                        if rows_added >= 400:
+                            text_parts.append(f"[...truncated]"); break
+
+                extracted = '\n'.join(text_parts)
+                if len(extracted) > 50000:
+                    extracted = extracted[:50000] + '\n[...truncated]'
+                content.append({"type": "text", "text": extracted})
+            except Exception as ex:
+                content.append({"type": "text",
+                    "text": f"[Could not parse Excel file {fname}: {ex}. Please paste key data as text.]"})
+        else:
+            content.append({"type": "text", "text": f"[File: {fname}]\n{raw_data[:40000]}"})
+
+    if user_message:
+        content.append({"type": "text", "text": user_message})
+
+    if not content:
+        content = user_message or ''
+
+    if isinstance(content, list) and len(content) == 1 and content[0].get('type') == 'text':
+        content = content[0]['text']
 
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
