@@ -690,9 +690,15 @@ def chat():
                 if len(extracted) > 50000:
                     extracted = extracted[:50000] + '\n[...truncated]'
                 content.append({"type": "text", "text": extracted})
+                content.append({"type": "text",
+                    "text": f"\n[Successfully read {len(sheets)} sheets: {', '.join(sheets)}]"})
+            except ImportError:
+                content.append({"type": "text",
+                    "text": f"[SERVER ERROR: openpyxl library not installed — cannot parse {fname}. "
+                            f"Redeploy with openpyxl in requirements.txt to fix this.]"})
             except Exception as ex:
                 content.append({"type": "text",
-                    "text": f"[Could not parse Excel file {fname}: {ex}. Please paste key data as text.]"})
+                    "text": f"[ERROR parsing {fname}: {type(ex).__name__}: {ex}]"})
         else:
             content.append({"type": "text", "text": f"[File: {fname}]\n{raw_data[:40000]}"})
 
