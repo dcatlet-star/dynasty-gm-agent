@@ -316,52 +316,76 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--tx);display:
 <!-- TRADE -->
 <div class="page" id="page-trade">
   <div class="sec">
-    <div class="sec-title">Trade Calculator</div>
-    <div class="trade-side">
-      <div class="ts-title">I'm Giving</div>
-      <div id="giving-list"></div>
-      <div style="display:flex;gap:7px;">
-        <input class="inp" id="giving-inp" placeholder="Add player or pick...">
-        <button class="btn btn-s btn-sm" id="giving-add-btn">Add</button>
+
+    <!-- SAVED PROMPTS BAR -->
+    <div style="margin-bottom:12px;">
+      <div style="font-size:10px;color:var(--t2);font-weight:700;letter-spacing:1px;margin-bottom:6px;">QUICK ANALYSIS</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;" id="trade-prompt-btns">
+        <button class="btn btn-s btn-sm tprompt-btn" data-tprompt="screenshot_eval">📷 Eval from Screenshot</button>
+        <button class="btn btn-s btn-sm tprompt-btn" data-tprompt="accept_decline">⚡ Accept / Decline?</button>
+        <button class="btn btn-s btn-sm tprompt-btn" data-tprompt="counter_offer">↩ Build Counter Offer</button>
+        <button class="btn btn-s btn-sm tprompt-btn" data-tprompt="sell_high">📈 Who Should I Sell?</button>
+        <button class="btn btn-s btn-sm tprompt-btn" data-tprompt="buy_low">📉 Who Should I Buy?</button>
+        <button class="btn btn-s btn-sm tprompt-btn" data-tprompt="negotiation_msg">💬 Write My Message</button>
       </div>
     </div>
-    <div class="trade-side">
-      <div class="ts-title">I'm Receiving</div>
-      <div id="receiving-list"></div>
-      <div style="display:flex;gap:7px;">
-        <input class="inp" id="receiving-inp" placeholder="Add player or pick...">
-        <button class="btn btn-s btn-sm" id="receiving-add-btn">Add</button>
+
+    <!-- MULTI-IMAGE UPLOAD ZONE -->
+    <div id="trade-img-zone" style="background:var(--s2);border:2px dashed var(--b1);border-radius:11px;padding:12px;margin-bottom:10px;cursor:pointer;" onclick="document.getElementById('trade-imgs-input').click()">
+      <input type="file" id="trade-imgs-input" accept="image/*" multiple style="display:none;">
+      <div style="text-align:center;color:var(--t2);font-size:12px;">
+        <div style="font-size:22px;margin-bottom:4px;">📷</div>
+        <div>Tap to upload screenshots <span style="color:var(--ac);font-weight:700;">(up to 6)</span></div>
+        <div style="font-size:10px;margin-top:3px;">Trade offers · Sleeper chat · League scores · Any context</div>
       </div>
+      <div id="trade-img-previews" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;"></div>
     </div>
-    <div style="display:flex;gap:8px;margin-bottom:9px;">
+
+    <!-- LEAGUE + CONTEXT -->
+    <div style="display:flex;gap:8px;margin-bottom:8px;">
       <select class="sel" id="trade-league" style="flex:1;">
+        <option value="Velvet Spade">Velvet Spade</option>
         <option value="Capital Gains">Capital Gains</option>
         <option value="Twenty Run Savages">Twenty Run Savages</option>
         <option value="Gentleman's Dynasty">Gentleman's Dynasty</option>
-        <option value="Velvet Spade">Velvet Spade</option>
       </select>
-      <button class="btn btn-p" id="eval-btn">Evaluate</button>
     </div>
+    <textarea class="inp" id="trade-context-inp" rows="2" placeholder="Optional: add context — 'They offered me X for Y. I want a second RB. My roster needs depth at TE.'" style="margin-bottom:8px;font-size:12px;"></textarea>
 
-    <!-- Screenshot upload: auto-fill trade sides -->
-    <div style="display:flex;gap:8px;margin-bottom:9px;">
-      <input type="file" id="trade-screenshot-input" accept="image/*" style="display:none;">
-      <button class="btn btn-s btn-sm" id="trade-screenshot-btn" style="flex:1;">📷 Upload Trade Screenshot</button>
-    </div>
-    <div id="trade-screenshot-result"></div>
+    <!-- ANALYZE BUTTON -->
+    <button class="btn btn-p" id="trade-analyze-btn" style="width:100%;margin-bottom:10px;font-size:13px;">
+      Analyze Trade
+    </button>
 
+    <!-- RESULT -->
     <div id="trade-result"></div>
 
-    <!-- Negotiation analyzer -->
-    <div class="div" style="margin:14px 0 10px;"></div>
-    <div class="sec-title">Negotiation Analyzer</div>
-    <div style="font-size:11px;color:var(--t2);margin-bottom:10px;padding:8px;background:var(--s2);border-radius:7px;border:1px solid var(--b1);">Upload screenshots of your trade chat messages (up to 5 images). Claude reads the conversation and analyzes partner positioning, pain points, and your best counter strategy.</div>
-    <input type="file" id="neg-file-input" accept="image/*" multiple style="display:none;">
-    <button class="btn btn-s btn-sm" id="neg-upload-btn" style="width:100%;margin-bottom:8px;">📷 Upload Negotiation Screenshots (up to 5)</button>
-    <div id="neg-previews" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;"></div>
-    <textarea class="inp" id="neg-context" rows="2" placeholder="Optional: add context (e.g. 'I want Bijan, they want my 1.02')" style="margin-bottom:8px;font-size:12px;"></textarea>
-    <button class="btn btn-p" id="neg-analyze-btn" style="width:100%;">Analyze Negotiation</button>
-    <div id="neg-result" style="margin-top:10px;"></div>
+    <!-- MANUAL ENTRY (collapsed by default) -->
+    <details style="margin-top:10px;">
+      <summary style="font-size:11px;color:var(--t2);cursor:pointer;padding:8px;background:var(--s2);border-radius:7px;border:1px solid var(--b1);">
+        ✏️ No screenshot? Enter assets manually
+      </summary>
+      <div style="padding:10px 0;">
+        <div class="trade-side">
+          <div class="ts-title">I'm Giving</div>
+          <div id="giving-list"></div>
+          <div style="display:flex;gap:7px;">
+            <input class="inp" id="giving-inp" placeholder="Player or pick...">
+            <button class="btn btn-s btn-sm" id="giving-add-btn">Add</button>
+          </div>
+        </div>
+        <div class="trade-side">
+          <div class="ts-title">I'm Receiving</div>
+          <div id="receiving-list"></div>
+          <div style="display:flex;gap:7px;">
+            <input class="inp" id="receiving-inp" placeholder="Player or pick...">
+            <button class="btn btn-s btn-sm" id="receiving-add-btn">Add</button>
+          </div>
+        </div>
+        <button class="btn btn-p" id="eval-btn" style="width:100%;">Evaluate Manual Entry</button>
+      </div>
+    </details>
+
   </div>
 </div>
 
@@ -773,7 +797,12 @@ document.querySelectorAll('.chat-bar .chip').forEach(btn => {
       buysell: 'Top 3 buy-low and top 3 sell-high targets across all my leagues right now.',
       waiver: 'Best waiver wire adds available across all my leagues?',
       rookies: 'Current top 10 rookie rankings SuperFlex TE premium with recent movement.',
-      briefing: 'Weekly GM briefing — all 4 leagues, roster status, trade opportunities, waiver priorities, action items.',
+      briefing: 'Weekly GM briefing across all 4 leagues. For each league give me: my roster strengths/weaknesses, my 3 best trade chips right now, 2 managers most likely to trade with me and why, and one specific trade I should pursue this week.',
+      trade: 'Review my dynasty rosters across all leagues. Rank my top 5 trade chips by sell-high urgency (players near peak value or declining trajectory). For each: current KTC value, why now is the right time to sell, and which manager type is the likely buyer.',
+      roster: 'Audit my rosters across all 4 leagues. For each league identify: positional strengths, critical weaknesses, my competitive window, and the single most important roster move I should make in the next 30 days.',
+      buysell: 'Give me a buy/sell/hold breakdown of my 10 most valuable dynasty assets across all leagues. For each player: KTC value, 30-day trajectory, dynasty outlook in 2025-2027, and a clear buy/sell/hold verdict with reasoning.',
+      waiver: 'Which players should I be targeting on waivers or in free agency across my 4 leagues right now? Focus on dynasty value — emerging starters, situation upgrades, and high-upside depth. Include which of my leagues each recommendation applies to.',
+      rookies: 'Analyze the rookie class outlook for dynasty. Which 2025 rookies should I be targeting in trades right now before their value rises? Which are overvalued based on hype vs actual dynasty projection? Tie recommendations to my specific roster needs.',
       leagueupdate: 'I need to update you on recent activity: '
     };
     if (msgs[q]) {
@@ -2356,10 +2385,286 @@ document.querySelectorAll('.draft-tab').forEach(tab => {
 });
 
 // ── TRADE LISTENERS ──
+// ── TRADE TAB ─────────────────────────────────────────────────────────────
+let tradeImages = [];  // [{data, name}] up to 6
+
+const TRADE_PROMPTS = {
+  screenshot_eval: {
+    label: 'Screenshot Eval',
+    text: (league, ctx) =>
+      `I'm in ${league}. Evaluate this trade offer. ` +
+      `Compare asset values using KTC (SuperFlex+TE), DDL ADP, and my composite personal rankings. ` +
+      `For each asset identify: KTC value, age, dynasty trajectory (ascending/peak/declining), and positional scarcity in ${league}. ` +
+      `Then give a clear ACCEPT / DECLINE / COUNTER verdict with:\n` +
+      `1. Value breakdown — am I winning or losing the trade and by how much\n` +
+      `2. Roster fit — does this improve my team construction and competitive window\n` +
+      `3. Counterparty read — why are they making this offer and what does it signal\n` +
+      `4. Recommended response — if counter, exactly what to ask for\n` +
+      `5. A ready-to-send Sleeper message under 25 words\n` +
+      (ctx ? `Context: ${ctx}` : ''),
+  },
+  accept_decline: {
+    label: 'Accept / Decline',
+    text: (league, ctx) =>
+      `${league} — should I accept or decline this trade? ` +
+      `Give me a direct verdict first (ACCEPT / DECLINE / COUNTER), then back it up with:\n` +
+      `- Raw value comparison across KTC and DDL\n` +
+      `- Age-adjusted dynasty value (a 24yo RB is worth more than face KTC value vs a 30yo)\n` +
+      `- How this changes my roster's positional balance and competitive timeline\n` +
+      `- What I'm giving up beyond the numbers (upside, depth, flexibility)\n` +
+      (ctx ? `Context: ${ctx}` : ''),
+  },
+  counter_offer: {
+    label: 'Counter Offer',
+    text: (league, ctx) =>
+      `I want to counter this trade offer in ${league}. ` +
+      `Based on the assets shown, design the optimal counter offer that:\n` +
+      `1. Gets me closer to fair value or better\n` +
+      `2. Is realistic enough that they'll engage rather than walk away\n` +
+      `3. Addresses my actual roster needs\n` +
+      `Give me 2-3 counter variants from aggressive to reasonable, ` +
+      `and write the exact Sleeper message for the most likely to succeed.\n` +
+      (ctx ? `Context: ${ctx}` : ''),
+  },
+  sell_high: {
+    label: 'Sell High',
+    text: (league, ctx) =>
+      `Looking at my ${league} roster in these screenshots — who should I be selling right now? ` +
+      `Identify players where:\n` +
+      `- KTC/market value is at or near peak relative to their age and situation\n` +
+      `- Dynasty trajectory is flat or declining over the next 1-2 years\n` +
+      `- I have positional depth that makes them more replaceable\n` +
+      `For each sell candidate: current KTC value, why now is the right time, ` +
+      `what to target in return, and which managers in this league are most likely buyers.\n` +
+      (ctx ? `Context: ${ctx}` : ''),
+  },
+  buy_low: {
+    label: 'Buy Low',
+    text: (league, ctx) =>
+      `Based on my ${league} roster — who should I be targeting to acquire right now? ` +
+      `Identify players available leaguewide where:\n` +
+      `- Current KTC value is depressed relative to true dynasty upside\n` +
+      `- Age and trajectory suggest value will recover or grow\n` +
+      `- They fill a genuine need in my roster construction\n` +
+      `For each target: why they're undervalued right now, what it would cost, ` +
+      `and which manager is most likely to sell.\n` +
+      (ctx ? `Context: ${ctx}` : ''),
+  },
+  negotiation_msg: {
+    label: 'Write Message',
+    text: (league, ctx) =>
+      `Write me a Sleeper trade message for this ${league} situation. ` +
+      `The message should:\n` +
+      `- Be under 30 words and conversational (not robotic)\n` +
+      `- Lead with something that appeals to what THEY want, not what I want\n` +
+      `- Create urgency or interest without being desperate\n` +
+      `- Leave room for negotiation\n` +
+      `Give me 2 versions: one opening a new offer, one responding to their offer.\n` +
+      (ctx ? `Context: ${ctx}` : ''),
+  },
+};
+
+// Multi-image upload handler
+document.getElementById('trade-imgs-input').addEventListener('change', function(e) {
+  const files = Array.from(e.target.files).slice(0, 6 - tradeImages.length);
+  files.forEach(file => {
+    if (tradeImages.length >= 6) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const imgData = ev.target.result;
+      const idx = tradeImages.length;
+      tradeImages.push({ data: imgData, name: file.name });
+
+      const previews = document.getElementById('trade-img-previews');
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'position:relative;display:inline-block;';
+      wrap.dataset.idx = idx;
+
+      const img = document.createElement('img');
+      img.src = imgData;
+      img.style.cssText = 'height:64px;border-radius:7px;border:2px solid var(--ac);object-fit:cover;';
+
+      const badge = document.createElement('div');
+      badge.textContent = idx + 1;
+      badge.style.cssText = 'position:absolute;top:-5px;left:-5px;width:16px;height:16px;' +
+        'background:var(--ac);border-radius:50%;color:white;font-size:10px;font-weight:700;' +
+        'display:flex;align-items:center;justify-content:center;';
+
+      const xBtn = document.createElement('button');
+      xBtn.textContent = '×';
+      xBtn.style.cssText = 'position:absolute;top:-5px;right:-5px;width:17px;height:17px;' +
+        'background:var(--rd);border:none;border-radius:50%;color:white;font-size:11px;' +
+        'cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;';
+      xBtn.addEventListener('click', function(ev) {
+        ev.stopPropagation();
+        const wrapIdx = +wrap.dataset.idx;
+        tradeImages.splice(wrapIdx, 1);
+        rebuildTradePreviews();
+      });
+
+      wrap.appendChild(img);
+      wrap.appendChild(badge);
+      wrap.appendChild(xBtn);
+      previews.appendChild(wrap);
+
+      // Update zone border to indicate images loaded
+      document.getElementById('trade-img-zone').style.borderColor = 'var(--ac)';
+      document.getElementById('trade-img-zone').style.borderStyle = 'solid';
+    };
+    reader.readAsDataURL(file);
+  });
+  e.target.value = '';
+});
+
+function rebuildTradePreviews() {
+  const previews = document.getElementById('trade-img-previews');
+  previews.innerHTML = '';
+  tradeImages.forEach((img, idx) => {
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'position:relative;display:inline-block;';
+    wrap.dataset.idx = idx;
+    const imgEl = document.createElement('img');
+    imgEl.src = img.data;
+    imgEl.style.cssText = 'height:64px;border-radius:7px;border:2px solid var(--ac);object-fit:cover;';
+    const badge = document.createElement('div');
+    badge.textContent = idx + 1;
+    badge.style.cssText = 'position:absolute;top:-5px;left:-5px;width:16px;height:16px;' +
+      'background:var(--ac);border-radius:50%;color:white;font-size:10px;font-weight:700;' +
+      'display:flex;align-items:center;justify-content:center;';
+    const xBtn = document.createElement('button');
+    xBtn.textContent = '×';
+    xBtn.style.cssText = 'position:absolute;top:-5px;right:-5px;width:17px;height:17px;' +
+      'background:var(--rd);border:none;border-radius:50%;color:white;font-size:11px;cursor:pointer;' +
+      'display:flex;align-items:center;justify-content:center;line-height:1;';
+    xBtn.addEventListener('click', function(ev) {
+      ev.stopPropagation();
+      tradeImages.splice(+wrap.dataset.idx, 1);
+      rebuildTradePreviews();
+    });
+    wrap.appendChild(imgEl); wrap.appendChild(badge); wrap.appendChild(xBtn);
+    previews.appendChild(wrap);
+  });
+  if (!tradeImages.length) {
+    document.getElementById('trade-img-zone').style.borderColor = 'var(--b1)';
+    document.getElementById('trade-img-zone').style.borderStyle = 'dashed';
+  }
+}
+
+// Saved prompt buttons
+document.querySelectorAll('.tprompt-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    const key = this.dataset.tprompt;
+    const prompt = TRADE_PROMPTS[key];
+    if (!prompt) return;
+    // Highlight selected button
+    document.querySelectorAll('.tprompt-btn').forEach(b => b.classList.remove('active'));
+    this.classList.add('active');
+    // Pre-fill context textarea with prompt label as reminder
+    const ctx = document.getElementById('trade-context-inp');
+    if (!ctx.value) ctx.placeholder = `${prompt.label} selected — add any extra context here...`;
+    // Auto-trigger analyze if images are ready
+    if (tradeImages.length > 0) runTradeAnalysis(key);
+  });
+});
+
+// Main analyze button
+document.getElementById('trade-analyze-btn').addEventListener('click', function() {
+  const activeBtn = document.querySelector('.tprompt-btn.active');
+  const key = activeBtn ? activeBtn.dataset.tprompt : 'screenshot_eval';
+  runTradeAnalysis(key);
+});
+
+async function runTradeAnalysis(promptKey) {
+  const league  = document.getElementById('trade-league').value;
+  const ctx     = document.getElementById('trade-context-inp').value.trim();
+  const result  = document.getElementById('trade-result');
+  const prompt  = TRADE_PROMPTS[promptKey] || TRADE_PROMPTS['screenshot_eval'];
+  const msgText = prompt.text(league, ctx);
+
+  if (!tradeImages.length && !ctx) {
+    result.innerHTML = '<div style="color:var(--rd);font-size:12px;padding:10px;background:var(--s2);border-radius:8px;">Upload at least one screenshot, or add context in the text box.</div>';
+    return;
+  }
+
+  result.innerHTML = '<div class="spin-wrap"><div class="spin"></div><div class="spin-txt">ANALYZING TRADE...</div></div>';
+
+  try {
+    const r = await fetch('/api/trade/analyze_screenshots', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        images: tradeImages.map(i => i.data),
+        prompt: msgText,
+        league,
+        context: ctx,
+        prompt_type: promptKey,
+      })
+    });
+    const d = await r.json();
+    if (d.success) {
+      renderTradeAnalysis(d.analysis, promptKey);
+    } else {
+      result.innerHTML = `<div style="color:var(--rd);font-size:12px;padding:10px;background:var(--s2);border-radius:8px;">❌ ${d.error || 'Error analyzing trade.'}</div>`;
+    }
+  } catch(e) {
+    result.innerHTML = '<div style="color:var(--rd);font-size:12px;">Connection error.</div>';
+  }
+}
+
+function renderTradeAnalysis(text, promptKey) {
+  const result = document.getElementById('trade-result');
+  const LABELS = {
+    screenshot_eval: '⚡ TRADE ANALYSIS',
+    accept_decline:  '⚡ VERDICT',
+    counter_offer:   '↩ COUNTER STRATEGY',
+    sell_high:       '📈 SELL HIGH TARGETS',
+    buy_low:         '📉 BUY LOW TARGETS',
+    negotiation_msg: '💬 YOUR MESSAGE',
+  };
+  const label = LABELS[promptKey] || '⚡ ANALYSIS';
+  const VERDICT_RE = /\b(ACCEPT|DECLINE|COUNTER)\b/i;
+  const verdictMatch = text.match(VERDICT_RE);
+  let verdictHtml = '';
+  if (verdictMatch) {
+    const v = verdictMatch[0].toUpperCase();
+    const vc = v === 'ACCEPT' ? 'var(--gn)' : v === 'DECLINE' ? 'var(--rd)' : 'var(--gd)';
+    verdictHtml = `<div style="font-size:22px;font-family:'Bebas Neue';letter-spacing:3px;color:${vc};margin-bottom:10px;">${v}</div>`;
+  }
+  const fmt = text
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\n\n/g, '</p><p>')
+    .replace(/\n/g, '<br>');
+
+  result.innerHTML =
+    `<div style="background:var(--s2);border:1px solid var(--b1);border-radius:11px;padding:14px;">` +
+    `<div style="font-family:'Bebas Neue';font-size:13px;letter-spacing:2px;color:var(--ac);margin-bottom:8px;">${label}</div>` +
+    verdictHtml +
+    `<div style="font-size:12px;line-height:1.7;color:var(--tx);"><p>${fmt}</p></div>` +
+    `<button class="btn btn-g btn-sm" id="trade-copy-btn" style="width:100%;margin-top:10px;">📋 Copy Analysis</button>` +
+    `</div>`;
+
+  document.getElementById('trade-copy-btn').addEventListener('click', function() {
+    copyText(text);
+  });
+}
+
+// Manual entry (legacy, inside <details>)
 document.getElementById('giving-add-btn').addEventListener('click', () => addAsset('giving'));
 document.getElementById('receiving-add-btn').addEventListener('click', () => addAsset('receiving'));
 document.getElementById('giving-inp').addEventListener('keydown', e => { if(e.key==='Enter') addAsset('giving'); });
 document.getElementById('receiving-inp').addEventListener('keydown', e => { if(e.key==='Enter') addAsset('receiving'); });
+document.getElementById('eval-btn').addEventListener('click', async function() {
+  if (!givingAssets.length && !receivingAssets.length) { alert('Add assets to evaluate.'); return; }
+  const league = document.getElementById('trade-league').value;
+  document.getElementById('trade-result').innerHTML = '<div class="spin-wrap"><div class="spin"></div><div class="spin-txt">EVALUATING...</div></div>';
+  try {
+    const r = await fetch('/api/trade/evaluate',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({league,giving:givingAssets,receiving:receivingAssets})});
+    const d = await r.json();
+    if (d.success) renderTradeResult(d.result);
+    else document.getElementById('trade-result').innerHTML = '<div style="color:var(--rd);font-size:13px;">Error: ' + (d.error||'Unknown') + '</div>';
+  } catch(e) { document.getElementById('trade-result').innerHTML = '<div style="color:var(--rd);">Connection error.</div>'; }
+});
 
 // Trade screenshot — parse and auto-fill sides
 document.getElementById('trade-screenshot-btn').addEventListener('click', function() {
