@@ -3254,7 +3254,85 @@ Be decisive. One clear pick first. Mobile-friendly format."""
     except Exception as e:
         return jsonify({"error": str(e), "success": False})
 
-@app.route('/api/trade/evaluate', methods=['POST'])
+@app.route('/api/trade/analyze_screenshots', methods=['POST'])
+def analyze_trade_screenshots():
+    """
+    Primary trade analysis endpoint.
+    Accepts up to 6 images + a prompt type.
+    Enriches with KTC + DDL values from DB before calling Claude.
+    """
+    data        = request.json
+    images      = data.get('images', [])[:6]
+    prompt_text = data.get('prompt', '')
+    league      = data.get('league', 'dynasty league')
+    context     = data.get('context', '')
+    prompt_type = data.get('prompt_type', 'screenshot_eval')
+
+    # Pull KTC + DDL market data to enrich the prompt
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+
+    # Top 150 KTC values for reference
+    c.execute("""SELECT player_name, rank, value FROM market_data
+                WHERE source='ktc' ORDER BY rank ASC LIMIT 150""")
+    ktc_rows = c.fetchall()
+
+    # DDL ADP top 100
+    c.execute("""SELECT player_name, rank, team FROM market_data
+                WHERE source='ddl' ORDER BY rank ASC LIMIT 100""")
+    ddl_rows = c.fetchall()
+    conn.close()
+
+    # Format compact reference tables
+    ktc_ref = "KTC SuperFlex+TE VALUES (top 150):\n" + \
+        "\n".join([f"  {r[1]:3d}. {r[0]} — {r[2]:,}" for r in ktc_rows[:80]])
+
+    ddl_ref = "\nDDL STARTUP ADP (top 100):\n" + \
+        "\n".join([f"  {r[1]:3d}. {r[0]}" for r in ddl_rows[:50]])
+
+    league_settings = {
+        "Velvet Spade":       "12-team SuperFlex | 1.5x TE Premium | 6pt Pass TD | Dynasty | Target window 2027",
+        "Capital Gains":      "FFPC #430 | SuperFlex | Dynasty | Established league",
+        "Twenty Run Savages": "FFPC #210 | SuperFlex | Dynasty | Established league",
+        "Gentleman's Dynasty":"Sleeper | Dynasty | Rebuild phase",
+    }
+    league_ctx = league_settings.get(league, f"{league} — dynasty league")
+
+    system = f"""{SYSTEM_PROMPT}
+
+MARKET REFERENCE DATA (use for valuations):
+{ktc_ref}
+{ddl_ref}
+
+LEAGUE CONTEXT: {league_ctx}
+MY IDENTITY: MJBrutus (dcatlet) — dynasty GM, rebuild-minded, values youth + picks + liquidity"""
+
+    # Build content: images first, then the prompt
+    content_parts = []
+    for img_data in images:
+        b64 = img_data.split(',')[1] if ',' in img_data else img_data
+        media_type = 'image/png' if 'png' in img_data[:30].lower() else 'image/jpeg'
+        content_parts.append({
+            "type": "image",
+            "source": {"type": "base64", "media_type": media_type, "data": b64}
+        })
+
+    content_parts.append({"type": "text", "text": prompt_text or
+        f"Analyze this trade for {league}. Give a clear ACCEPT/DECLINE/COUNTER verdict with full value breakdown."})
+
+    try:
+        response = client.messages.create(
+            model="claude-sonnet-4-5",
+            max_tokens=1500,
+            system=system,
+            messages=[{"role": "user", "content": content_parts}]
+        )
+        analysis = response.content[0].text
+        return jsonify({"success": True, "analysis": analysis})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+
 def trade_evaluate():
     """Evaluate a trade using Claude with full league context and KTC values"""
     data = request.json
