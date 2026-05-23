@@ -246,11 +246,11 @@ SYSTEM_PROMPT = f"""You are an elite dynasty fantasy football Assistant GM for M
 {LEAGUE_CONTEXT}
 
 CORE BEHAVIORS:
-1. ALWAYS web search for current player values, injuries, depth charts before answering
+1. ALWAYS web search for current player NFL situation before making any claim about a player's QB, team, depth chart, injury, or role. Training data is outdated — never state a player's NFL context from memory alone. Search first.
 2. KTC SuperFlex+TE primary. Cross-reference RosterAudit, FantasyPros, Rotoballer, ESPN, Underdog
 3. Check ourlads.com for NFL depth charts | NFL.com for draft capital
 4. One clear decisive recommendation — not a menu
-5. Flag data older than 72hrs with DATA WARNING
+5. Flag any NFL situation claim not verified by web search with ⚠ UNVERIFIED
 6. Apply trade rules strictly — flag any deal outside 10% deficit
 7. Always identify which league and strategy phase applies
 8. Factor scoring differences — especially 6pt TDs in Velvet Spade
@@ -259,15 +259,29 @@ CORE BEHAVIORS:
 11. Track KTC vs May 2 baseline — flag 500+ point moves
 12. Gentleman's: monitor Max PF taxi implications weekly
 13. TRS: confirm K+DST always rostered
-14. Velvet Spade: use startup pick value chart for all trade up/down analysis
+14. Velvet Spade: DRAFT COMPLETE — trade season only, no draft strategy
 15. Capital Gains: always factor two-phase consolation strategy
 
-RESPONSE FORMAT: Lead with recommendation | Current data + sources + dates | Risks and concerns | Specific action item | Headers for complex analysis | Mobile-friendly
+ASSET VERIFICATION RULE — CRITICAL:
+When building trade counters, ONLY use players that are:
+a) Explicitly visible in the uploaded screenshot, OR
+b) Confirmed in MY ROSTER sections of this system prompt
+NEVER infer, combine, or generate player names. If a player name is not confirmed, flag it with ⚠ UNCONFIRMED before using it in any counter offer.
 
-TRADE MESSAGE: Under 20 words | 2 sentences | State exact terms | Direct, no hedging
-Example: "Sending Njoku and a 2027 2nd for LaPorta. Works for both of us."
+PACKAGE DISCOUNT RULE — ALWAYS APPLY:
+When one side of a trade sends 2+ assets, apply 10-15% discount to that side's total KTC.
+Two assets at 5000 each = package worth ~8,500-9,000 to receiver, NOT 10,000.
+Always show: Raw total | Package discount applied | Adjusted total | Net difference.
 
-PROACTIVE: Surface opportunities unprompted. Flag material situation changes across all leagues. Weekly: 1 specific trade offer per league.
+COUNTER REALISM RULE — ALWAYS APPLY:
+Every counter must pass the OTHER SIDE TEST before being presented:
+- Does this give them fair value from THEIR perspective?
+- Is the adjusted gap within 10-15% in their favor or neutral?
+- Would a rational GM in their situation actually accept this?
+Present ONE primary counter only. Add one fallback only if the primary is borderline.
+NEVER present 3+ options — it signals indecision and wastes the other GM's time.
+
+RESPONSE FORMAT: Lead with recommendation | Cite source for every value (DB/KTC, screenshot, or system prompt) | Risks and concerns | One specific action item | Mobile-friendly
 
 MY PERSONAL PLAYER VALUES (composite: 45% personal rank + 30% RA + 25% KTC, 6pt QB boost applied):
 Scale: 0-10000 matching KTC. MY = my composite value. KTC = market. Δ = difference (+ means I value higher).
@@ -3722,11 +3736,6 @@ Be decisive. One clear pick first. Mobile-friendly format."""
 
 @app.route('/api/trade/analyze_screenshots', methods=['POST'])
 def analyze_trade_screenshots():
-    """
-    Primary trade analysis endpoint.
-    Accepts up to 6 images + a prompt type.
-    Enriches with KTC + DDL values from DB before calling Claude.
-    """
     data        = request.json
     images      = data.get('images', [])[:6]
     prompt_text = data.get('prompt', '')
@@ -3734,46 +3743,79 @@ def analyze_trade_screenshots():
     context     = data.get('context', '')
     prompt_type = data.get('prompt_type', 'screenshot_eval')
 
-    # Pull KTC + DDL market data to enrich the prompt
+    # Pull player values from DB
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-
-    # Top 150 KTC values for reference
-    c.execute("""SELECT player_name, rank, value FROM market_data
-                WHERE source='ktc' ORDER BY rank ASC LIMIT 150""")
-    ktc_rows = c.fetchall()
-
-    # DDL ADP top 100
-    c.execute("""SELECT player_name, rank, team FROM market_data
-                WHERE source='ddl' ORDER BY rank ASC LIMIT 100""")
-    ddl_rows = c.fetchall()
+    c.execute("""SELECT player_name, my_value, ktc_value, delta, tier
+                 FROM player_values ORDER BY my_value DESC LIMIT 150""")
+    value_rows = c.fetchall()
     conn.close()
 
-    # Format compact reference tables
-    ktc_ref = "KTC SuperFlex+TE VALUES (top 150):\n" + \
-        "\n".join([f"  {r[1]:3d}. {r[0]} — {r[2]:,}" for r in ktc_rows[:80]])
-
-    ddl_ref = "\nDDL STARTUP ADP (top 100):\n" + \
-        "\n".join([f"  {r[1]:3d}. {r[0]}" for r in ddl_rows[:50]])
+    # Build compact value reference
+    value_ref = "MY PLAYER VALUES (MY=personal composite, KTC=market, Δ=difference, ★=significant divergence):\n"
+    for name, my_val, ktc_val, delta, tier in value_rows:
+        d = f"+{delta}" if delta >= 0 else str(delta)
+        flag = " ★" if abs(delta) > 500 else ""
+        value_ref += f"{name}: MY {my_val:,} KTC {ktc_val:,} Δ{d} | {tier}{flag}\n"
 
     league_settings = {
-        "Velvet Spade":       "12-team SuperFlex | 1.5x TE Premium | 6pt Pass TD | Dynasty | Target window 2027",
-        "Capital Gains":      "FFPC #430 | SuperFlex | Dynasty | Established league",
-        "Twenty Run Savages": "FFPC #210 | SuperFlex | Dynasty | Established league",
-        "Gentleman's Dynasty":"Sleeper | Dynasty | Rebuild phase",
+        "Velvet Spade":        "12-team SuperFlex | 1.5x TE Premium | 6pt Pass TD | DRAFT COMPLETE — trade season",
+        "Capital Gains":       "FFPC #430 | SuperFlex | Dynasty | Rebuild — heavy pick capital",
+        "Twenty Run Savages":  "FFPC #210 | SuperFlex | Dynasty | Competing — Drake Maye core",
+        "Gentleman's Dynasty": "Sleeper | Dynasty | Rebuild phase | Mahomes+Bowers untouchable",
     }
     league_ctx = league_settings.get(league, f"{league} — dynasty league")
 
     system = f"""{SYSTEM_PROMPT}
 
-MARKET REFERENCE DATA (use for valuations):
-{ktc_ref}
-{ddl_ref}
+{value_ref}
 
-LEAGUE CONTEXT: {league_ctx}
-MY IDENTITY: MJBrutus (dcatlet) — dynasty GM, rebuild-minded, values youth + picks + liquidity"""
+LEAGUE: {league} | {league_ctx}
 
-    # Build content: images first, then the prompt
+━━━━ TRADE ANALYSIS PROTOCOL ━━━━
+
+STEP 1 — ASSET EXTRACTION (do this first, silently):
+Read the screenshot carefully. List every asset being traded by each side.
+ONLY use player names clearly visible in the screenshot.
+For any player not in MY PLAYER VALUES above, flag with ⚠ VALUE NOT IN DB.
+Do NOT infer, combine, or generate player names from memory.
+
+STEP 2 — NFL SITUATION CHECK (mandatory for every player mentioned):
+Use web_search to verify each player's current NFL situation:
+- Current team and QB (training data is outdated — always verify)
+- Any injuries, suspensions, or role changes in the last 30 days
+- If web search unavailable, flag claim as ⚠ UNVERIFIED — DO NOT state as fact
+
+STEP 3 — VALUE CALCULATION:
+Use MY values (not KTC) as primary. Show KTC as secondary reference.
+PACKAGE DISCOUNT — SLIDING SCALE (always apply, always show the math):
+The more assets packaged, the steeper the discount. Apply to EACH side independently.
+
+  1 asset  →  0% discount  — face value
+  2 assets → 12% discount  — e.g. 5,000 + 5,000 = 10,000 raw → 8,800 adjusted
+  3 assets → 20% discount  — e.g. 4,000 + 4,000 + 4,000 = 12,000 raw → 9,600 adjusted
+  4+ assets → 27% discount — e.g. four assets totaling 12,000 = 8,760 adjusted
+
+Always show: [Raw total] → [X% package discount] → [Adjusted total]
+Then compare adjusted totals from each side to determine true value gap.
+Example of correct format:
+  Side A sends: CeeDee Lamb 7,494 + Tate 5,985 = 13,479 raw → 12% discount → 11,862 adjusted
+  Side B sends: Chase 9,999 (1 asset, no discount) → 9,999 adjusted
+  Net gap: Side A adjusted 11,862 vs Side B 9,999 — Side B overpays by 1,863 (19%)
+
+STEP 4 — VERDICT (ACCEPT / DECLINE / COUNTER):
+State verdict first, one word, in caps.
+Support with: adjusted value gap | roster fit for {league} strategy | counterparty motivation.
+
+STEP 5 — COUNTER (only if COUNTER verdict):
+ONE primary counter only.
+ONLY use assets from MY confirmed rosters (visible in screenshot or in system prompt roster sections).
+Counter must pass OTHER SIDE TEST: would a rational GM accept this?
+If you cannot construct a realistic counter from confirmed assets, say so explicitly rather than inventing one.
+One Sleeper message: under 20 words, direct, addresses what THEY want.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"""
+
     content_parts = []
     for img_data in images:
         b64 = img_data.split(',')[1] if ',' in img_data else img_data
@@ -3784,16 +3826,20 @@ MY IDENTITY: MJBrutus (dcatlet) — dynasty GM, rebuild-minded, values youth + p
         })
 
     content_parts.append({"type": "text", "text": prompt_text or
-        f"Analyze this trade for {league}. Give a clear ACCEPT/DECLINE/COUNTER verdict with full value breakdown."})
+        f"Analyze this trade for {league}. Follow the 5-step protocol."})
 
     try:
         response = client.messages.create(
             model="claude-sonnet-4-5",
-            max_tokens=1500,
+            max_tokens=1800,
             system=system,
+            tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 4}],
             messages=[{"role": "user", "content": content_parts}]
         )
-        analysis = response.content[0].text
+        analysis = ""
+        for block in response.content:
+            if hasattr(block, 'text'):
+                analysis += block.text
         return jsonify({"success": True, "analysis": analysis})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
