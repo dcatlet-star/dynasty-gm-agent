@@ -3041,8 +3041,6 @@ def seed_player_values():
     if count > 0:
         print(f"  Seeded {count} player values from system prompt")
 
-seed_player_values()
-
 
 def get_player_values_block():
     """
@@ -3266,6 +3264,7 @@ def values_summary():
     conn.close()
 
 seed_ktc_tiers()
+seed_player_values()
 
 # VS pick map — who holds each pick (updated as trades happen)
 VS_PICK_MAP = {
