@@ -1395,13 +1395,13 @@ def reset_rankings():
     conn.commit()
     conn.close()
     seed_players()
-    seed_ktc_tiers()
+    refresh_ktc_tiers()
     return jsonify({"success": True, "message": f"Rankings reset with {len(DEFAULT_PLAYERS)} players and KTC tiers applied"})
 
 @app.route('/api/rankings/refresh_tiers', methods=['POST'])
 def refresh_ktc_tiers():
     """Re-run KTC tier seeding on existing rankings without wiping comparison history"""
-    seed_ktc_tiers()
+    refresh_ktc_tiers()
     return jsonify({"success": True, "message": "KTC tiers refreshed on all players"})
 
 
@@ -2222,13 +2222,13 @@ def vs_reset():
     conn.commit()
     conn.close()
     seed_vs_players()
-    seed_ktc_tiers()  # Critical: populate ktc_tier for boundary training
+    refresh_ktc_tiers()  # Critical: populate ktc_tier for boundary training
     return jsonify({"success": True, "message": "VS rankings reset with 6pt TD QB adjustments and KTC tiers applied"})
 
 @app.route('/api/vs/refresh_tiers', methods=['POST'])
 def vs_refresh_tiers():
     """Re-apply KTC tiers to VS rankings without wiping comparison history"""
-    seed_ktc_tiers()
+    refresh_ktc_tiers()
     return jsonify({"success": True, "message": "KTC tiers refreshed on VS rankings"})
 
 # ============================================================
@@ -3263,7 +3263,7 @@ def values_summary():
     conn.commit()
     conn.close()
 
-seed_ktc_tiers()
+refresh_ktc_tiers()
 seed_player_values()
 
 # VS pick map — who holds each pick (updated as trades happen)
