@@ -32,6 +32,10 @@ def init_db():
                   ktc_tier INTEGER DEFAULT 10)''')
     c.execute('''CREATE TABLE IF NOT EXISTS player_profiles
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, player_name TEXT UNIQUE, profile_data TEXT, last_updated TEXT)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS player_values
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, player_name TEXT UNIQUE,
+                  position TEXT, my_value INTEGER, ktc_value INTEGER, delta INTEGER,
+                  tier TEXT, last_updated TEXT)''')
     c.execute('''CREATE TABLE IF NOT EXISTS dashboard_cache
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, cache_key TEXT UNIQUE, data TEXT, last_updated TEXT)''')
     c.execute('''CREATE TABLE IF NOT EXISTS vs_rankings
@@ -267,7 +271,208 @@ RESPONSE FORMAT: Lead with recommendation | Current data + sources + dates | Ris
 TRADE MESSAGE: Under 20 words | 2 sentences | State exact terms | Direct, no hedging
 Example: "Sending Njoku and a 2027 2nd for LaPorta. Works for both of us."
 
-PROACTIVE: Surface opportunities unprompted. Flag material situation changes across all leagues. Weekly: 1 specific trade offer per league."""
+PROACTIVE: Surface opportunities unprompted. Flag material situation changes across all leagues. Weekly: 1 specific trade offer per league.
+
+MY PERSONAL PLAYER VALUES (composite: 45% personal rank + 30% RA + 25% KTC, 6pt QB boost applied):
+Scale: 0-10000 matching KTC. MY = my composite value. KTC = market. Δ = difference (+ means I value higher).
+★ = significant divergence >500pts from KTC market.
+
+Josh Allen (QB) | MY:9999 KTC:9999 Δ:+0 | T1 — Untouchable
+Bijan Robinson (RB) | MY:9999 KTC:9991 Δ:+8 | T1 — Untouchable
+Ja'Marr Chase (WR) | MY:9991 KTC:9999 Δ:-8 | T1 — Untouchable
+Jaxon Smith-Njigba (WR) | MY:9889 KTC:9889 Δ:+0 | T1 — Untouchable
+Jahmyr Gibbs (RB) | MY:9553 KTC:9553 Δ:+0 | T1 — Untouchable
+Drake Maye (QB) | MY:9416 KTC:9416 Δ:+0 | T1 — Untouchable
+Puka Nacua (WR) | MY:8794 KTC:8631 Δ:+163 | T2 — Elite
+Brock Bowers (TE) | MY:8631 KTC:8794 Δ:-163 | T2 — Elite
+Amon-Ra St. Brown (WR) | MY:8330 KTC:7723 Δ:+607 | T2 — Elite ★
+Jayden Daniels (QB) | MY:7943 KTC:7814 Δ:+129 | T2 — Elite
+Caleb Williams (QB) | MY:7858 KTC:7943 Δ:-85 | T2 — Elite
+Lamar Jackson (QB) | MY:7814 KTC:7676 Δ:+138 | T2 — Elite
+Malik Nabers (WR) | MY:7806 KTC:7858 Δ:-52 | T3 — Franchise
+Justin Jefferson (WR) | MY:7723 KTC:7806 Δ:-83 | T3 — Franchise
+Joe Burrow (QB) | MY:7676 KTC:7494 Δ:+182 | T3 — Franchise
+Ashton Jeanty (RB) | MY:7650 KTC:7561 Δ:+89 | T3 — Franchise
+Jeremiyah Love (RB) | MY:7561 KTC:7650 Δ:-89 | T3 — Franchise
+CeeDee Lamb (WR) | MY:7494 KTC:7310 Δ:+184 | T3 — Franchise
+Trey McBride (TE) | MY:7310 KTC:8330 Δ:-1020 | T3 — Franchise ★
+Justin Herbert (QB) | MY:6879 KTC:6815 Δ:+64 | T3 — Franchise
+DeVon Achane (RB) | MY:6867 KTC:6867 Δ:+0 | T3 — Franchise
+Omarion Hampton (RB) | MY:6815 KTC:6711 Δ:+104 | T3 — Franchise
+Colston Loveland (TE) | MY:6809 KTC:6689 Δ:+120 | T3 — Franchise
+Drake London (WR) | MY:6711 KTC:6879 Δ:-168 | T3 — Franchise
+Patrick Mahomes (QB) | MY:6689 KTC:6809 Δ:-120 | T4 — Premium
+Jaxson Dart (QB) | MY:6660 KTC:6660 Δ:+0 | T4 — Premium
+Jonathan Taylor (RB) | MY:6557 KTC:6063 Δ:+494 | T4 — Premium
+Jalen Hurts (QB) | MY:6332 KTC:6191 Δ:+141 | T4 — Premium
+Tetairoa McMillan (WR) | MY:6222 KTC:6557 Δ:-335 | T4 — Premium
+Bo Nix (QB) | MY:6204 KTC:6142 Δ:+62 | T4 — Premium
+Tyler Warren (TE) | MY:6191 KTC:6332 Δ:-141 | T4 — Premium
+Brock Purdy (QB) | MY:6142 KTC:5815 Δ:+327 | T4 — Premium
+Emeka Egbuka (WR) | MY:6063 KTC:6204 Δ:-141 | T4 — Premium
+James Cook (RB) | MY:6046 KTC:6046 Δ:+0 | T4 — Premium
+Carnell Tate (WR) | MY:5985 KTC:5833 Δ:+152 | T4 — Premium
+Breece Hall (RB) | MY:5833 KTC:5384 Δ:+449 | T4 — Premium
+George Pickens (WR) | MY:5815 KTC:5985 Δ:-170 | T4 — Premium
+Fernando Mendoza (QB) | MY:5712 KTC:5663 Δ:+49 | T4 — Premium
+Garrett Wilson (WR) | MY:5678 KTC:5712 Δ:-34 | T4 — Premium
+Nico Collins (WR) | MY:5663 KTC:5678 Δ:-15 | T4 — Premium
+Chris Olave (WR) | MY:5630 KTC:5587 Δ:+43 | T4 — Premium
+TreVeyon Henderson (RB) | MY:5587 KTC:5351 Δ:+236 | T4 — Premium
+Trevor Lawrence (QB) | MY:5460 KTC:6222 Δ:-762 | T5 — Strong ★
+Christian McCaffrey (RB) | MY:5447 KTC:5051 Δ:+396 | T5 — Strong
+Kenneth Walker III (RB) | MY:5440 KTC:5447 Δ:-7 | T5 — Strong
+Quinshon Judkins (RB) | MY:5392 KTC:5460 Δ:-68 | T5 — Strong
+Jordan Love (QB) | MY:5384 KTC:5630 Δ:-246 | T5 — Strong
+Harold Fannin (TE) | MY:5351 KTC:5440 Δ:-89 | T5 — Strong
+Ladd McConkey (WR) | MY:5348 KTC:5318 Δ:+30 | T5 — Strong
+Rashee Rice (WR) | MY:5318 KTC:5301 Δ:+17 | T5 — Strong
+Luther Burden (WR) | MY:5304 KTC:5216 Δ:+88 | T5 — Strong
+Cam Ward (QB) | MY:5301 KTC:5245 Δ:+56 | T5 — Strong
+Jordyn Tyson (WR) | MY:5245 KTC:5304 Δ:-59 | T5 — Strong
+A.J. Brown (WR) | MY:5216 KTC:4808 Δ:+408 | T5 — Strong
+Makai Lemon (WR) | MY:5211 KTC:5055 Δ:+156 | T5 — Strong
+Rome Odunze (WR) | MY:5089 KTC:5392 Δ:-303 | T5 — Strong
+Tucker Kraft (TE) | MY:5055 KTC:5348 Δ:-293 | T5 — Strong
+Saquon Barkley (RB) | MY:5054 KTC:4876 Δ:+178 | T5 — Strong
+Marvin Harrison Jr. (WR) | MY:5051 KTC:5054 Δ:-3 | T5 — Strong
+Baker Mayfield (QB) | MY:4993 KTC:4758 Δ:+235 | T5 — Strong
+Dak Prescott (QB) | MY:4934 KTC:4993 Δ:-59 | T5 — Strong
+DeVonta Smith (WR) | MY:4927 KTC:5211 Δ:-284 | T5 — Strong
+Chase Brown (RB) | MY:4911 KTC:4882 Δ:+29 | T5 — Strong
+Sam LaPorta (TE) | MY:4908 KTC:5089 Δ:-181 | T5 — Strong
+Tyler Shough (QB) | MY:4884 KTC:4884 Δ:+0 | T5 — Strong
+Jadarian Price (RB) | MY:4882 KTC:4742 Δ:+140 | T5 — Strong
+Tee Higgins (WR) | MY:4876 KTC:4911 Δ:-35 | T5 — Strong
+Bucky Irving (RB) | MY:4870 KTC:4908 Δ:-38 | T5 — Strong
+Brian Thomas Jr. (WR) | MY:4868 KTC:4934 Δ:-66 | T5 — Strong
+Jaylen Waddle (WR) | MY:4858 KTC:4870 Δ:-12 | T5 — Strong
+Zay Flowers (WR) | MY:4808 KTC:4670 Δ:+138 | T6 — Solid
+Jared Goff (QB) | MY:4781 KTC:4591 Δ:+190 | T6 — Solid
+Kyren Williams (RB) | MY:4758 KTC:4858 Δ:-100 | T6 — Solid
+Cam Skattebo (RB) | MY:4742 KTC:4586 Δ:+156 | T6 — Solid
+C.J. Stroud (QB) | MY:4670 KTC:4868 Δ:-198 | T6 — Solid
+Kyle Pitts (TE) | MY:4662 KTC:4927 Δ:-265 | T6 — Solid
+Jameson Williams (WR) | MY:4652 KTC:4662 Δ:-10 | T6 — Solid
+Josh Jacobs (RB) | MY:4591 KTC:4457 Δ:+134 | T6 — Solid
+KC Concepcion (WR) | MY:4586 KTC:4516 Δ:+70 | T6 — Solid
+Travis Etienne (RB) | MY:4516 KTC:4403 Δ:+113 | T6 — Solid
+Kenyon Sadiq (TE) | MY:4505 KTC:4652 Δ:-147 | T6 — Solid
+Sam Darnold (QB) | MY:4457 KTC:4781 Δ:-324 | T6 — Solid
+Javonte Williams (RB) | MY:4434 KTC:4434 Δ:+0 | T6 — Solid
+Kyler Murray (QB) | MY:4403 KTC:4101 Δ:+302 | T6 — Solid
+Alec Pierce (WR) | MY:4111 KTC:4111 Δ:+0 | T6 — Solid
+Bhayshul Tuten (RB) | MY:4101 KTC:3951 Δ:+150 | T6 — Solid
+Bryce Young (QB) | MY:4099 KTC:4505 Δ:-406 | T6 — Solid
+Matthew Stafford (QB) | MY:4007 KTC:3661 Δ:+346 | T6 — Solid
+Derrick Henry (RB) | MY:3998 KTC:3834 Δ:+164 | T6 — Solid
+Omar Cooper (WR) | MY:3973 KTC:3896 Δ:+77 | T6 — Solid
+Malik Willis (QB) | MY:3959 KTC:4007 Δ:-48 | T6 — Solid
+Daniel Jones (QB) | MY:3951 KTC:3959 Δ:-8 | T6 — Solid
+Eli Stowers (TE) | MY:3896 KTC:3998 Δ:-102 | T6 — Solid
+George Kittle (TE) | MY:3834 KTC:3708 Δ:+126 | T6 — Solid
+Parker Washington (WR) | MY:3745 KTC:3521 Δ:+224 | T6 — Solid
+RJ Harvey (RB) | MY:3740 KTC:3498 Δ:+242 | T6 — Solid
+David Montgomery (RB) | MY:3724 KTC:3408 Δ:+316 | T6 — Solid
+Jordan Addison (WR) | MY:3716 KTC:3973 Δ:-257 | T6 — Solid
+D.J. Moore (WR) | MY:3708 KTC:3678 Δ:+30 | T6 — Solid
+D'Andre Swift (RB) | MY:3678 KTC:3505 Δ:+173 | T6 — Solid
+Michael Wilson (WR) | MY:3661 KTC:3656 Δ:+5 | T6 — Solid
+Matthew Golden (WR) | MY:3656 KTC:3745 Δ:-89 | T6 — Solid
+Christian Watson (WR) | MY:3654 KTC:3633 Δ:+21 | T6 — Solid
+Oronde Gadsden (TE) | MY:3647 KTC:4099 Δ:-452 | T6 — Solid
+Denzel Boston (WR) | MY:3633 KTC:3442 Δ:+191 | T6 — Solid
+Josh Downs (WR) | MY:3610 KTC:3610 Δ:+0 | T7 — Value
+Kyle Monangai (RB) | MY:3590 KTC:3590 Δ:+0 | T7 — Value
+Davante Adams (WR) | MY:3543 KTC:3398 Δ:+145 | T7 — Value
+D.K. Metcalf (WR) | MY:3522 KTC:3647 Δ:-125 | T7 — Value
+Mike Evans (WR) | MY:3521 KTC:3289 Δ:+232 | T7 — Value
+Terry McLaurin (WR) | MY:3505 KTC:3450 Δ:+55 | T7 — Value
+Jayden Higgins (WR) | MY:3498 KTC:3429 Δ:+69 | T7 — Value
+Dalton Kincaid (TE) | MY:3487 KTC:3654 Δ:-167 | T7 — Value
+Wan'Dale Robinson (WR) | MY:3450 KTC:3543 Δ:-93 | T7 — Value
+Chuba Hubbard (RB) | MY:3442 KTC:3405 Δ:+37 | T7 — Value
+Travis Hunter (WR) | MY:3440 KTC:3322 Δ:+118 | T7 — Value
+Ricky Pearsall (WR) | MY:3429 KTC:3522 Δ:-93 | T7 — Value
+Jaylen Warren (RB) | MY:3408 KTC:3215 Δ:+193 | T7 — Value
+Ty Simpson (QB) | MY:3405 KTC:3724 Δ:-319 | T7 — Value
+Brenton Strange (TE) | MY:3398 KTC:3440 Δ:-42 | T7 — Value
+Jake Ferguson (TE) | MY:3370 KTC:3716 Δ:-346 | T7 — Value
+Jonah Coleman (RB) | MY:3360 KTC:3084 Δ:+276 | T7 — Value
+Chris Bell (WR) | MY:3344 KTC:2978 Δ:+366 | T7 — Value
+Michael Pittman Jr. (WR) | MY:3337 KTC:3370 Δ:-33 | T7 — Value
+Jakobi Meyers (WR) | MY:3322 KTC:3211 Δ:+111 | T7 — Value
+Zach Charbonnet (RB) | MY:3289 KTC:3360 Δ:-71 | T7 — Value
+Michael Penix Jr. (QB) | MY:3288 KTC:3151 Δ:+137 | T7 — Value
+Jayden Reed (WR) | MY:3231 KTC:3487 Δ:-256 | T7 — Value
+Isaiah Likely (TE) | MY:3228 KTC:3740 Δ:-512 | T7 — Value ★
+Blake Corum (RB) | MY:3215 KTC:3212 Δ:+3 | T7 — Value
+Germie Bernard (WR) | MY:3214 KTC:2951 Δ:+263 | T7 — Value
+Courtland Sutton (WR) | MY:3212 KTC:3231 Δ:-19 | T7 — Value
+Rico Dowdle (RB) | MY:3211 KTC:3174 Δ:+37 | T7 — Value
+Chigoziem Okonkwo (TE) | MY:3174 KTC:3118 Δ:+56 | T7 — Value
+Mark Andrews (TE) | MY:3161 KTC:3161 Δ:+0 | T7 — Value
+Romeo Doubs (WR) | MY:3151 KTC:3288 Δ:-137 | T7 — Value
+Xavier Worthy (WR) | MY:3118 KTC:3344 Δ:-226 | T7 — Value
+Antonio Williams (WR) | MY:3108 KTC:2724 Δ:+384 | T7 — Value
+Quentin Johnston (WR) | MY:3084 KTC:3337 Δ:-253 | T7 — Value
+Jonathon Brooks (RB) | MY:3079 KTC:3079 Δ:+0 | T7 — Value
+Nicholas Singleton (RB) | MY:3056 KTC:2919 Δ:+137 | T7 — Value
+Elijah Sarratt (WR) | MY:3042 KTC:2761 Δ:+281 | T7 — Value
+Jalen Coker (WR) | MY:3023 KTC:3056 Δ:-33 | T7 — Value
+Kenneth Gainwell (RB) | MY:2998 KTC:2755 Δ:+243 | T7 — Value
+Zachariah Branch (WR) | MY:2982 KTC:2609 Δ:+373 | T7 — Value
+J.K. Dobbins (RB) | MY:2981 KTC:2973 Δ:+8 | T7 — Value
+AJ Barner (TE) | MY:2978 KTC:3214 Δ:-236 | T7 — Value
+Khalil Shakir (WR) | MY:2973 KTC:3023 Δ:-50 | T7 — Value
+Chris Godwin (WR) | MY:2966 KTC:2982 Δ:-16 | T7 — Value
+Dallas Goedert (TE) | MY:2964 KTC:2981 Δ:-17 | T7 — Value
+T.J. Hockenson (TE) | MY:2951 KTC:3228 Δ:-277 | T8 — Upside
+Jalen McMillan (WR) | MY:2949 KTC:2998 Δ:-49 | T8 — Upside
+Emmett Johnson (RB) | MY:2923 KTC:2495 Δ:+428 | T8 — Upside
+De'Zhaun Stribling (WR) | MY:2919 KTC:1926 Δ:+993 | T8 — Upside ★
+Tony Pollard (RB) | MY:2910 KTC:2860 Δ:+50 | T8 — Upside
+Chris Brazzell (WR) | MY:2908 KTC:2603 Δ:+305 | T8 — Upside
+Rhamondre Stevenson (RB) | MY:2881 KTC:2923 Δ:-42 | T8 — Upside
+Kaytron Allen (RB) | MY:2860 KTC:2454 Δ:+406 | T8 — Upside
+J.J. McCarthy (QB) | MY:2821 KTC:2881 Δ:-60 | T8 — Upside
+Jacory Croskey-Merritt (RB) | MY:2814 KTC:2964 Δ:-150 | T8 — Upside
+Mike Washington (RB) | MY:2808 KTC:2444 Δ:+364 | T8 — Upside
+Jordan Mason (RB) | MY:2799 KTC:2638 Δ:+161 | T8 — Upside
+Jacoby Brissett (QB) | MY:2787 KTC:2702 Δ:+85 | T8 — Upside
+Tua Tagovailoa (QB) | MY:2762 KTC:2713 Δ:+49 | T8 — Upside
+Travis Kelce (TE) | MY:2762 KTC:2808 Δ:-46 | T8 — Upside
+Juwan Johnson (TE) | MY:2761 KTC:2762 Δ:-1 | T8 — Upside
+Woody Marks (RB) | MY:2755 KTC:2910 Δ:-155 | T8 — Upside
+Malachi Fields (WR) | MY:2753 KTC:2620 Δ:+133 | T8 — Upside
+Shedeur Sanders (QB) | MY:2751 KTC:2829 Δ:-78 | T8 — Upside
+Rachaad White (RB) | MY:2751 KTC:2689 Δ:+62 | T8 — Upside
+Max Klare (TE) | MY:2727 KTC:2448 Δ:+279 | T8 — Upside
+Terrance Ferguson (TE) | MY:2724 KTC:3108 Δ:-384 | T8 — Upside
+Ja'Kobi Lane (WR) | MY:2717 KTC:2348 Δ:+369 | T8 — Upside
+Skyler Bell (WR) | MY:2713 KTC:2457 Δ:+256 | T8 — Upside
+Tre Harris (WR) | MY:2712 KTC:2762 Δ:-50 | T8 — Upside
+Gunnar Helm (TE) | MY:2702 KTC:3042 Δ:-340 | T8 — Upside
+Tyler Allgeier (RB) | MY:2699 KTC:2751 Δ:-52 | T8 — Upside
+Rashid Shaheed (WR) | MY:2689 KTC:2949 Δ:-260 | T8 — Upside
+Tyrone Tracy (RB) | MY:2684 KTC:2612 Δ:+72 | T8 — Upside
+Ted Hurst (WR) | MY:2683 KTC:2015 Δ:+668 | T8 — Upside ★
+Chris Rodriguez Jr. (RB) | MY:2672 KTC:2531 Δ:+141 | T8 — Upside
+Tyjae Spears (RB) | MY:2669 KTC:2684 Δ:-15 | T8 — Upside
+Brandon Aiyuk (WR) | MY:2669 KTC:2394 Δ:+275 | T8 — Upside
+Mason Taylor (TE) | MY:2641 KTC:2814 Δ:-173 | T8 — Upside
+Jerry Jeudy (WR) | MY:2638 KTC:2644 Δ:-6 | T8 — Upside
+Dylan Sampson (RB) | MY:2620 KTC:2672 Δ:-52 | T8 — Upside
+Dylan Sampson (RB) | MY:2617 KTC:2669 Δ:-52 | T8 — Upside
+Isiah Pacheco (RB) | MY:2612 KTC:2263 Δ:+349 | T8 — Upside
+Dalton Schultz (TE) | MY:2600 KTC:2669 Δ:-69 | T8 — Upside
+Deshaun Watson (QB) | MY:2539 KTC:2028 Δ:+511 | T8 — Upside ★
+Geno Smith (QB) | MY:2531 KTC:2178 Δ:+353 | T8 — Upside
+Jauan Jennings (WR) | MY:2495 KTC:2799 Δ:-304 | T8 — Upside
+Isaac TeSlaa (WR) | MY:2495 KTC:2821 Δ:-326 | T8 — Upside
+David Njoku (TE) | MY:2493 KTC:2966 Δ:-473 | T8 — Upside
+DELTA KEY: ★ = my value diverges significantly from KTC market (>800 pts). Positive Δ = I value higher than KTC. Negative Δ = KTC values higher than me.
+When evaluating trades: use MY values (not KTC) as the primary valuation. Flag if I'm being offered players where KTC > my value (market overvalues them) or giving away players where my value > KTC (I value more than market)."""
 
 DEFAULT_PLAYERS = [
     # QBs
@@ -669,33 +874,80 @@ def chat():
                 wb_xl = _lwb(io.BytesIO(excel_bytes), data_only=True)
 
                 text_parts = [f"[Excel file: {fname}]"]
-                priority = ['📊 Draft Board', '📋 Pick Map', '👥 Manager Rosters']
-                sheets = [s for s in priority if s in wb_xl.sheetnames]
-                for s in wb_xl.sheetnames:
-                    if s not in sheets and not s.startswith('_') and wb_xl[s].sheet_state == 'visible':
-                        sheets.append(s)
 
-                for sname in sheets[:6]:
+                # Priority order: trade/roster context first, draft tools last
+                # Tabs with these keywords get read first
+                PRIORITY_KEYWORDS = [
+                    'my roster', 'my asset', 'tendencies', 'gm tend',
+                    'trade log', 'velvet spade', 'capital gains', 'trs',
+                    'gentlemans', "gentleman's", 'dashboard', 'rosters',
+                ]
+                SKIP_KEYWORDS = [
+                    'draft board', 'pick map', 'manager roster',
+                    'qb board', 'rb board', 'wr board', 'te board',
+                    'pick value', 'methodology', 'tier break', '_mgr_helper',
+                ]
+
+                all_visible = [s for s in wb_xl.sheetnames
+                               if not s.startswith('_')
+                               and wb_xl[s].sheet_state == 'visible']
+
+                def priority_score(name):
+                    n = name.lower()
+                    if any(k in n for k in SKIP_KEYWORDS): return 99
+                    for i, k in enumerate(PRIORITY_KEYWORDS):
+                        if k in n: return i
+                    return 50
+
+                sheets_ordered = sorted(all_visible, key=priority_score)
+                # Drop skip-category sheets entirely
+                sheets_to_read = [s for s in sheets_ordered
+                                  if priority_score(s) < 99][:8]
+
+                # Per-sheet row caps: smaller for large roster sheets, bigger for summaries
+                def row_cap(name):
+                    n = name.lower()
+                    if any(k in n for k in ['dashboard','log','tendencies']): return 100
+                    if any(k in n for k in ['my roster','my asset']): return 200
+                    return 150  # roster tabs: enough to cover ~12 teams × 25 players
+
+                total_chars = 0
+                CHAR_LIMIT = 45000
+
+                for sname in sheets_to_read:
+                    if total_chars >= CHAR_LIMIT:
+                        text_parts.append(f"\n[Remaining sheets skipped — context limit reached]")
+                        break
                     ws_xl = wb_xl[sname]
-                    text_parts.append(f"\n=== {sname} ===")
+                    cap = row_cap(sname)
+                    sheet_lines = [f"\n=== {sname} ==="]
                     rows_added = 0
-                    for row in ws_xl.iter_rows(min_row=1, max_row=500, values_only=True):
+                    for row in ws_xl.iter_rows(min_row=1, max_row=600, values_only=True):
                         if all(v is None for v in row): continue
-                        text_parts.append('\t'.join([str(v) if v is not None else '' for v in row]))
-                        rows_added += 1
-                        if rows_added >= 400:
-                            text_parts.append(f"[...truncated]"); break
+                        # Skip rows that are purely formula artifacts (all numbers, no names)
+                        row_str = '\t'.join([str(v).strip() if v is not None else '' for v in row])
+                        if row_str.strip():
+                            sheet_lines.append(row_str)
+                            rows_added += 1
+                        if rows_added >= cap:
+                            sheet_lines.append(f"[...{ws_xl.max_row - rows_added} more rows in this sheet]")
+                            break
+                    sheet_text = '\n'.join(sheet_lines)
+                    text_parts.append(sheet_text)
+                    total_chars += len(sheet_text)
+
+                text_parts.append(f"\n[Sheets read: {', '.join(sheets_to_read)}]")
+                if len(all_visible) > len(sheets_to_read):
+                    skipped = [s for s in all_visible if s not in sheets_to_read]
+                    text_parts.append(f"[Sheets skipped (draft tools): {', '.join(skipped[:10])}]")
 
                 extracted = '\n'.join(text_parts)
-                if len(extracted) > 50000:
-                    extracted = extracted[:50000] + '\n[...truncated]'
                 content.append({"type": "text", "text": extracted})
-                content.append({"type": "text",
-                    "text": f"\n[Successfully read {len(sheets)} sheets: {', '.join(sheets)}]"})
+
             except ImportError:
                 content.append({"type": "text",
-                    "text": f"[SERVER ERROR: openpyxl library not installed — cannot parse {fname}. "
-                            f"Redeploy with openpyxl in requirements.txt to fix this.]"})
+                    "text": f"[SERVER ERROR: openpyxl not installed — cannot parse {fname}. "
+                            f"Redeploy with openpyxl in requirements.txt.]"})
             except Exception as ex:
                 content.append({"type": "text",
                     "text": f"[ERROR parsing {fname}: {type(ex).__name__}: {ex}]"})
@@ -729,11 +981,18 @@ def chat():
     if len(messages) > 20:
         messages = messages[-20:]
 
+    # Inject fresh player values from DB into this request
+    live_values = get_player_values_block()
+    if live_values:
+        system_with_values = SYSTEM_PROMPT + "\n\n" + live_values
+    else:
+        system_with_values = SYSTEM_PROMPT
+
     try:
         response = client.messages.create(
             model="claude-sonnet-4-5",
             max_tokens=2000,
-            system=SYSTEM_PROMPT,
+            system=system_with_values,
             tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 5}],
             messages=messages
         )
@@ -2745,7 +3004,221 @@ def seed_ddl_market_data():
 
 seed_ddl_market_data()
 
-def seed_ktc_tiers():
+def seed_player_values():
+    """
+    Seed player_values table from current hardcoded values in system prompt.
+    Called once on startup. If table already has data, skip.
+    """
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT COUNT(*) FROM player_values")
+    if c.fetchone()[0] > 0:
+        conn.close()
+        return  # already seeded
+
+    # Parse the values block embedded in SYSTEM_PROMPT
+    import re as _re
+    pattern = _re.compile(
+        r'^(.+?)\s+\((\w+)\)\s+\|\s+MY:(\d+)\s+KTC:(\d+)\s+Δ:([+-]?\d+)\s+\|\s+(.+?)(?:\s+★)?$',
+        _re.MULTILINE
+    )
+    now = datetime.now().isoformat()
+    count = 0
+    for m in pattern.finditer(SYSTEM_PROMPT):
+        name, pos, my_val, ktc_val, delta, tier = (
+            m.group(1).strip(), m.group(2), int(m.group(3)),
+            int(m.group(4)), int(m.group(5)), m.group(6).strip()
+        )
+        try:
+            c.execute("""INSERT OR REPLACE INTO player_values
+                        (player_name, position, my_value, ktc_value, delta, tier, last_updated)
+                        VALUES (?,?,?,?,?,?,?)""",
+                     (name, pos, my_val, ktc_val, delta, tier, now))
+            count += 1
+        except: pass
+    conn.commit()
+    conn.close()
+    if count > 0:
+        print(f"  Seeded {count} player values from system prompt")
+
+seed_player_values()
+
+
+def get_player_values_block():
+    """
+    Build the player values reference string from DB.
+    Used in chat route to inject fresh values into every request.
+    Falls back to hardcoded system prompt values if DB is empty.
+    """
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("""SELECT player_name, position, my_value, ktc_value, delta, tier
+                 FROM player_values ORDER BY my_value DESC LIMIT 200""")
+    rows = c.fetchall()
+    conn.close()
+
+    if not rows:
+        return ""
+
+    lines = []
+    for name, pos, my_val, ktc_val, delta, tier in rows:
+        delta_str = f"+{delta}" if delta >= 0 else str(delta)
+        flag = " ★" if abs(delta) > 500 else ""
+        lines.append(f"{name} ({pos}) | MY:{my_val} KTC:{ktc_val} Δ:{delta_str} | {tier}{flag}")
+
+    updated = datetime.now().strftime("%b %d, %Y")
+    return (
+        f"MY PERSONAL PLAYER VALUES (last updated: {updated}):\n"
+        "MY = my composite value (0-10000). KTC = market. Δ = difference.\n"
+        "★ = significant divergence >500pts. Positive Δ = I value higher than KTC.\n\n"
+        + "\n".join(lines)
+    )
+
+
+@app.route('/api/values/update', methods=['POST'])
+def update_player_values():
+    """
+    Update player values from uploaded Excel file or KTC paste.
+    Accepts:
+    - file_data: base64 Excel (same format as chat upload)
+    - ktc_paste: raw KTC paste text
+    - manual_updates: list of {name, my_value, ktc_value, position, tier}
+    """
+    data = request.json
+    file_data    = data.get('file_data')
+    ktc_paste    = data.get('ktc_paste', '')
+    manual       = data.get('manual_updates', [])
+    now          = datetime.now().isoformat()
+
+    conn = sqlite3.connect(DB_PATH)
+    c    = conn.cursor()
+    updated = 0
+    errors  = []
+
+    if file_data:
+        # Parse Excel and extract composite values
+        try:
+            import io, base64 as b64lib
+            from openpyxl import load_workbook as _lwb
+            raw = file_data.get('data','')
+            b64 = raw.split(',')[1] if ',' in raw else raw
+            wb_xl = _lwb(io.BytesIO(b64lib.b64decode(b64)), data_only=True)
+
+            # Look for a sheet with player name + value columns
+            target_sheet = None
+            for sname in wb_xl.sheetnames:
+                ws_xl = wb_xl[sname]
+                # Check first row for column headers
+                headers = [str(ws_xl.cell(1,i).value or '').lower()
+                           for i in range(1, 10)]
+                if any('player' in h for h in headers) and \
+                   any('value' in h or 'rank' in h for h in headers):
+                    target_sheet = sname
+                    break
+
+            if target_sheet:
+                ws_xl = wb_xl[target_sheet]
+                headers = [str(ws_xl.cell(1,i).value or '').lower()
+                           for i in range(1, ws_xl.max_column+1)]
+
+                # Find column indices
+                def col_idx(keywords):
+                    for kw in keywords:
+                        for i,h in enumerate(headers):
+                            if kw in h: return i+1
+                    return None
+
+                name_col  = col_idx(['player'])
+                pos_col   = col_idx(['position','pos'])
+                my_col    = col_idx(['composite','my value','personal'])
+                ktc_col   = col_idx(['ktc'])
+                tier_col  = col_idx(['tier'])
+
+                if name_col and my_col:
+                    for row in ws_xl.iter_rows(min_row=2, values_only=True):
+                        try:
+                            name = str(row[name_col-1] or '').strip()
+                            if not name or name == 'None': continue
+                            pos      = str(row[pos_col-1]) if pos_col else ''
+                            my_val   = int(float(row[my_col-1] or 0))
+                            ktc_val  = int(float(row[ktc_col-1] or 0)) if ktc_col else 0
+                            tier     = str(row[tier_col-1] or '') if tier_col else ''
+                            delta    = my_val - ktc_val
+                            c.execute("""INSERT OR REPLACE INTO player_values
+                                        (player_name,position,my_value,ktc_value,delta,tier,last_updated)
+                                        VALUES (?,?,?,?,?,?,?)""",
+                                     (name,pos,my_val,ktc_val,delta,tier,now))
+                            updated += 1
+                        except: pass
+
+        except Exception as ex:
+            errors.append(f"Excel parse error: {ex}")
+
+    if ktc_paste:
+        # Parse raw KTC paste (same format as the app's existing KTC paste endpoint)
+        try:
+            resp = requests.post(f'http://localhost:{os.environ.get("PORT",8080)}/api/market/paste',
+                               json={'source':'ktc','text':ktc_paste},
+                               timeout=10)
+            if resp.status_code == 200:
+                d = resp.json()
+                if d.get('success'):
+                    # Sync new KTC values into player_values table
+                    c.execute("SELECT player_name, value FROM market_data WHERE source='ktc'")
+                    for name, ktc_val in c.fetchall():
+                        c.execute("""UPDATE player_values SET ktc_value=?, delta=my_value-?,
+                                    last_updated=? WHERE player_name=?""",
+                                 (ktc_val, ktc_val, now, name))
+                    updated += d.get('parsed', 0)
+        except Exception as ex:
+            errors.append(f"KTC paste error: {ex}")
+
+    for item in manual:
+        try:
+            name    = item.get('name','').strip()
+            my_val  = int(item.get('my_value', 0))
+            ktc_val = int(item.get('ktc_value', 0))
+            pos     = item.get('position','')
+            tier    = item.get('tier','')
+            delta   = my_val - ktc_val
+            c.execute("""INSERT OR REPLACE INTO player_values
+                        (player_name,position,my_value,ktc_value,delta,tier,last_updated)
+                        VALUES (?,?,?,?,?,?,?)""",
+                     (name,pos,my_val,ktc_val,delta,tier,now))
+            updated += 1
+        except: pass
+
+    conn.commit()
+    conn.close()
+
+    return jsonify({
+        "success": True,
+        "updated": updated,
+        "errors": errors,
+        "message": f"Updated {updated} player values. Changes take effect immediately in all chat responses."
+    })
+
+
+@app.route('/api/values/summary', methods=['GET'])
+def values_summary():
+    """Return current player values for display in app."""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("""SELECT player_name, position, my_value, ktc_value, delta, tier, last_updated
+                 FROM player_values ORDER BY my_value DESC LIMIT 200""")
+    rows = c.fetchall()
+    c.execute("SELECT MAX(last_updated) FROM player_values")
+    last_updated = c.fetchone()[0] or 'Never'
+    conn.close()
+    return jsonify({
+        "success": True,
+        "count": len(rows),
+        "last_updated": last_updated,
+        "values": [{"name":r[0],"pos":r[1],"my_value":r[2],"ktc_value":r[3],
+                    "delta":r[4],"tier":r[5]} for r in rows]
+    })
+
+
     """Populate ktc_tier from market_data KTC source using fuzzy name matching"""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
