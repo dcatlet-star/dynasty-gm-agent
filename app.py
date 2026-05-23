@@ -200,35 +200,31 @@ DynastyMad: Desperate WR#13 → sell WR depth
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-LEAGUE 4: VELVET SPADE — SLEEPER $250/$525 startup
+LEAGUE 4: VELVET SPADE — SLEEPER $250/$525 startup (DRAFT COMPLETE)
 12-team | SuperFlex | TE Premium 1.5 | 6PT PASSING TDs
 1QB/2RB/2WR/1TE/3FLEX/1SFLX | 23+5taxi+2IR | Max 30
 FAAB $1000 tradeable | Waivers Wed 3AM ET | Trade deadline Wk13
-Startup May 15 2026 | 28 rounds | Snake + 3rd round reversal | 12hr timer
-Sleeper ID: 1315445968161734656 | Priority: #1
+Draft completed May 2026 | Sleeper ID: 1315445968161734656 | Priority: #1
 
 SCORING: All TDs 6pt | Pass 0.04/yd | Rush/Rec 0.1/yd | PPR RB/WR 1.0 TE 1.5
 BONUSES: 40+yd play +1 | 400+pass yd +2 | 200+rush/rec yd +2 | -2 INT | -2 fumble
 
-DRAFT ORDER: 1.pdwyer13 2.dcatlet(YOU) 3.yerkdog 4.jefisk24 5.Smohr609
-6.ColeTrain8300 7.DrTrollPhD 8.colinmonie 9.EazyDakar 10.jakemills69 11.NateSneller 12.sneller
-3RD ROUND REVERSAL: Rounds 2 AND 3 both reversed (sneller gets 2.01 AND 3.01)
+STATUS: POST-STARTUP — NOW IN TRADE SEASON. Draft is 100% complete. Do NOT reference draft picks or startup strategy. Focus on roster construction, trade opportunities, and dynasty build.
 
-YOUR PICKS: 1.02|2.11|3.11|4.02|5.11|6.02|7.11|8.02|9.11|10.02|11.11|12.02...pattern: 2nd odd rounds, 11th even rounds
-Near back-to-back: 5.11+6.02, 7.11+8.02, 9.11+10.02 etc.
+MY VS ROSTER (post-draft, 28 rounds completed):
+QB: Drake Maye (NE) | Jaxson Dart (NYG) | Carson Beck (ARI) | Jalen Milroe (SEA)
+RB: Dylan Sampson (CLE) | Mike Washington (LV) | Tank Bigsby (PHI) | Kimani Vidal (LAC) | Jaylen Wright (MIA) | Devin Neal (NO)
+WR: Drake London (ATL) | Luther Burden (CHI) | Carnell Tate (TEN) | Marvin Harrison Jr (ARI) | Jalen Coker (CAR) | Denzel Boston (CLE) | Calvin Ridley (TEN) | Malachi Fields (NYG) | Chris Brazzell (CAR) | Caleb Douglas (MIA) | Jaylin Noel (HOU) | Skyler Bell (BUF) | Chimere Dike (TEN)
+TE: Sam LaPorta (DET) | Chig Okonkwo (WAS) | Eli Stowers (PHI) | Mason Taylor (NYJ) | Oscar Delp (NO) | Max Klare (LAR)
 
-STARTUP STRATEGY: 6pt TDs = elite QBs 15-20% more valuable. NEVER leave R1 without elite QB.
-BUILD A: 1.02 Maye → 2.11 elite WR/RB → 3.11 second elite → 4.02 young RB/WR
-BUILD B: 1.02 Bijan → 2.11 Maye/Allen → 3.11 elite WR → 4.02 second position
-BUILD C: Trade back to 1.04-1.06 + extra pick (only if staying top 6)
+PICK CAPITAL (2027): Own R1 | R1 from Dudesss | R1 from GNAwin0DSFTF | R1 from TeddySaladTF | Own R2 | R2 from Legends Never Die | R2 from GNAwin0DSFTF | Own R3 | Own R4 | Own R5 | Own R6 | Own R7
+NOTE: Capital Gains is the FFPC team name — this is a different league. Do not confuse.
 
-STARTUP PICK VALUES (6pt TD adjusted):
-1.01:10000 1.02:9500 1.03:8800 1.04:7800 1.05:7000 1.06:6300 1.07:5600 1.08:5000
-1.09:4400 1.10:3900 1.11:3400 1.12:2900 2.01:2600 2.02:2400 2.03:2200 2.04:2050
-2.05:1900 2.06:1750 2.07:1600 2.08:1450 2.09:1300 2.10:1150 2.11:1000 2.12:850
-3.01:800 3.02:750 3.03:700 3.04:650 3.05:600 3.06:560 3.07:520 3.08:480 3.09:440 3.10:410 3.11:380 3.12:350
-4.01:320 4.02:300 4.03:280 4.04:260 4.05:245 4.06:230 4.07:215 4.08:200 4.09:185 4.10:172 4.11:160 4.12:148
-Trade threshold: execute if within 15% of fair value
+LEAGUE MANAGERS: pdwyer13 | yerkdog | jefisk24 | Smohr609 | ColeTrain8300 | DrTrollPhD | coinball | EazyDakar | jakemills69 | NateSneller | sneller
+
+COMPETITIVE WINDOW: 2027-2028. Drake Maye is the untouchable cornerstone QB. Heavy pick capital = asset to trade for established players or hold for 2027 rookie class.
+
+TRADE PRIORITIES: Add proven RB2/RB3. Add veteran WR with KTC upside. Monitor Maye/Dart/Beck for QB value trades. 4x 2027 first round picks = massive leverage.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -1081,7 +1077,7 @@ def get_static_dashboard():
              "top_assets": ["Brock Bowers 8,765", "Patrick Mahomes 6,814", "Carnell Tate 5,830"],
              "picks": "2027 R1(own) · 2028 R1+R2+R3+R4",
              "alert": "Acquire LaPorta from c1smith11 — #1 priority"},
-            {"league": "Velvet Spade", "strategy": "STARTUP COMPLETE — Build in progress", "priority": "#1",
+            {"league": "Velvet Spade", "strategy": "STARTUP COMPLETE — Trade season active", "priority": "#1",
              "top_assets": ["Pick 1.02 overall", "2.11", "3.11"],
              "picks": "28-round startup — pick #2 overall",
              "alert": "Velvet Spade roster — update via Sleeper sync"}
@@ -1090,7 +1086,7 @@ def get_static_dashboard():
             {"league": "Gentleman's", "action": "Send LaPorta offer to c1smith11", "message": "Njoku and 2027 2nd for LaPorta. Works for both of us."},
             {"league": "Gentleman's", "action": "Sell McCarthy to SenorHyde", "message": "McCarthy for your 2027 2nd. You need the QB."},
             {"league": "TRS", "action": "Add K and backup DST via FAAB", "message": "Streaming K and DST needed before Week 1"},
-            {"league": "Velvet Spade", "action": "Finalize startup draft strategy", "message": "6pt TDs — never leave Round 1 without elite QB"}
+            {"league": "Velvet Spade", "action": "Trade season — add RB2 using pick capital leverage", "message": "4x 2027 firsts = massive trade chip. Target proven RBs."}
         ],
         "ktc_baseline_date": "May 8, 2026"
     }
@@ -1150,7 +1146,7 @@ def get_dashboard():
         "news": [{"player": "Drake Maye", "team": "NE", "position": "QB", "leagues": ["Capital Gains", "TRS"], "headline": "AJ Brown trade expected post June 1", "impact": "Maye value increases with elite WR1", "recommendation": "HOLD"}],
         "movers": [{"player": "Carnell Tate", "direction": "up", "change": "+150", "reason": "Strong pre-draft buzz as TEN WR1", "action": "Hold — core asset"}],
         "trade_targets": [{"player": "Sam LaPorta", "owner": "c1smith11", "league": "Gentleman's Dynasty", "offer": "Njoku and 2027 2nd for LaPorta", "rationale": "TE premium upgrade"}],
-        "weekly_priorities": ["Send LaPorta offer in Gentleman's", "Finalize Velvet Spade startup strategy", "Complete TRS rookie draft picks"]
+        "weekly_priorities": ["Identify VS trade targets — add proven RB2", "Send LaPorta offer in Gentleman's", "Evaluate CG pick capital trade opportunities"]
     }, "success": True, "cached": False})
 
 
