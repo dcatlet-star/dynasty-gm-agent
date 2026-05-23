@@ -1276,48 +1276,130 @@ async function voteMatchup(idx) {
 
 function renderManage(el) {
   el.innerHTML =
+    // ── UPDATE MY VALUES ──────────────────────────────────────────────────
+    '<div class="card" style="margin-bottom:10px;border-color:var(--ac);">' +
+    '<div style="font-size:13px;font-weight:700;margin-bottom:4px;">📊 Update My Player Values</div>' +
+    '<div style="font-size:11px;color:var(--t2);margin-bottom:10px;line-height:1.5;">' +
+    'Keep your values current without redeploying. Upload your composite rankings spreadsheet <em>or</em> paste fresh KTC values. ' +
+    'Changes take effect immediately in all trade analysis.</div>' +
+    '<div style="font-size:10px;font-weight:700;color:var(--t2);margin-bottom:6px;">OPTION 1 — Upload Excel</div>' +
+    '<input type="file" id="values-file-input" accept=".xlsx,.xls" style="display:none;">' +
+    '<button class="btn btn-s btn-sm" id="values-upload-btn" style="width:100%;margin-bottom:8px;">📁 Upload Composite Rankings (.xlsx)</button>' +
+    '<div id="values-file-name" style="font-size:10px;color:var(--t2);margin-bottom:8px;"></div>' +
+    '<div style="font-size:10px;font-weight:700;color:var(--t2);margin-bottom:4px;">OPTION 2 — Paste KTC Values</div>' +
+    '<textarea class="inp" id="values-ktc-paste" rows="3" placeholder="Paste raw KTC rankings text here (same format as Trade → Paste Rankings)" style="font-size:11px;margin-bottom:8px;"></textarea>' +
+    '<button class="btn btn-p" id="values-update-btn" style="width:100%;margin-bottom:4px;">↻ Update Values</button>' +
+    '<div id="values-result" style="font-size:11px;margin-top:6px;"></div>' +
+    '</div>' +
+
+    // ── REFRESH KTC TIERS ─────────────────────────────────────────────────
     '<div class="card" style="margin-bottom:10px;">' +
     '<div style="font-size:13px;font-weight:700;margin-bottom:6px;">Refresh KTC Tiers</div>' +
-    '<div style="font-size:11px;color:var(--t2);margin-bottom:10px;">Re-applies KTC tier data to all players using fuzzy name matching. Run this after any reset or if tiers look wrong. Does not wipe your comparison history.</div>' +
+    '<div style="font-size:11px;color:var(--t2);margin-bottom:10px;">Re-applies KTC tier data using fuzzy name matching. Does NOT wipe comparison history.</div>' +
     '<button class="btn btn-s" id="refresh-tiers-btn" style="width:100%;margin-bottom:4px;">↻ Refresh KTC Tiers</button></div>' +
+
+    // ── RESET POOL ────────────────────────────────────────────────────────
     '<div class="card" style="margin-bottom:10px;">' +
     '<div style="font-size:13px;font-weight:700;margin-bottom:6px;">Reset Full Player Pool</div>' +
-    '<div style="font-size:11px;color:var(--t2);margin-bottom:10px;">Wipes all rankings and comparison history. Reloads all players with KTC-calibrated ELO and tiers.</div>' +
+    '<div style="font-size:11px;color:var(--t2);margin-bottom:10px;">Wipes all rankings and comparison history. Use only to start fresh.</div>' +
     '<button class="btn btn-p" id="reset-pool-btn" style="width:100%;">↺ Full Reset</button></div>' +
+
+    // ── ADD PLAYER ────────────────────────────────────────────────────────
     '<div class="card"><div style="font-size:13px;font-weight:700;margin-bottom:8px;">Add Individual Player</div>' +
     '<input class="inp" id="add-player-name" placeholder="Player name" style="margin-bottom:8px;">' +
     '<div style="display:flex;gap:8px;margin-bottom:8px;">' +
     '<select class="sel" id="add-player-pos" style="flex:1;"><option value="QB">QB</option><option value="RB">RB</option><option value="WR" selected>WR</option><option value="TE">TE</option><option value="PICK">PICK</option></select>' +
     '<input class="inp" id="add-player-team" placeholder="Team" style="flex:1;"></div>' +
     '<button class="btn btn-s" id="add-player-btn" style="width:100%;">Add Player</button></div>' +
-    '<div style="font-size:10px;color:var(--t2);padding:8px 0;line-height:1.5;">Personal tiers unlock at avg 5 comparisons per player per position. With 150+ total comparisons you should see personal WR tiers.</div>';
+    '<div style="font-size:10px;color:var(--t2);padding:8px 0;line-height:1.5;">Values update: upload your rankings Excel or paste KTC data above. No redeployment needed.</div>';
 
+  // Values upload
+  let valuesFile = null;
+  document.getElementById('values-upload-btn').addEventListener('click', function() {
+    document.getElementById('values-file-input').click();
+  });
+  document.getElementById('values-file-input').addEventListener('change', function(e) {
+    const f = e.target.files[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      valuesFile = { name: f.name, data: ev.target.result,
+                     isExcel: true, isPDF: false, isText: false };
+      document.getElementById('values-file-name').textContent = '✓ ' + f.name + ' ready to upload';
+    };
+    reader.readAsDataURL(f);
+    e.target.value = '';
+  });
+
+  document.getElementById('values-update-btn').addEventListener('click', async function() {
+    const ktcPaste = document.getElementById('values-ktc-paste').value.trim();
+    const resultEl = document.getElementById('values-result');
+
+    if (!valuesFile && !ktcPaste) {
+      resultEl.innerHTML = '<span style="color:var(--rd);">Upload a file or paste KTC values first.</span>';
+      return;
+    }
+
+    this.textContent = 'Updating...'; this.disabled = true;
+    resultEl.innerHTML = '<div class="spin-wrap" style="padding:4px;"><div class="spin"></div></div>';
+
+    try {
+      const payload = {};
+      if (valuesFile) payload.file_data = valuesFile;
+      if (ktcPaste)   payload.ktc_paste = ktcPaste;
+
+      const r = await fetch('/api/values/update', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(payload)
+      });
+      const d = await r.json();
+      if (d.success) {
+        resultEl.innerHTML =
+          '<div style="color:var(--gn);font-weight:700;">✓ ' + d.message + '</div>' +
+          (d.errors.length ? '<div style="color:var(--rd);font-size:10px;">' + d.errors.join(', ') + '</div>' : '');
+        document.getElementById('values-ktc-paste').value = '';
+        valuesFile = null;
+        document.getElementById('values-file-name').textContent = '';
+      } else {
+        resultEl.innerHTML = '<span style="color:var(--rd);">Update failed. Try again.</span>';
+      }
+    } catch(e) {
+      resultEl.innerHTML = '<span style="color:var(--rd);">Connection error.</span>';
+    }
+    this.textContent = '↻ Update Values'; this.disabled = false;
+  });
+
+  // Refresh tiers
   document.getElementById('refresh-tiers-btn').addEventListener('click', async function() {
     this.textContent = 'Refreshing...'; this.disabled = true;
     try {
       const r = await fetch('/api/rankings/refresh_tiers', {method:'POST'});
       const d = await r.json();
-      alert(d.success ? 'KTC tiers refreshed! Reload the Tier Breaks tab.' : 'Failed.');
+      alert(d.success ? 'KTC tiers refreshed. Boundary Training is now active.' : 'Failed.');
     } catch(e) { alert('Error.'); }
     this.textContent = '↻ Refresh KTC Tiers'; this.disabled = false;
   });
 
+  // Reset pool
   document.getElementById('reset-pool-btn').addEventListener('click', async function() {
     if (!confirm('Reset all rankings and comparison history?')) return;
     try {
-      const r = await fetch('/api/rankings/reset', {method:'POST'});
+      const r = await fetch('/api/rankings/reset',{method:'POST'});
       const d = await r.json();
       alert(d.success ? 'Done! ' + d.message : 'Reset failed.');
       if (d.success) { compositeData = []; totalComparisons = 0; currentMatchupPlayers = []; }
     } catch(e) { alert('Error.'); }
   });
 
+  // Add player
   document.getElementById('add-player-btn').addEventListener('click', async function() {
     const name = document.getElementById('add-player-name').value.trim();
-    const pos = document.getElementById('add-player-pos').value;
+    const pos  = document.getElementById('add-player-pos').value;
     const team = document.getElementById('add-player-team').value.trim();
     if (!name) return;
-    await fetch('/api/rankings/add', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name, position:pos, team})});
+    await fetch('/api/rankings/add',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({name,position:pos,team})});
     alert(name + ' added!');
     document.getElementById('add-player-name').value = '';
     document.getElementById('add-player-team').value = '';
