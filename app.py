@@ -1395,13 +1395,56 @@ def reset_rankings():
     conn.commit()
     conn.close()
     seed_players()
-    refresh_ktc_tiers()
+    _do_refresh_ktc_tiers()
     return jsonify({"success": True, "message": f"Rankings reset with {len(DEFAULT_PLAYERS)} players and KTC tiers applied"})
+
+def _do_refresh_ktc_tiers():
+    """Populate ktc_tier from market_data KTC source using fuzzy name matching"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT player_name, rank FROM market_data WHERE source='ktc'")
+    ktc_rows = c.fetchall()
+
+    def rank_to_ktc_tier(rank):
+        if rank <= 3: return 1
+        if rank <= 9: return 2
+        if rank <= 19: return 3
+        if rank <= 30: return 4
+        if rank <= 40: return 5
+        if rank <= 55: return 6
+        if rank <= 75: return 7
+        if rank <= 92: return 8
+        if rank <= 100: return 9
+        if rank <= 115: return 10
+        if rank <= 125: return 11
+        if rank <= 140: return 12
+        if rank <= 152: return 13
+        if rank <= 165: return 14
+        if rank <= 175: return 15
+        if rank <= 185: return 16
+        return 17
+
+    def normalize(name):
+        return re.sub(r"[^a-z0-9]", "", name.lower())
+
+    ktc_normalized = {normalize(name): rank_to_ktc_tier(rank) for name, rank in ktc_rows}
+
+    for table in ['player_rankings', 'vs_rankings']:
+        c.execute(f"SELECT player_name FROM {table}")
+        for (player_name,) in c.fetchall():
+            norm = normalize(player_name)
+            tier = ktc_normalized.get(norm)
+            if tier:
+                c.execute(f"UPDATE {table} SET ktc_tier=? WHERE player_name=?", (tier, player_name))
+
+    conn.commit()
+    conn.close()
+
 
 @app.route('/api/rankings/refresh_tiers', methods=['POST'])
 def refresh_ktc_tiers():
     """Re-run KTC tier seeding on existing rankings without wiping comparison history"""
-    refresh_ktc_tiers()
+    _do_refresh_ktc_tiers()
     return jsonify({"success": True, "message": "KTC tiers refreshed on all players"})
 
 
@@ -2228,7 +2271,7 @@ def vs_reset():
 @app.route('/api/vs/refresh_tiers', methods=['POST'])
 def vs_refresh_tiers():
     """Re-apply KTC tiers to VS rankings without wiping comparison history"""
-    refresh_ktc_tiers()
+    _do_refresh_ktc_tiers()
     return jsonify({"success": True, "message": "KTC tiers refreshed on VS rankings"})
 
 # ============================================================
@@ -3217,53 +3260,8 @@ def values_summary():
     })
 
 
-    """Populate ktc_tier from market_data KTC source using fuzzy name matching"""
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
 
-    c.execute("SELECT player_name, rank FROM market_data WHERE source='ktc'")
-    ktc_rows = c.fetchall()
-
-    def rank_to_ktc_tier(rank):
-        if rank <= 3: return 1
-        if rank <= 9: return 2
-        if rank <= 19: return 3
-        if rank <= 30: return 4
-        if rank <= 40: return 5
-        if rank <= 55: return 6
-        if rank <= 75: return 7
-        if rank <= 92: return 8
-        if rank <= 100: return 9
-        if rank <= 115: return 10
-        if rank <= 125: return 11
-        if rank <= 140: return 12
-        if rank <= 152: return 13
-        if rank <= 165: return 14
-        if rank <= 175: return 15
-        if rank <= 185: return 16
-        return 17
-
-    def normalize(name):
-        return re.sub(r"[^a-z0-9]", "", name.lower())
-
-    # Build normalized lookup
-    ktc_normalized = {normalize(name): rank_to_ktc_tier(rank) for name, rank in ktc_rows}
-
-    # Update both ranking tables
-    for table in ['player_rankings', 'vs_rankings']:
-        c.execute(f"SELECT player_name FROM {table}")
-        all_players = c.fetchall()
-        for (player_name,) in all_players:
-            norm = normalize(player_name)
-            tier = ktc_normalized.get(norm)
-            if tier:
-                c.execute(f"UPDATE {table} SET ktc_tier=? WHERE player_name=?", (tier, player_name))
-            # If not found, leave as default 10 (mid-tier)
-
-    conn.commit()
-    conn.close()
-
-refresh_ktc_tiers()
+_do_refresh_ktc_tiers()
 seed_player_values()
 
 # VS pick map — who holds each pick (updated as trades happen)
