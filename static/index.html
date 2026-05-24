@@ -229,7 +229,12 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--tx);display:
 
 <!-- CHAT -->
 <div class="page" id="page-chat" style="display:none;flex-direction:column;height:calc(100vh - var(--hdr) - var(--nav));">
-  <div class="chat-bar">
+  <div id="kb-status-banner" style="margin:6px 8px 0;padding:7px 10px;border-radius:8px;font-size:10px;display:flex;align-items:center;gap:8px;cursor:pointer;border:1px solid var(--b1);background:var(--s2);flex-shrink:0;" onclick="document.getElementById('kb-import-input').click()">
+    <input type="file" id="kb-import-input" accept=".xlsx,.xls" style="display:none;">
+    <span id="kb-status-icon">📂</span>
+    <span id="kb-status-text" style="flex:1;color:var(--t2);">No knowledge base loaded — tap to upload your spreadsheet</span>
+    <span style="color:var(--ac);font-weight:700;font-size:10px;">UPLOAD ↑</span>
+  </div>
     <button class="chip" data-quick="trade">⚡ Trade Eval</button>
     <button class="chip" data-quick="roster">📋 Roster Audit</button>
     <button class="chip" data-quick="buysell">📈 Buy/Sell</button>
@@ -1103,7 +1108,25 @@ document.querySelectorAll('.rtab').forEach(tab => {
 });
 
 document.getElementById('sync-sleeper-btn2').addEventListener('click', async function() {
-  try { const r = await fetch('/api/sleeper/sync',{method:'POST'}); const d = await r.json(); alert(d.success?'Synced!':'Failed.'); } catch(e) { alert('Error.'); }
+  this.textContent = 'Syncing...'; this.disabled = true;
+  try {
+    // Sync my rosters + all league rosters in parallel
+    const [syncR, rostersR] = await Promise.all([
+      fetch('/api/sleeper/sync', {method:'POST'}),
+      fetch('/api/sleeper/sync_rosters', {method:'POST'})
+    ]);
+    const [syncD, rostersD] = await Promise.all([syncR.json(), rostersR.json()]);
+    // Clear roster cache so next tab load pulls fresh data
+    sleeperRosterCache = {};
+    if (syncD.success && rostersD.success) {
+      alert(`Synced! ${rostersD.synced} player-roster records updated across all leagues.`);
+    } else {
+      alert(`Partial sync. Errors: ${[...(syncD.errors||[]), ...(rostersD.errors||[])].join(', ')}`);
+    }
+  } catch(e) {
+    alert('Sync error: ' + e.message);
+  }
+  this.textContent = '⟳ Sync Sleeper'; this.disabled = false;
 });
 
 document.getElementById('update-ctx-btn').addEventListener('click', function() {
@@ -2704,6 +2727,72 @@ document.querySelectorAll('.draft-tab').forEach(tab => {
 });
 
 // ── TRADE LISTENERS ──
+// ── KNOWLEDGE BASE IMPORT ────────────────────────────────────────────────────
+async function checkKBStatus() {
+  try {
+    const r = await fetch('/api/kb/status');
+    const d = await r.json();
+    const banner  = document.getElementById('kb-status-banner');
+    const icon    = document.getElementById('kb-status-icon');
+    const txt     = document.getElementById('kb-status-text');
+    if (!banner) return;
+    if (d.imported) {
+      const date = d.last_upload ? new Date(d.last_upload).toLocaleDateString() : 'unknown';
+      icon.textContent = '✅';
+      txt.textContent  = `KB loaded: ${d.filename} · ${d.gm_tendencies} GMs · ${d.trade_log} trades · Updated ${date}`;
+      banner.style.borderColor = 'var(--gn)';
+      banner.style.background  = 'rgba(39,174,96,0.08)';
+    } else {
+      icon.textContent = '⚠️';
+      txt.textContent  = 'No knowledge base loaded — tap to upload your Dynasty spreadsheet';
+      banner.style.borderColor = 'var(--gd)';
+    }
+  } catch(e) { /* silent fail */ }
+}
+
+document.getElementById('kb-import-input').addEventListener('change', async function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const banner = document.getElementById('kb-status-banner');
+  const txt    = document.getElementById('kb-status-text');
+  const icon   = document.getElementById('kb-status-icon');
+  icon.textContent = '⏳';
+  txt.textContent  = `Importing ${file.name}...`;
+  banner.style.borderColor = 'var(--ac)';
+
+  const reader = new FileReader();
+  reader.onload = async ev => {
+    try {
+      const r = await fetch('/api/kb/import', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+          file_data: { name: file.name, data: ev.target.result, isExcel: true }
+        })
+      });
+      const d = await r.json();
+      if (d.success) {
+        icon.textContent = '✅';
+        txt.textContent  = `${d.message} — Active in all responses now`;
+        banner.style.borderColor = 'var(--gn)';
+        banner.style.background  = 'rgba(39,174,96,0.08)';
+      } else {
+        icon.textContent = '❌';
+        txt.textContent  = `Import failed: ${d.error}`;
+        banner.style.borderColor = 'var(--rd)';
+      }
+    } catch(err) {
+      icon.textContent = '❌';
+      txt.textContent  = 'Import error — try again';
+    }
+  };
+  reader.readAsDataURL(file);
+  e.target.value = '';
+});
+
+// Check KB status on load
+checkKBStatus();
+
 // ── TRADE TAB MODE SWITCHER ──────────────────────────────────────────────────
 document.querySelectorAll('.trade-mode-btn').forEach(btn => {
   btn.addEventListener('click', function() {
