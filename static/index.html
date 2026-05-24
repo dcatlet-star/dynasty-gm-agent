@@ -229,55 +229,6 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--tx);display:
   <div id="home-content"></div>
 </div>
 
-<!-- CHAT -->
-<div class="page" id="page-chat" style="display:none;flex-direction:column;height:calc(100vh - var(--hdr) - var(--nav));overflow:hidden;">
-  <div id="kb-status-banner" style="padding:4px 10px;font-size:10px;display:flex;align-items:center;gap:6px;cursor:pointer;border-bottom:1px solid var(--b1);background:var(--s2);flex-shrink:0;min-height:0;" onclick="document.getElementById('kb-import-input').click()">
-    <input type="file" id="kb-import-input" accept=".xlsx,.xls" style="display:none;">
-    <span id="kb-status-icon">📂</span>
-    <span id="kb-status-text" style="flex:1;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">No knowledge base — tap to upload spreadsheet</span>
-    <span style="color:var(--ac);font-weight:700;font-size:10px;flex-shrink:0;">↑</span>
-  </div>
-    <button class="chip" data-quick="trade">⚡ Trade Eval</button>
-    <button class="chip" data-quick="roster">📋 Roster Audit</button>
-    <button class="chip" data-quick="buysell">📈 Buy/Sell</button>
-    <button class="chip" data-quick="waiver">🎯 Waivers</button>
-    <button class="chip" data-quick="rookies">🏈 Rookies</button>
-    <button class="chip" data-quick="briefing">📊 Briefing</button>
-    <button class="chip" data-quick="leagueupdate">🔄 League Update</button>
-    <button class="chip" id="search-chat-btn">🔍 Search</button>
-    <button class="chip" id="clear-chat-btn">🗑 Clear</button>
-  </div>
-  <div class="chat-msgs" id="chat-msgs">
-    <div class="chat-welcome" id="chat-welcome">
-      <div class="cw-icon">🏈</div>
-      <div class="cw-title">Ask Anything</div>
-      <div class="cw-sub">Full league context loaded. Real-time data active.</div>
-    </div>
-  </div>
-  <div class="img-preview" id="img-preview">
-    <div style="position:relative;display:inline-block;">
-      <img id="img-thumb" class="img-thumb" src="" alt="">
-      <button class="img-x" id="img-x-btn">×</button>
-    </div>
-  </div>
-  <div class="chat-input-wrap">
-    <div class="league-row" id="league-row">
-      <button class="chip active" data-prefix="">All</button>
-      <button class="chip" data-prefix="Capital Gains: ">CG #430</button>
-      <button class="chip" data-prefix="Twenty Run Savages: ">TRS #210</button>
-      <button class="chip" data-prefix="Gentlemans Dynasty: ">Gents</button>
-      <button class="chip" data-prefix="Velvet Spade: ">VS</button>
-    </div>
-    <div class="input-row">
-      <textarea class="chat-ta" id="chat-ta" placeholder="Ask your GM anything..." rows="1"></textarea>
-      <div style="display:flex;gap:5px;align-items:center;">
-        <input type="file" id="file-input" accept="image/*,application/pdf,.xlsx,.xls,.csv,.txt">
-        <button class="ico-btn attach-btn" id="attach-btn">📎</button>
-        <button class="ico-btn send-btn" id="send-btn">↑</button>
-      </div>
-    </div>
-  </div>
-</div>
 
 <!-- ROSTERS -->
 <div class="page" id="page-rosters">
@@ -322,8 +273,8 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--tx);display:
 
     <!-- TAB SWITCHER -->
     <div style="display:flex;gap:6px;margin-bottom:12px;">
-      <button class="btn btn-p trade-mode-btn active" data-mode="analyze" style="flex:1;font-size:12px;">⚡ Analyze Trade</button>
-      <button class="btn btn-s trade-mode-btn" data-mode="block" style="flex:1;font-size:12px;">🎯 Trade Block</button>
+      <button class="btn btn-p btn-sm trade-mode-btn active" data-mode="analyze" style="flex:1;font-size:12px;">⚡ Analyze Trade</button>
+      <button class="btn btn-s btn-sm trade-mode-btn" data-mode="block" style="flex:1;font-size:12px;">🎯 Trade Block</button>
     </div>
 
     <!-- ═══ ANALYZE TRADE PANEL ═══ -->
@@ -445,6 +396,56 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--tx);display:
 </div>
 
 </div><!-- end main -->
+
+<!-- CHAT -->
+<div class="page" id="page-chat" style="display:none;flex-direction:column;position:fixed;top:var(--hdr);left:0;right:0;bottom:var(--nav);z-index:50;">
+  <div id="kb-status-banner" style="padding:4px 10px;font-size:10px;display:flex;align-items:center;gap:6px;cursor:pointer;border-bottom:1px solid var(--b1);background:var(--s2);flex-shrink:0;min-height:0;" onclick="document.getElementById('kb-import-input').click()">
+    <input type="file" id="kb-import-input" accept=".xlsx,.xls" style="display:none;">
+    <span id="kb-status-icon">📂</span>
+    <span id="kb-status-text" style="flex:1;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">No knowledge base — tap to upload spreadsheet</span>
+    <span style="color:var(--ac);font-weight:700;font-size:10px;flex-shrink:0;">↑</span>
+  </div>
+    <button class="chip" data-quick="trade">⚡ Trade Eval</button>
+    <button class="chip" data-quick="roster">📋 Roster Audit</button>
+    <button class="chip" data-quick="buysell">📈 Buy/Sell</button>
+    <button class="chip" data-quick="waiver">🎯 Waivers</button>
+    <button class="chip" data-quick="rookies">🏈 Rookies</button>
+    <button class="chip" data-quick="briefing">📊 Briefing</button>
+    <button class="chip" data-quick="leagueupdate">🔄 League Update</button>
+    <button class="chip" id="search-chat-btn">🔍 Search</button>
+    <button class="chip" id="clear-chat-btn">🗑 Clear</button>
+  </div>
+  <div class="chat-msgs" id="chat-msgs">
+    <div class="chat-welcome" id="chat-welcome">
+      <div class="cw-icon">🏈</div>
+      <div class="cw-title">Ask Anything</div>
+      <div class="cw-sub">Full league context loaded. Real-time data active.</div>
+    </div>
+  </div>
+  <div class="img-preview" id="img-preview">
+    <div style="position:relative;display:inline-block;">
+      <img id="img-thumb" class="img-thumb" src="" alt="">
+      <button class="img-x" id="img-x-btn">×</button>
+    </div>
+  </div>
+  <div class="chat-input-wrap">
+    <div class="league-row" id="league-row">
+      <button class="chip active" data-prefix="">All</button>
+      <button class="chip" data-prefix="Capital Gains: ">CG #430</button>
+      <button class="chip" data-prefix="Twenty Run Savages: ">TRS #210</button>
+      <button class="chip" data-prefix="Gentlemans Dynasty: ">Gents</button>
+      <button class="chip" data-prefix="Velvet Spade: ">VS</button>
+    </div>
+    <div class="input-row">
+      <textarea class="chat-ta" id="chat-ta" placeholder="Ask your GM anything..." rows="1"></textarea>
+      <div style="display:flex;gap:5px;align-items:center;">
+        <input type="file" id="file-input" accept="image/*,application/pdf,.xlsx,.xls,.csv,.txt">
+        <button class="ico-btn attach-btn" id="attach-btn">📎</button>
+        <button class="ico-btn send-btn" id="send-btn">↑</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <nav class="nav">
   <button class="ni active" data-page="home"><span class="ni-icon">🏠</span><span class="ni-lbl">Home</span></button>
@@ -2798,8 +2799,12 @@ checkKBStatus();
 // ── TRADE TAB MODE SWITCHER ──────────────────────────────────────────────────
 document.querySelectorAll('.trade-mode-btn').forEach(btn => {
   btn.addEventListener('click', function() {
-    document.querySelectorAll('.trade-mode-btn').forEach(b => b.classList.remove('active'));
-    this.classList.add('active');
+    document.querySelectorAll('.trade-mode-btn').forEach(b => {
+      b.classList.remove('active','btn-p');
+      b.classList.add('btn-s');
+    });
+    this.classList.remove('btn-s');
+    this.classList.add('btn-p','active');
     const mode = this.dataset.mode;
     document.getElementById('trade-analyze-panel').style.display = mode === 'analyze' ? '' : 'none';
     document.getElementById('trade-block-panel').style.display   = mode === 'block'   ? '' : 'none';
