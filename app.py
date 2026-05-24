@@ -150,7 +150,8 @@ SYSTEM_PROMPT = f"""You are an elite dynasty fantasy football Assistant GM for M
 {LEAGUE_CONTEXT}
 
 CORE BEHAVIORS:
-1. ALWAYS web search for current player NFL situation before making any claim about a player's QB, team, depth chart, injury, or role. Training data is outdated — never state a player's NFL context from memory alone. Search first.
+1. MY ROSTER DATA IS IN THIS SYSTEM PROMPT — when asked about my rosters, read from the {league}_ROSTER blocks above. Do NOT web search for my roster. Do NOT ask me to provide it. The data is already here.
+2. ALWAYS web search for current player NFL situation before making any claim about a player's QB, team, depth chart, injury, or role. Training data is outdated — never state a player's NFL context from memory alone. Search first.
 2. KTC SuperFlex+TE primary. Cross-reference RosterAudit, FantasyPros, Rotoballer, ESPN, Underdog
 3. Check ourlads.com for NFL depth charts | NFL.com for draft capital
 4. One clear decisive recommendation — not a menu
@@ -1946,7 +1947,24 @@ def get_kb_context():
 
 
 
-@app.route('/api/sleeper/sync_rosters', methods=['POST'])
+@app.route('/api/debug/rosters', methods=['GET'])
+def debug_rosters():
+    """Debug: show what's in league_rosters table."""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='league_rosters'")
+    has_table = c.fetchone() is not None
+    if not has_table:
+        conn.close()
+        return jsonify({"has_table": False, "message": "league_rosters table does not exist yet — sync Sleeper first"})
+    c.execute("SELECT league, manager, COUNT(*) as cnt FROM league_rosters GROUP BY league, manager ORDER BY league, cnt DESC")
+    rows = c.fetchall()
+    conn.close()
+    return jsonify({"has_table": True,
+                    "summary": [{"league": r[0], "manager": r[1], "players": r[2]} for r in rows]})
+
+
+
 def sync_all_rosters():
     now = datetime.now().isoformat()
     total_synced = 0
@@ -3529,89 +3547,66 @@ def seed_player_values():
 
 
 def get_roster_block(league_key, fallback=''):
-    """
-    Pull dcatlet's roster from league_rosters DB for a given league.
-    league_key: 'velvet_spade', 'gentlemans_dynasty', 'Capital Gains', 'TRS'
-    Returns formatted position-grouped roster string.
-    """
+    """Pull dcatlet's roster from league_rosters DB. Flexible manager name matching."""
+    MY_NAMES = {'dcatlet', 'mjbrutus', 'capital gains', 'twenty run savages'}
+
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
+
+    # Get all distinct managers in this league
+    c.execute("SELECT DISTINCT manager FROM league_rosters WHERE league=?", (league_key,))
+    all_managers = [r[0] for r in c.fetchall()]
+
+    if not all_managers:
+        conn.close()
+        return fallback if fallback else f"[{league_key} roster not synced — tap \u23f3 Sync Sleeper]"
+
+    # Find which manager is dcatlet
+    my_manager = None
+    for mgr in all_managers:
+        if mgr.lower().replace(' ','') in {n.replace(' ','') for n in MY_NAMES}:
+            my_manager = mgr
+            break
+    if not my_manager and 'capital' in league_key.lower():
+        my_manager = next((m for m in all_managers if 'capital' in m.lower()), None)
+    if not my_manager and ('trs' in league_key.lower() or 'savages' in league_key.lower()):
+        my_manager = next((m for m in all_managers if 'savages' in m.lower() or 'twenty' in m.lower()), None)
+    if not my_manager:
+        # Last resort: look for the manager with the most players (likely dcatlet with 29)
+        c.execute("""SELECT manager, COUNT(*) as cnt FROM league_rosters
+                     WHERE league=? GROUP BY manager ORDER BY cnt DESC LIMIT 1""", (league_key,))
+        row = c.fetchone()
+        if row: my_manager = row[0]
+
+    if not my_manager:
+        conn.close()
+        return f"[{league_key}: could not identify dcatlet. Managers: {', '.join(all_managers[:8])}]"
+
     c.execute("""SELECT position, player_name, team FROM league_rosters
-                 WHERE league=? AND (
-                   manager='dcatlet' OR
-                   manager='Capital Gains' OR
-                   manager='Twenty Run Savages'
-                 )
+                 WHERE league=? AND manager=?
                  ORDER BY CASE position
                    WHEN 'QB' THEN 1 WHEN 'RB' THEN 2
                    WHEN 'WR' THEN 3 WHEN 'TE' THEN 4
                    WHEN 'K'  THEN 5 ELSE 6 END, player_name""",
-              (league_key,))
+              (league_key, my_manager))
     rows = c.fetchall()
-
-    # If no manager-filtered results, try getting the right manager name
-    if not rows:
-        mgr_map = {
-            'velvet_spade':       'dcatlet',
-            'gentlemans_dynasty': 'dcatlet',
-            'Capital Gains':      'Capital Gains',
-            'TRS':                'Twenty Run Savages',
-        }
-        mgr = mgr_map.get(league_key, 'dcatlet')
-        c.execute("""SELECT position, player_name, team FROM league_rosters
-                     WHERE league=? AND manager=?
-                     ORDER BY CASE position
-                       WHEN 'QB' THEN 1 WHEN 'RB' THEN 2
-                       WHEN 'WR' THEN 3 WHEN 'TE' THEN 4 ELSE 5 END, player_name""",
-                  (league_key, mgr))
-        rows = c.fetchall()
     conn.close()
 
     if not rows:
-        return fallback if fallback else f"[{league_key} roster not synced — tap ⟳ Sync Sleeper or upload spreadsheet]"
+        return fallback if fallback else f"[{league_key} roster empty for manager: {my_manager}]"
 
     by_pos = defaultdict(list)
     for pos, name, team in rows:
         by_pos[pos].append(f"{name}({team})" if team else name)
 
-    lines = [f"MY {league_key.upper().replace('_',' ')} ROSTER (live from DB):"]
+    total = sum(len(v) for v in by_pos.values())
+    lines = [f"MY {league_key.upper().replace('_',' ')} ROSTER — {total} players (manager: {my_manager}):"]
     for pos in ['QB','RB','WR','TE','K']:
         if by_pos[pos]:
             lines.append(f"{pos}: {' | '.join(by_pos[pos])}")
     return '\n'.join(lines)
 
 
-    """
-    Build the player values reference string from DB.
-    Used in chat route to inject fresh values into every request.
-    Falls back to hardcoded system prompt values if DB is empty.
-    """
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("""SELECT player_name, position, my_value, ktc_value, delta, tier
-                 FROM player_values ORDER BY my_value DESC LIMIT 200""")
-    rows = c.fetchall()
-    conn.close()
-
-    if not rows:
-        return ""
-
-    lines = []
-    for name, pos, my_val, ktc_val, delta, tier in rows:
-        delta_str = f"+{delta}" if delta >= 0 else str(delta)
-        flag = " ★" if abs(delta) > 500 else ""
-        lines.append(f"{name} ({pos}) | MY:{my_val} KTC:{ktc_val} Δ:{delta_str} | {tier}{flag}")
-
-    updated = datetime.now().strftime("%b %d, %Y")
-    return (
-        f"MY PERSONAL PLAYER VALUES (last updated: {updated}):\n"
-        "MY = my composite value (0-10000). KTC = market. Δ = difference.\n"
-        "★ = significant divergence >500pts. Positive Δ = I value higher than KTC.\n\n"
-        + "\n".join(lines)
-    )
-
-
-@app.route('/api/values/update', methods=['POST'])
 def update_player_values():
     """
     Update player values from uploaded Excel file or KTC paste.
