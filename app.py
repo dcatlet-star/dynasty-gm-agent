@@ -36,6 +36,25 @@ def init_db():
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, player_name TEXT UNIQUE,
                   position TEXT, my_value INTEGER, ktc_value INTEGER, delta INTEGER,
                   tier TEXT, last_updated TEXT)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS league_rosters
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, league TEXT, manager TEXT,
+                  player_name TEXT, position TEXT, team TEXT, last_updated TEXT)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS gm_tendencies
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, manager TEXT, league TEXT,
+                  window TEXT, style TEXT, loves_buy TEXT, loves_sell TEXT,
+                  never_sells TEXT, overpays_for TEXT, trade_notes TEXT,
+                  last_updated TEXT, UNIQUE(manager, league))''')
+    c.execute('''CREATE TABLE IF NOT EXISTS trade_log
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, league TEXT, date TEXT,
+                  their_manager TEXT, what_they_want TEXT, what_i_want TEXT,
+                  status TEXT, my_next_move TEXT, notes TEXT, last_updated TEXT)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS pick_capital
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, league TEXT, year TEXT,
+                  round TEXT, original_owner TEXT, current_owner TEXT,
+                  label TEXT, last_updated TEXT)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS kb_meta
+                 (id INTEGER PRIMARY KEY, last_upload TEXT, filename TEXT,
+                  tabs_parsed TEXT, row_counts TEXT)''')
     c.execute('''CREATE TABLE IF NOT EXISTS dashboard_cache
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, cache_key TEXT UNIQUE, data TEXT, last_updated TEXT)''')
     c.execute('''CREATE TABLE IF NOT EXISTS vs_rankings
@@ -267,6 +286,23 @@ When building trade counters, ONLY use players that are:
 a) Explicitly visible in the uploaded screenshot, OR
 b) Confirmed in MY ROSTER sections of this system prompt
 NEVER infer, combine, or generate player names. If a player name is not confirmed, flag it with ⚠ UNCONFIRMED before using it in any counter offer.
+
+PLAYER NAME RESOLUTION — ALWAYS DO THIS FIRST:
+Before any analysis, resolve every player name visible in screenshot against:
+1. The player_values DB (injected below)
+2. My roster lists in this system prompt
+3. Common abbreviations: "D Jones QB IND" = Daniel Jones, "K Williams RB LAR" = Kyren Williams, etc.
+Only flag ⚠ UNVERIFIED if genuinely unresolvable after all three lookups.
+Never invent a player name — if unsure, say "player unidentified, appears to be [best guess] — please confirm."
+
+LEAGUE ISOLATION RULE — CRITICAL:
+Each league is completely separate. NEVER cross-reference players, managers, picks, or situations between leagues.
+- Capital Gains managers, rosters, picks = CG ONLY
+- Twenty Run Savages managers, rosters, picks = TRS ONLY
+- Gentleman's Dynasty managers, rosters, picks = GL ONLY
+- Velvet Spade managers, rosters, picks = VS ONLY
+If analyzing a VS trade block, do not reference CG rosters or managers. If a player appears in multiple leagues, treat each instance independently.
+When league is ambiguous from a screenshot, ask for clarification before proceeding.
 
 PACKAGE DISCOUNT RULE — ALWAYS APPLY:
 When one side of a trade sends 2+ assets, apply 10-15% discount to that side's total KTC.
@@ -991,12 +1027,12 @@ def chat():
     if len(messages) > 20:
         messages = messages[-20:]
 
-    # Inject fresh player values from DB into this request
+    # Inject fresh player values + knowledge base context from DB
     live_values = get_player_values_block()
-    if live_values:
-        system_with_values = SYSTEM_PROMPT + "\n\n" + live_values
-    else:
-        system_with_values = SYSTEM_PROMPT
+    kb_context  = get_kb_context()
+    system_with_values = SYSTEM_PROMPT
+    if live_values: system_with_values += "\n\n" + live_values
+    if kb_context:  system_with_values += "\n\n" + kb_context
 
     try:
         response = client.messages.create(
@@ -1717,7 +1753,403 @@ def get_draft_chart():
     }
     return jsonify({"chart": chart, "success": True})
 
-@app.route('/api/sleeper/my_roster', methods=['POST'])
+@app.route('/api/kb/import', methods=['POST'])
+def import_knowledge_base():
+    """
+    Parse uploaded Excel knowledge base and store all key data in DB.
+    Called once on upload — data persists and is injected into every subsequent request.
+    Handles: My Rosters, GM Tendencies, Trade Log, Traded Picks, league roster tabs.
+    """
+    data     = request.json
+    file_obj = data.get('file_data', {})
+    raw      = file_obj.get('data', '')
+    fname    = file_obj.get('name', 'knowledge_base.xlsx')
+
+    if not raw:
+        return jsonify({"success": False, "error": "No file data received"})
+
+    try:
+        import io, base64 as b64lib
+        from openpyxl import load_workbook as _lwb
+        b64 = raw.split(',')[1] if ',' in raw else raw
+        wb_xl = _lwb(io.BytesIO(b64lib.b64decode(b64)), data_only=True)
+    except Exception as e:
+        return jsonify({"success": False, "error": f"Could not open Excel file: {e}"})
+
+    conn = sqlite3.connect(DB_PATH)
+    c    = conn.cursor()
+    now  = datetime.now().isoformat()
+    results = {}
+
+    def cell(row, col):
+        v = row[col] if col < len(row) else None
+        return str(v).strip() if v is not None and str(v).strip() not in ('None','') else ''
+
+    # ── PARSE GM TENDENCIES TAB ───────────────────────────────────────────────
+    gm_sheets = [s for s in wb_xl.sheetnames
+                 if any(k in s.lower() for k in ['tend', 'gm', 'manager'])]
+    gm_count = 0
+    for sname in gm_sheets:
+        ws = wb_xl[sname]
+        headers = [str(ws.cell(1, i).value or '').lower() for i in range(1, 15)]
+        def hcol(keywords):
+            for kw in keywords:
+                for i, h in enumerate(headers):
+                    if kw in h: return i
+            return None
+        mgr_c    = hcol(['manager','name'])
+        league_c = hcol(['league'])
+        window_c = hcol(['window'])
+        style_c  = hcol(['style'])
+        buy_c    = hcol(['buy','loves buy'])
+        sell_c   = hcol(['sell','loves sell'])
+        never_c  = hcol(['never'])
+        over_c   = hcol(['overpay','over'])
+        notes_c  = hcol(['notes','intel'])
+
+        if mgr_c is None: continue
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            mgr = cell(row, mgr_c)
+            if not mgr or mgr.lower() in ('manager','name'): continue
+            league = cell(row, league_c) if league_c is not None else ''
+            c.execute("""INSERT OR REPLACE INTO gm_tendencies
+                        (manager,league,window,style,loves_buy,loves_sell,
+                         never_sells,overpays_for,trade_notes,last_updated)
+                        VALUES (?,?,?,?,?,?,?,?,?,?)""", (
+                mgr, league,
+                cell(row, window_c) if window_c is not None else '',
+                cell(row, style_c)  if style_c  is not None else '',
+                cell(row, buy_c)    if buy_c    is not None else '',
+                cell(row, sell_c)   if sell_c   is not None else '',
+                cell(row, never_c)  if never_c  is not None else '',
+                cell(row, over_c)   if over_c   is not None else '',
+                cell(row, notes_c)  if notes_c  is not None else '',
+                now))
+            gm_count += 1
+    results['gm_tendencies'] = gm_count
+
+    # ── PARSE TRADE LOG TAB ───────────────────────────────────────────────────
+    trade_sheets = [s for s in wb_xl.sheetnames
+                    if any(k in s.lower() for k in ['trade log','trade activity','log'])]
+    trade_count = 0
+    for sname in trade_sheets:
+        ws = wb_xl[sname]
+        headers = [str(ws.cell(1, i).value or '').lower() for i in range(1, 12)]
+        def hcol2(keywords):
+            for kw in keywords:
+                for i, h in enumerate(headers):
+                    if kw in h: return i
+            return None
+        c.execute("DELETE FROM trade_log")
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            if all(v is None for v in row): continue
+            league  = cell(row, hcol2(['league'])) if hcol2(['league']) is not None else ''
+            date    = cell(row, hcol2(['date']))    if hcol2(['date'])   is not None else ''
+            them    = cell(row, hcol2(['their','manager','team'])) if hcol2(['their','manager','team']) is not None else ''
+            want_me = cell(row, hcol2(['they want','their ask','want'])) if hcol2(['they want','their ask','want']) is not None else ''
+            want_i  = cell(row, hcol2(['i want','my target'])) if hcol2(['i want','my target']) is not None else ''
+            status  = cell(row, hcol2(['status'])) if hcol2(['status']) is not None else ''
+            move    = cell(row, hcol2(['next move','my next'])) if hcol2(['next move','my next']) is not None else ''
+            notes   = cell(row, hcol2(['notes'])) if hcol2(['notes']) is not None else ''
+            if not any([league, them, want_me, want_i]): continue
+            c.execute("""INSERT INTO trade_log
+                        (league,date,their_manager,what_they_want,what_i_want,
+                         status,my_next_move,notes,last_updated)
+                        VALUES (?,?,?,?,?,?,?,?,?)""",
+                     (league,date,them,want_me,want_i,status,move,notes,now))
+            trade_count += 1
+    results['trade_log'] = trade_count
+
+    # ── PARSE MY ROSTERS TAB ──────────────────────────────────────────────────
+    roster_sheets = [s for s in wb_xl.sheetnames
+                     if any(k in s.lower() for k in ['my roster','my asset','⭐'])]
+    roster_count = 0
+    for sname in roster_sheets:
+        ws = wb_xl[sname]
+        headers = [str(ws.cell(1, i).value or '').lower() for i in range(1, 12)]
+        def hcol3(keywords):
+            for kw in keywords:
+                for i, h in enumerate(headers):
+                    if kw in h: return i
+            return None
+        league_c = hcol3(['league'])
+        name_c   = hcol3(['player','name'])
+        pos_c    = hcol3(['pos','position'])
+        team_c   = hcol3(['team','nfl'])
+        val_c    = hcol3(['my value','ktc','value'])
+        if name_c is None: continue
+        current_league = ''
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            if all(v is None for v in row): continue
+            name = cell(row, name_c)
+            # Detect league header rows
+            if not name and league_c is not None:
+                lg = cell(row, league_c)
+                if lg: current_league = lg
+                continue
+            if not name: continue
+            pos   = cell(row, pos_c)   if pos_c   is not None else ''
+            team  = cell(row, team_c)  if team_c  is not None else ''
+            league = cell(row, league_c) if league_c is not None else current_league
+            my_val = 0
+            if val_c is not None:
+                try: my_val = int(float(str(row[val_c] or 0)))
+                except: pass
+            # Update player_values table with any new values
+            if my_val > 0:
+                c.execute("""INSERT OR REPLACE INTO player_values
+                            (player_name,position,my_value,ktc_value,delta,tier,last_updated)
+                            VALUES (?,?,?,COALESCE((SELECT ktc_value FROM player_values WHERE player_name=?),0),
+                            ?-COALESCE((SELECT ktc_value FROM player_values WHERE player_name=?),0),'',?)""",
+                         (name,pos,my_val,name,my_val,name,now))
+            roster_count += 1
+    results['my_rosters'] = roster_count
+
+    # ── PARSE GM TENDENCIES FROM FFPC TABS ────────────────────────────────────
+    # Also parse roster tabs for Capital Gains and TRS
+    ffpc_sheets = [s for s in wb_xl.sheetnames
+                   if any(k in s.lower() for k in ['capital gains','trs','ffpc'])]
+    ffpc_count = 0
+    for sname in ffpc_sheets:
+        ws = wb_xl[sname]
+        league_name = 'Capital Gains' if 'capital' in sname.lower() else 'TRS'
+        current_mgr = ''
+        c.execute("DELETE FROM league_rosters WHERE league=?", (league_name,))
+        for row in ws.iter_rows(min_row=3, values_only=True):
+            if all(v is None for v in row): continue
+            first = str(row[0] or '').strip()
+            if not first: continue
+            # Manager header rows have their name and "— X players"
+            if '—' in first or 'players' in first.lower():
+                current_mgr = first.split('—')[0].strip().replace('YOUR TEAM','').strip()
+                continue
+            # Player rows
+            if current_mgr and len(row) >= 3:
+                name = str(row[1] or '').strip() if len(row) > 1 else ''
+                pos  = str(row[2] or '').strip() if len(row) > 2 else ''
+                team = str(row[3] or '').strip() if len(row) > 3 else ''
+                if name and pos in ('QB','RB','WR','TE','K','DEF'):
+                    c.execute("""INSERT INTO league_rosters
+                                (league,manager,player_name,position,team,last_updated)
+                                VALUES (?,?,?,?,?,?)""",
+                             (league_name, current_mgr, name, pos, team, now))
+                    ffpc_count += 1
+    results['ffpc_rosters'] = ffpc_count
+
+    # ── UPDATE KB META ────────────────────────────────────────────────────────
+    import json as _json
+    c.execute("""INSERT OR REPLACE INTO kb_meta
+                (id, last_upload, filename, tabs_parsed, row_counts)
+                VALUES (1,?,?,?,?)""",
+             (now, fname,
+              _json.dumps(list(wb_xl.sheetnames)),
+              _json.dumps(results)))
+    conn.commit()
+    conn.close()
+
+    total = sum(results.values())
+    return jsonify({
+        "success": True,
+        "message": f"Knowledge base imported: {total} records stored across {len(results)} categories",
+        "details": results,
+        "tabs_found": list(wb_xl.sheetnames),
+        "last_updated": now
+    })
+
+
+@app.route('/api/kb/status', methods=['GET'])
+def kb_status():
+    """Return metadata about the last imported knowledge base."""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT last_upload, filename, tabs_parsed, row_counts FROM kb_meta WHERE id=1")
+    row = c.fetchone()
+    c.execute("SELECT COUNT(*) FROM gm_tendencies")
+    gm_count = c.fetchone()[0]
+    c.execute("SELECT COUNT(*) FROM trade_log")
+    trade_count = c.fetchone()[0]
+    c.execute("SELECT COUNT(*) FROM player_values")
+    val_count = c.fetchone()[0]
+    conn.close()
+    if not row:
+        return jsonify({"success": True, "imported": False,
+                        "message": "No knowledge base imported yet"})
+    import json as _json
+    return jsonify({
+        "success": True, "imported": True,
+        "last_upload": row[0], "filename": row[1],
+        "tabs_parsed": _json.loads(row[2] or '[]'),
+        "row_counts":  _json.loads(row[3] or '{}'),
+        "gm_tendencies": gm_count,
+        "trade_log": trade_count,
+        "player_values": val_count
+    })
+
+
+def get_kb_context():
+    """
+    Build full knowledge base context string injected into EVERY request.
+    Pulls GM tendencies, active trade log, and pick capital from DB.
+    """
+    conn = sqlite3.connect(DB_PATH)
+    c    = conn.cursor()
+
+    # GM Tendencies
+    c.execute("""SELECT manager, league, window, style, loves_buy, loves_sell,
+                        never_sells, overpays_for, trade_notes
+                 FROM gm_tendencies ORDER BY league, manager""")
+    gm_rows = c.fetchall()
+
+    # Active trades
+    c.execute("""SELECT league, their_manager, what_they_want, what_i_want,
+                        status, my_next_move, notes
+                 FROM trade_log
+                 WHERE status NOT IN ('Closed','Done','Completed','')
+                 ORDER BY league""")
+    trade_rows = c.fetchall()
+
+    # KB meta
+    c.execute("SELECT last_upload, filename FROM kb_meta WHERE id=1")
+    meta = c.fetchone()
+
+    conn.close()
+
+    if not gm_rows and not trade_rows:
+        return ""
+
+    lines = []
+    if meta:
+        lines.append(f"\n━━ KNOWLEDGE BASE (imported: {meta[0][:10] if meta[0] else 'unknown'} | {meta[1]}) ━━")
+
+    # GM Tendencies grouped by league
+    if gm_rows:
+        lines.append("\nGM TENDENCIES:")
+        current_league = None
+        for mgr, league, window, style, buy, sell, never, over, notes in gm_rows:
+            if league != current_league:
+                lines.append(f"\n  [{league}]")
+                current_league = league
+            parts = []
+            if window: parts.append(f"Window:{window}")
+            if style:  parts.append(f"Style:{style}")
+            if buy:    parts.append(f"Buys:{buy}")
+            if sell:   parts.append(f"Sells:{sell}")
+            if never:  parts.append(f"Never:{never}")
+            if over:   parts.append(f"Overpays:{over}")
+            if notes:  parts.append(f"Intel:{notes}")
+            lines.append(f"  {mgr} — {' | '.join(parts)}" if parts else f"  {mgr}")
+
+    # Active trade negotiations
+    if trade_rows:
+        lines.append("\nACTIVE TRADE NEGOTIATIONS:")
+        for league, them, want_me, want_i, status, move, notes in trade_rows:
+            lines.append(f"  [{league}] {them}: They want {want_me} | I want {want_i} | "
+                        f"Status:{status} | Next:{move}" + (f" | {notes}" if notes else ""))
+
+    return '\n'.join(lines)
+
+
+
+def sync_all_rosters():
+    """Sync all manager rosters for Sleeper leagues into DB for trade context."""
+    now = datetime.now().isoformat()
+    total_synced = 0
+    errors = []
+
+    try:
+        players_r = requests.get("https://api.sleeper.app/v1/players/nfl", timeout=30)
+        players_db = players_r.json() if players_r.status_code == 200 else {}
+    except Exception as e:
+        return jsonify({"success": False, "error": f"Could not fetch player DB: {e}"})
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+
+    for league_key, league_id in SLEEPER_LEAGUE_IDS.items():
+        try:
+            users_r   = requests.get(f"https://api.sleeper.app/v1/league/{league_id}/users", timeout=10)
+            rosters_r = requests.get(f"https://api.sleeper.app/v1/league/{league_id}/rosters", timeout=10)
+            if users_r.status_code != 200 or rosters_r.status_code != 200:
+                errors.append(f"{league_key}: API error")
+                continue
+
+            users   = users_r.json()
+            rosters = rosters_r.json()
+            user_map = {u['user_id']: u.get('display_name', u.get('username', '?'))
+                        for u in users}
+
+            # Clear old roster data for this league
+            c.execute("DELETE FROM league_rosters WHERE league=?", (league_key,))
+
+            for roster in rosters:
+                mgr = user_map.get(roster.get('owner_id', ''), f"Team{roster['roster_id']}")
+                for pid in (roster.get('players', []) or []):
+                    p = players_db.get(pid, {})
+                    name = f"{p.get('first_name','')} {p.get('last_name','')}".strip() or pid
+                    pos  = p.get('position', '?')
+                    team = p.get('team', 'FA') or 'FA'
+                    c.execute("""INSERT INTO league_rosters
+                                (league, manager, player_name, position, team, last_updated)
+                                VALUES (?,?,?,?,?,?)""",
+                             (league_key, mgr, name, pos, team, now))
+                    total_synced += 1
+
+        except Exception as e:
+            errors.append(f"{league_key}: {str(e)}")
+
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True, "synced": total_synced, "errors": errors,
+                    "message": f"Synced {total_synced} player-roster records across Sleeper leagues"})
+
+
+def get_league_roster_context(league_key):
+    """
+    Build a compact roster summary for all managers in a league.
+    Used to inject into trade analysis so the model knows who owns what.
+    Returns empty string if no data synced yet.
+    """
+    # Map display league names to DB keys
+    league_map = {
+        'Velvet Spade':        'velvet_spade',
+        'velvet_spade':        'velvet_spade',
+        "Gentleman's Dynasty": 'gentlemans_dynasty',
+        'gentlemans_dynasty':  'gentlemans_dynasty',
+    }
+    db_key = league_map.get(league_key, league_key.lower().replace(' ', '_').replace("'", ''))
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("""SELECT manager, position, player_name, team
+                 FROM league_rosters WHERE league=?
+                 ORDER BY manager, position, player_name""", (db_key,))
+    rows = c.fetchall()
+    c.execute("SELECT MAX(last_updated) FROM league_rosters WHERE league=?", (db_key,))
+    last_sync = c.fetchone()[0]
+    conn.close()
+
+    if not rows:
+        return ""
+
+    # Group by manager
+    from collections import defaultdict
+    mgr_rosters = defaultdict(lambda: defaultdict(list))
+    for mgr, pos, name, team in rows:
+        mgr_rosters[mgr][pos].append(f"{name}({team})")
+
+    lines = [f"\n{league_key.upper()} FULL LEAGUE ROSTERS (synced: {last_sync[:10] if last_sync else 'unknown'}):"]
+    lines.append("Use this to identify who owns each player when analyzing trade blocks.")
+    for mgr, positions in sorted(mgr_rosters.items()):
+        pos_parts = []
+        for pos in ['QB','RB','WR','TE']:
+            if pos in positions:
+                pos_parts.append(f"{pos}: {', '.join(positions[pos])}")
+        lines.append(f"\n{mgr}: {' | '.join(pos_parts)}")
+
+    return '\n'.join(lines)
+
+
+
 def my_sleeper_roster():
     """Fetch dcatlet's roster from a specific Sleeper league, with player names and KTC values."""
     data        = request.json
@@ -4000,19 +4432,30 @@ def analyze_trade_block():
     }
     league_ctx = league_contexts.get(league, league)
 
+    # Get full league roster context so model knows who owns what
+    league_roster_ctx = get_league_roster_context(league)
+    if not league_roster_ctx:
+        league_roster_ctx = ("\n⚠ LEAGUE ROSTER DATA NOT SYNCED — Go to Rosters tab → Sync Sleeper "
+                             "to load full VS/GL manager rosters for accurate trade block analysis.")
+
     system = f"""{SYSTEM_PROMPT}
 
 {value_ref}
 
 LEAGUE: {league} | {league_ctx}
-{f'MANAGER: {manager}' if manager else ''}
+{f'MANAGER BEING ANALYZED: {manager}' if manager else ''}
+{league_roster_ctx}
 
 TRADE BLOCK RULES:
-1. Web search each player's current NFL situation before any claim. Flag ⚠ UNVERIFIED if not confirmed.
-2. WHY SELLING: read their full roster context — rebuilding, selling aging vets, window mismatch, needs picks? Give a specific read.
-3. FIT: direct assessment — STRONG FIT / NEUTRAL / POOR FIT with one-line reason tied to my {league} strategy.
-4. OFFERS: KTC-style dynamic package valuation (additional assets contribute diminishing value relative to lead asset). Only use my confirmed {league} roster assets. Must pass other side test.
-5. ONE priority recommendation at the end."""
+1. FIRST: Resolve every player name in the screenshot against the league roster data above.
+   Use the roster table to identify which manager owns each player — this tells you WHO is selling.
+   Common abbreviations: "D Jones" = Daniel Jones, "K Williams RB LAR" = Kyren Williams, etc.
+2. Web search each player's current NFL situation before any claim. Flag ⚠ UNVERIFIED if not confirmed.
+3. WHY SELLING: read the manager's full roster from the league data above — rebuilding, selling aging vets, window mismatch, needs picks? Give a specific read based on THEIR actual roster.
+4. FIT: direct assessment — STRONG FIT / NEUTRAL / POOR FIT with one-line reason tied to my {league} strategy. One sentence for POOR FIT players, do not over-analyze.
+5. OFFERS: KTC-style dynamic package valuation. Lead asset contributes 100%. Each additional asset contributes based on its % of lead value (≥70%→65%, 50-69%→50%, 30-49%→35%, <30%→20%). Only use my confirmed {league} roster assets. Must pass other side test — would they actually accept?
+6. ONE priority recommendation at the end.
+7. NEVER reference players, managers, or picks from other leagues ({', '.join([l for l in ['Capital Gains','Twenty Run Savages',"Gentleman's Dynasty",'Velvet Spade'] if l != league])})."""
 
     content_parts = []
     for img_data in images:
