@@ -17,8 +17,8 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
 SLEEPER_LEAGUE_IDS = {
-    "gentlemans": "1314472610167279616",
-    "velvet_spade": "1315445968161734656"
+    "gentlemans_dynasty": "1314472610167279616",
+    "velvet_spade":       "1315445968161734656"
 }
 
 def init_db():
@@ -1406,6 +1406,7 @@ def get_boundary_pair():
     })
 
 
+@app.route('/api/rankings/vote', methods=['POST'])
 def vote_ranking():
     """Record comparison vote and update ELO"""
     data = request.json
@@ -1687,6 +1688,7 @@ def reorder_rankings():
     return jsonify({"success": True, "reordered": n, "pool": pool})
 
 
+@app.route('/api/vs/vote', methods=['POST'])
 def submit_vote():
     winner = request.json.get('winner')
     loser = request.json.get('loser')
@@ -2050,8 +2052,8 @@ def get_kb_context():
 
 
 
+@app.route('/api/sleeper/sync_rosters', methods=['POST'])
 def sync_all_rosters():
-    """Sync all manager rosters for Sleeper leagues into DB for trade context."""
     now = datetime.now().isoformat()
     total_synced = 0
     errors = []
@@ -2150,6 +2152,7 @@ def get_league_roster_context(league_key):
 
 
 
+@app.route('/api/sleeper/my_roster', methods=['POST'])
 def my_sleeper_roster():
     """Fetch dcatlet's roster from a specific Sleeper league, with player names and KTC values."""
     data        = request.json
@@ -2256,8 +2259,8 @@ def my_sleeper_roster():
 
 
 
+@app.route('/api/sleeper/sync', methods=['POST'])
 def sync_sleeper():
-    results = {}
     try:
         url = "https://api.sleeper.app/v1/players/nfl"
         r = requests.get(url, timeout=30)
@@ -4477,6 +4480,7 @@ TRADE BLOCK RULES:
         return jsonify({"success": False, "error": str(e)})
 
 
+@app.route('/api/trade/evaluate', methods=['POST'])
 def trade_evaluate():
     """Evaluate a trade using Claude with full league context and KTC values"""
     data = request.json
