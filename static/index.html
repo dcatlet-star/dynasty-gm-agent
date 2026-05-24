@@ -287,27 +287,23 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--tx);display:
   <div class="sec" id="roster-content"></div>
 </div>
 
-<!-- COMPOSITE RANKINGS -->
+<!-- MY VALUES -->
 <div class="page" id="page-composite">
-  <div style="padding:12px;">
+  <div style="padding:12px 12px 6px;">
+    <div style="font-size:13px;font-weight:700;margin-bottom:2px;">📊 My Player Values</div>
+    <div style="font-size:10px;color:var(--t2);margin-bottom:10px;">Your composite rankings — Personal 45% · RA 30% · KTC 25% · 6pt QB boost applied. Update via Manage tab.</div>
     <div style="display:flex;gap:5px;margin-bottom:8px;flex-wrap:wrap;" id="pos-filter-row">
       <button class="chip active" data-pos="ALL">All</button>
       <button class="chip" data-pos="QB">QB</button>
       <button class="chip" data-pos="RB">RB</button>
       <button class="chip" data-pos="WR">WR</button>
       <button class="chip" data-pos="TE">TE</button>
-      <button class="chip" data-pos="PICK">Picks</button>
-      <button class="btn btn-g btn-sm" id="refresh-composite-btn" style="margin-left:auto;">↻</button>
-    </div>
-    <div style="font-size:9px;color:var(--t2);margin-bottom:10px;padding:7px;background:var(--s2);border-radius:7px;border:1px solid var(--b1);">
-      Personal 40% · KTC 20% · Sleeper ADP 30% · Buffer 10% | 5-15 spots = Slight · 16-25 = Buy/Sell · 26+ = Major
+      <button class="btn btn-g btn-sm" id="refresh-composite-btn" style="margin-left:auto;font-size:11px;">↻ Refresh</button>
     </div>
   </div>
   <div class="rank-tabs">
-    <div class="rank-tab active" data-rtab="compare">Head-to-Head</div>
-    <div class="rank-tab" data-rtab="composite">Composite</div>
-    <div class="rank-tab" data-rtab="signals">Signals</div>
-    <div class="rank-tab" data-rtab="personal">My Rankings</div>
+    <div class="rank-tab active" data-rtab="myvalues">My Values</div>
+    <div class="rank-tab" data-rtab="divergence">Divergences</div>
     <div class="rank-tab" data-rtab="manage">Manage</div>
   </div>
   <div class="sec" id="rank-content"></div>
@@ -317,74 +313,107 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--tx);display:
 <div class="page" id="page-trade">
   <div class="sec">
 
-    <!-- SAVED PROMPTS BAR -->
-    <div style="margin-bottom:12px;">
-      <div style="font-size:10px;color:var(--t2);font-weight:700;letter-spacing:1px;margin-bottom:6px;">QUICK ANALYSIS</div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px;" id="trade-prompt-btns">
-        <button class="btn btn-s btn-sm tprompt-btn" data-tprompt="screenshot_eval">📷 Eval from Screenshot</button>
-        <button class="btn btn-s btn-sm tprompt-btn" data-tprompt="accept_decline">⚡ Accept / Decline?</button>
-        <button class="btn btn-s btn-sm tprompt-btn" data-tprompt="counter_offer">↩ Build Counter Offer</button>
-        <button class="btn btn-s btn-sm tprompt-btn" data-tprompt="sell_high">📈 Who Should I Sell?</button>
-        <button class="btn btn-s btn-sm tprompt-btn" data-tprompt="buy_low">📉 Who Should I Buy?</button>
-        <button class="btn btn-s btn-sm tprompt-btn" data-tprompt="negotiation_msg">💬 Write My Message</button>
-      </div>
+    <!-- TAB SWITCHER -->
+    <div style="display:flex;gap:6px;margin-bottom:12px;">
+      <button class="btn btn-p trade-mode-btn active" data-mode="analyze" style="flex:1;font-size:12px;">⚡ Analyze Trade</button>
+      <button class="btn btn-s trade-mode-btn" data-mode="block" style="flex:1;font-size:12px;">🎯 Trade Block</button>
     </div>
 
-    <!-- MULTI-IMAGE UPLOAD ZONE -->
-    <div id="trade-img-zone" style="background:var(--s2);border:2px dashed var(--b1);border-radius:11px;padding:12px;margin-bottom:10px;cursor:pointer;" onclick="document.getElementById('trade-imgs-input').click()">
-      <input type="file" id="trade-imgs-input" accept="image/*" multiple style="display:none;">
-      <div style="text-align:center;color:var(--t2);font-size:12px;">
-        <div style="font-size:22px;margin-bottom:4px;">📷</div>
-        <div>Tap to upload screenshots <span style="color:var(--ac);font-weight:700;">(up to 6)</span></div>
-        <div style="font-size:10px;margin-top:3px;">Trade offers · Sleeper chat · League scores · Any context</div>
-      </div>
-      <div id="trade-img-previews" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;"></div>
-    </div>
-
-    <!-- LEAGUE + CONTEXT -->
-    <div style="display:flex;gap:8px;margin-bottom:8px;">
-      <select class="sel" id="trade-league" style="flex:1;">
-        <option value="Velvet Spade">Velvet Spade</option>
-        <option value="Capital Gains">Capital Gains</option>
-        <option value="Twenty Run Savages">Twenty Run Savages</option>
-        <option value="Gentleman's Dynasty">Gentleman's Dynasty</option>
-      </select>
-    </div>
-    <textarea class="inp" id="trade-context-inp" rows="2" placeholder="Optional: add context — 'They offered me X for Y. I want a second RB. My roster needs depth at TE.'" style="margin-bottom:8px;font-size:12px;"></textarea>
-
-    <!-- ANALYZE BUTTON -->
-    <button class="btn btn-p" id="trade-analyze-btn" style="width:100%;margin-bottom:10px;font-size:13px;">
-      Analyze Trade
-    </button>
-
-    <!-- RESULT -->
-    <div id="trade-result"></div>
-
-    <!-- MANUAL ENTRY (collapsed by default) -->
-    <details style="margin-top:10px;">
-      <summary style="font-size:11px;color:var(--t2);cursor:pointer;padding:8px;background:var(--s2);border-radius:7px;border:1px solid var(--b1);">
-        ✏️ No screenshot? Enter assets manually
-      </summary>
-      <div style="padding:10px 0;">
-        <div class="trade-side">
-          <div class="ts-title">I'm Giving</div>
-          <div id="giving-list"></div>
-          <div style="display:flex;gap:7px;">
-            <input class="inp" id="giving-inp" placeholder="Player or pick...">
-            <button class="btn btn-s btn-sm" id="giving-add-btn">Add</button>
-          </div>
+    <!-- ═══ ANALYZE TRADE PANEL ═══ -->
+    <div id="trade-analyze-panel">
+      <!-- SAVED PROMPTS BAR -->
+      <div style="margin-bottom:12px;">
+        <div style="font-size:10px;color:var(--t2);font-weight:700;letter-spacing:1px;margin-bottom:6px;">QUICK ANALYSIS</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;" id="trade-prompt-btns">
+          <button class="btn btn-s btn-sm tprompt-btn" data-tprompt="screenshot_eval">📷 Eval from Screenshot</button>
+          <button class="btn btn-s btn-sm tprompt-btn" data-tprompt="accept_decline">⚡ Accept / Decline?</button>
+          <button class="btn btn-s btn-sm tprompt-btn" data-tprompt="counter_offer">↩ Build Counter Offer</button>
+          <button class="btn btn-s btn-sm tprompt-btn" data-tprompt="sell_high">📈 Who Should I Sell?</button>
+          <button class="btn btn-s btn-sm tprompt-btn" data-tprompt="buy_low">📉 Who Should I Buy?</button>
+          <button class="btn btn-s btn-sm tprompt-btn" data-tprompt="negotiation_msg">💬 Write My Message</button>
         </div>
-        <div class="trade-side">
-          <div class="ts-title">I'm Receiving</div>
-          <div id="receiving-list"></div>
-          <div style="display:flex;gap:7px;">
-            <input class="inp" id="receiving-inp" placeholder="Player or pick...">
-            <button class="btn btn-s btn-sm" id="receiving-add-btn">Add</button>
-          </div>
-        </div>
-        <button class="btn btn-p" id="eval-btn" style="width:100%;">Evaluate Manual Entry</button>
       </div>
-    </details>
+
+      <!-- MULTI-IMAGE UPLOAD ZONE -->
+      <div id="trade-img-zone" style="background:var(--s2);border:2px dashed var(--b1);border-radius:11px;padding:12px;margin-bottom:10px;cursor:pointer;" onclick="document.getElementById('trade-imgs-input').click()">
+        <input type="file" id="trade-imgs-input" accept="image/*" multiple style="display:none;">
+        <div style="text-align:center;color:var(--t2);font-size:12px;">
+          <div style="font-size:22px;margin-bottom:4px;">📷</div>
+          <div>Tap to upload screenshots <span style="color:var(--ac);font-weight:700;">(up to 6)</span></div>
+          <div style="font-size:10px;margin-top:3px;">Trade offers · Sleeper chat · League scores · Any context</div>
+        </div>
+        <div id="trade-img-previews" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;"></div>
+      </div>
+
+      <div style="display:flex;gap:8px;margin-bottom:8px;">
+        <select class="sel" id="trade-league" style="flex:1;">
+          <option value="Velvet Spade">Velvet Spade</option>
+          <option value="Capital Gains">Capital Gains</option>
+          <option value="Twenty Run Savages">Twenty Run Savages</option>
+          <option value="Gentleman's Dynasty">Gentleman's Dynasty</option>
+        </select>
+      </div>
+      <textarea class="inp" id="trade-context-inp" rows="2" placeholder="Optional: add context — 'They offered me X for Y. I want a second RB.'" style="margin-bottom:8px;font-size:12px;"></textarea>
+      <button class="btn btn-p" id="trade-analyze-btn" style="width:100%;margin-bottom:10px;font-size:13px;">Analyze Trade</button>
+      <div id="trade-result"></div>
+
+      <details style="margin-top:10px;">
+        <summary style="font-size:11px;color:var(--t2);cursor:pointer;padding:8px;background:var(--s2);border-radius:7px;border:1px solid var(--b1);">✏️ No screenshot? Enter assets manually</summary>
+        <div style="padding:10px 0;">
+          <div class="trade-side">
+            <div class="ts-title">I'm Giving</div>
+            <div id="giving-list"></div>
+            <div style="display:flex;gap:7px;">
+              <input class="inp" id="giving-inp" placeholder="Player or pick...">
+              <button class="btn btn-s btn-sm" id="giving-add-btn">Add</button>
+            </div>
+          </div>
+          <div class="trade-side">
+            <div class="ts-title">I'm Receiving</div>
+            <div id="receiving-list"></div>
+            <div style="display:flex;gap:7px;">
+              <input class="inp" id="receiving-inp" placeholder="Player or pick...">
+              <button class="btn btn-s btn-sm" id="receiving-add-btn">Add</button>
+            </div>
+          </div>
+          <button class="btn btn-p" id="eval-btn" style="width:100%;">Evaluate Manual Entry</button>
+        </div>
+      </details>
+    </div>
+
+    <!-- ═══ TRADE BLOCK PANEL ═══ -->
+    <div id="trade-block-panel" style="display:none;">
+
+      <div style="font-size:11px;color:var(--t2);margin-bottom:10px;padding:8px;background:var(--s2);border-radius:8px;border:1px solid var(--b1);line-height:1.6;">
+        Upload screenshots of a manager's trade block — their Sleeper profile, trade block post, or roster. The app will analyze <strong>why they're selling</strong>, whether the players fit your roster, and propose specific offers you can make.
+      </div>
+
+      <!-- UPLOAD ZONE -->
+      <div id="block-img-zone" style="background:var(--s2);border:2px dashed var(--b1);border-radius:11px;padding:12px;margin-bottom:10px;cursor:pointer;" onclick="document.getElementById('block-imgs-input').click()">
+        <input type="file" id="block-imgs-input" accept="image/*" multiple style="display:none;">
+        <div style="text-align:center;color:var(--t2);font-size:12px;">
+          <div style="font-size:22px;margin-bottom:4px;">🎯</div>
+          <div>Upload trade block screenshots <span style="color:var(--ac);font-weight:700;">(up to 6)</span></div>
+          <div style="font-size:10px;margin-top:3px;">Trade block posts · Manager roster · Sleeper profile · Chat messages</div>
+        </div>
+        <div id="block-img-previews" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;"></div>
+      </div>
+
+      <!-- LEAGUE + MANAGER CONTEXT -->
+      <div style="display:flex;gap:8px;margin-bottom:8px;">
+        <select class="sel" id="block-league" style="flex:1.2;">
+          <option value="Velvet Spade">Velvet Spade</option>
+          <option value="Capital Gains">Capital Gains</option>
+          <option value="Twenty Run Savages">Twenty Run Savages</option>
+          <option value="Gentleman's Dynasty">Gentleman's Dynasty</option>
+        </select>
+        <input class="inp" id="block-manager" placeholder="Manager name (optional)" style="flex:1;">
+      </div>
+      <textarea class="inp" id="block-context" rows="2" placeholder="Optional context — 'They just traded away their QB' or 'They messaged me asking about my WRs'" style="margin-bottom:8px;font-size:12px;"></textarea>
+
+      <button class="btn btn-p" id="block-analyze-btn" style="width:100%;margin-bottom:10px;font-size:13px;">🎯 Analyze Trade Block</button>
+      <div id="block-result"></div>
+    </div>
 
   </div>
 </div>
@@ -414,9 +443,8 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--tx);display:
   <button class="ni active" data-page="home"><span class="ni-icon">🏠</span><span class="ni-lbl">Home</span></button>
   <button class="ni" data-page="chat"><span class="ni-icon">💬</span><span class="ni-lbl">Chat</span></button>
   <button class="ni" data-page="rosters"><span class="ni-icon">📋</span><span class="ni-lbl">Rosters</span></button>
-  <button class="ni" data-page="composite"><span class="ni-icon">📊</span><span class="ni-lbl">Rankings</span></button>
+  <button class="ni" data-page="composite"><span class="ni-icon">📊</span><span class="ni-lbl">My Values</span></button>
   <button class="ni" data-page="trade"><span class="ni-icon">⚡</span><span class="ni-lbl">Trade</span></button>
-  <button class="ni" data-page="draft"><span class="ni-icon">🏈</span><span class="ni-lbl">Draft</span></button>
 </nav>
 
 <!-- PROFILE MODAL -->
@@ -573,21 +601,35 @@ const MANAGERS = [
 const ROSTERS = {
   CG:{name:"Capital Gains #430",strategy:"ACTIVE REBUILD → 2027 | 4x 2027 R1",
     players:[
-      {n:"Drake Maye",p:"QB",t:"NE",s:"lock",v:9412},{n:"Drake London",p:"WR",t:"ATL",s:"lock",v:6887},
-      {n:"Sam LaPorta",p:"TE",t:"DET",s:"core",v:5042},{n:"Luther Burden",p:"WR",t:"CHI",s:"core",v:5197},
-      {n:"Marvin Harrison Jr",p:"WR",t:"ARI",s:"core",v:5076},{n:"Carnell Tate",p:"WR",t:"TEN",s:"core",v:5830},
-      {n:"Jaxson Dart",p:"QB",t:"NYG",s:"core",v:6673},{n:"Eli Stowers",p:"TE",t:"PHI",s:"hold",v:3969},
-      {n:"Denzel Boston",p:"WR",t:"CLE",s:"hold",v:3449},{n:"Max Klare",p:"TE",t:"LAR",s:"hold",v:2417},
-      {n:"Mike Washington",p:"RB",t:"LV",s:"hold",v:2447},{n:"Malachi Fields",p:"WR",t:"NYG",s:"hold",v:2590},
-      {n:"Skyler Bell",p:"WR",t:"BUF",s:"hold",v:2409},{n:"Tank Bigsby",p:"RB",t:"PHI",s:"hold",v:2453},
-      {n:"Oscar Delp",p:"TE",t:"NO",s:"hold",v:1154},{n:"Carson Beck",p:"QB",t:"ARI",s:"hold",v:993},
-      {n:"Calvin Ridley",p:"WR",t:"TEN",s:"hold",v:1907},{n:"Chimere Dike",p:"WR",t:"TEN",s:"hold",v:2547},
-      {n:"Chris Brazzell",p:"WR",t:"CAR",s:"hold",v:2647},{n:"Mason Taylor",p:"TE",t:"NYJ",s:"hold",v:2828},
-      {n:"Jalen Milroe",p:"QB",t:"SEA",s:"sell",v:2359},{n:"Dylan Sampson",p:"RB",t:"CLE",s:"sell",v:2719},
-      {n:"Kimani Vidal",p:"RB",t:"LAC",s:"sell",v:2252},{n:"Jaylen Wright",p:"RB",t:"MIA",s:"sell",v:2234},
-      {n:"Devin Neal",p:"RB",t:"NO",s:"sell",v:2137},{n:"Jalen Coker",p:"WR",t:"CAR",s:"sell",v:3082},
-      {n:"Jaylin Noel",p:"WR",t:"HOU",s:"sell",v:2794},{n:"Chig Okonkwo",p:"TE",t:"WAS",s:"sell",v:3136},
-      {n:"Caleb Douglas",p:"WR",t:"MIA",s:"sell",v:800},
+      {n:"Drake Maye",p:"QB",t:"NE",s:"lock",v:9500},
+      {n:"Jaxson Dart",p:"QB",t:"NYG",s:"core",v:6660},
+      {n:"Carson Beck",p:"QB",t:"ARI",s:"hold",v:993},
+      {n:"Jalen Milroe",p:"QB",t:"SEA",s:"sell",v:2312},
+      {n:"Dylan Sampson",p:"RB",t:"CLE",s:"hold",v:2672},
+      {n:"Mike Washington",p:"RB",t:"LV",s:"hold",v:2444},
+      {n:"Tank Bigsby",p:"RB",t:"PHI",s:"hold",v:2427},
+      {n:"Kimani Vidal",p:"RB",t:"LAC",s:"sell",v:2197},
+      {n:"Jaylen Wright",p:"RB",t:"MIA",s:"sell",v:2216},
+      {n:"Devin Neal",p:"RB",t:"NO",s:"sell",v:2126},
+      {n:"Drake London",p:"WR",t:"ATL",s:"lock",v:6879},
+      {n:"Luther Burden",p:"WR",t:"CHI",s:"core",v:5216},
+      {n:"Carnell Tate",p:"WR",t:"TEN",s:"core",v:5833},
+      {n:"Marvin Harrison Jr",p:"WR",t:"ARI",s:"core",v:5054},
+      {n:"Jalen Coker",p:"WR",t:"CAR",s:"sell",v:3056},
+      {n:"Denzel Boston",p:"WR",t:"CLE",s:"hold",v:3442},
+      {n:"Calvin Ridley",p:"WR",t:"TEN",s:"sell",v:1907},
+      {n:"Malachi Fields",p:"WR",t:"NYG",s:"hold",v:2620},
+      {n:"Chris Brazzell",p:"WR",t:"CAR",s:"hold",v:2603},
+      {n:"Caleb Douglas",p:"WR",t:"MIA",s:"hold",v:800},
+      {n:"Jaylin Noel",p:"WR",t:"HOU",s:"sell",v:2753},
+      {n:"Skyler Bell",p:"WR",t:"BUF",s:"hold",v:2457},
+      {n:"Chimere Dike",p:"WR",t:"TEN",s:"hold",v:2495},
+      {n:"Sam LaPorta",p:"TE",t:"DET",s:"core",v:5089},
+      {n:"Chig Okonkwo",p:"TE",t:"WAS",s:"sell",v:3118},
+      {n:"Eli Stowers",p:"TE",t:"PHI",s:"hold",v:3998},
+      {n:"Mason Taylor",p:"TE",t:"NYJ",s:"hold",v:2814},
+      {n:"Oscar Delp",p:"TE",t:"NO",s:"hold",v:1154},
+      {n:"Max Klare",p:"TE",t:"LAR",s:"hold",v:2448},
     ]},
   TRS:{name:"Twenty Run Savages #210",strategy:"COMPETING NOW",
     players:[
@@ -614,7 +656,37 @@ const ROSTERS = {
       {n:"Jayden Higgins",p:"WR",t:"HOU",s:"hold",v:3465},{n:"Travis Hunter",p:"WR",t:"JAC",s:"hold",v:3304},
       {n:"David Njoku",p:"TE",t:"FA",s:"sell",v:2837},{n:"Erick All",p:"TE",t:"CIN",s:"hold",v:1666},
     ]},
-  VS:{name:"Velvet Spade",strategy:"STARTUP — May 15 | Pick #2 Overall",players:[]},
+  VS:{name:"Velvet Spade",strategy:"DRAFT COMPLETE — Trade Season | 2027 window | 4x 2027 1sts",players:[
+    {n:"Drake Maye",p:"QB",t:"NE",s:"lock",v:9500},
+    {n:"Jaxson Dart",p:"QB",t:"NYG",s:"core",v:6660},
+    {n:"Carson Beck",p:"QB",t:"ARI",s:"",v:993},
+    {n:"Jalen Milroe",p:"QB",t:"SEA",s:"",v:2312},
+    {n:"Dylan Sampson",p:"RB",t:"CLE",s:"core",v:2672},
+    {n:"Tank Bigsby",p:"RB",t:"PHI",s:"",v:2427},
+    {n:"Kimani Vidal",p:"RB",t:"LAC",s:"",v:2197},
+    {n:"Jaylen Wright",p:"RB",t:"MIA",s:"",v:2216},
+    {n:"Devin Neal",p:"RB",t:"NO",s:"",v:2126},
+    {n:"Mike Washington",p:"RB",t:"LV",s:"",v:2444},
+    {n:"Drake London",p:"WR",t:"ATL",s:"core",v:6879},
+    {n:"Luther Burden",p:"WR",t:"CHI",s:"core",v:5216},
+    {n:"Carnell Tate",p:"WR",t:"TEN",s:"core",v:5833},
+    {n:"Marvin Harrison Jr",p:"WR",t:"ARI",s:"core",v:5054},
+    {n:"Jalen Coker",p:"WR",t:"CAR",s:"",v:3056},
+    {n:"Denzel Boston",p:"WR",t:"CLE",s:"",v:3442},
+    {n:"Calvin Ridley",p:"WR",t:"TEN",s:"",v:1907},
+    {n:"Malachi Fields",p:"WR",t:"NYG",s:"",v:2620},
+    {n:"Chris Brazzell",p:"WR",t:"CAR",s:"",v:2603},
+    {n:"Caleb Douglas",p:"WR",t:"MIA",s:"",v:0},
+    {n:"Jaylin Noel",p:"WR",t:"HOU",s:"",v:2753},
+    {n:"Skyler Bell",p:"WR",t:"BUF",s:"",v:2457},
+    {n:"Chimere Dike",p:"WR",t:"TEN",s:"",v:2495},
+    {n:"Sam LaPorta",p:"TE",t:"DET",s:"core",v:5089},
+    {n:"Chig Okonkwo",p:"TE",t:"WAS",s:"",v:3118},
+    {n:"Eli Stowers",p:"TE",t:"PHI",s:"",v:3998},
+    {n:"Mason Taylor",p:"TE",t:"NYJ",s:"",v:2814},
+    {n:"Oscar Delp",p:"TE",t:"NO",s:"",v:1154},
+    {n:"Max Klare",p:"TE",t:"LAR",s:"",v:2448},
+  ]},
 };
 
 // ── STATE ──
@@ -625,7 +697,7 @@ let chatLoading = false;
 let givingAssets = [];
 let receivingAssets = [];
 let currentRosterTab = 'CG';
-let currentRankTab = 'compare';
+let currentRankTab = 'myvalues';
 let currentDraftTab = 'vsrank';
 let currentPosFilter = 'ALL';
 let matchupPosFilter = 'ALL';
@@ -1038,13 +1110,105 @@ document.getElementById('update-ctx-btn').addEventListener('click', function() {
   document.getElementById('ctx-modal').classList.add('open');
 });
 
-function renderRoster(tab) {
+// Cache for Sleeper roster data once fetched
+let sleeperRosterCache = {};
+
+async function renderRoster(tab) {
+  const el = document.getElementById('roster-content');
+
+  // VS and GL pull from Sleeper API live
+  if (tab === 'VS' || tab === 'GL') {
+    const leagueName = tab === 'VS' ? 'velvet_spade' : 'gentlemans_dynasty';
+    const displayName = tab === 'VS' ? 'Velvet Spade' : "Gentleman's Dynasty";
+    const strategy = tab === 'VS'
+      ? 'DRAFT COMPLETE — Trade Season | 2027 window | 4x 2027 1sts'
+      : 'REBUILD → 2027-28 | Mahomes + Bowers untouchable';
+
+    el.innerHTML =
+      `<div style="padding-bottom:8px;"><div style="font-family:'Bebas Neue';font-size:15px;letter-spacing:2px;">${displayName}</div>` +
+      `<div style="font-size:10px;color:var(--t2);margin-top:2px;">${strategy}</div></div>` +
+      '<div class="spin-wrap"><div class="spin"></div><div class="spin-txt">FETCHING FROM SLEEPER...</div></div>';
+
+    try {
+      // Use cached data if available and less than 5 mins old
+      const cacheKey = `${tab}_${Math.floor(Date.now()/300000)}`;
+      let data;
+      if (sleeperRosterCache[cacheKey]) {
+        data = sleeperRosterCache[cacheKey];
+      } else {
+        const r = await fetch('/api/sleeper/my_roster', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ league: leagueName })
+        });
+        data = await r.json();
+        if (data.success) sleeperRosterCache[cacheKey] = data;
+      }
+
+      if (!data.success) {
+        el.innerHTML =
+          `<div style="padding-bottom:8px;"><div style="font-family:'Bebas Neue';font-size:15px;">${displayName}</div></div>` +
+          `<div class="empty">Could not fetch from Sleeper. Tap ⟳ Sync to retry.<br><small style="color:var(--rd);">${data.error || ''}</small></div>`;
+        return;
+      }
+
+      const POS_ORDER = ['QB','RB','WR','TE','K','DEF'];
+      const POS_C = {QB:'#3498db',RB:'#27ae60',WR:'#9b59b6',TE:'#e67e22'};
+
+      let html =
+        `<div style="padding-bottom:8px;"><div style="font-family:'Bebas Neue';font-size:15px;letter-spacing:2px;">${displayName}</div>` +
+        `<div style="font-size:10px;color:var(--t2);margin-top:2px;">${strategy}</div>` +
+        `<div style="font-size:9px;color:var(--t2);margin-top:2px;">Last synced: ${new Date().toLocaleTimeString()} · ${data.total} players</div></div>`;
+
+      POS_ORDER.forEach(pos => {
+        const players = (data.players || []).filter(p => p.position === pos);
+        if (!players.length) return;
+        html += `<div class="sec-title">${pos}</div>`;
+        players.forEach(p => {
+          const ni = storeName(p.name);
+          const color = POS_C[pos] || '#566573';
+          html += `<div class="p-row" data-name-idx="${ni}">
+            <div class="pos-badge p${pos}">${pos}</div>
+            <div style="flex:1;">
+              <div class="p-name">${p.name}</div>
+              <div class="p-meta">${p.team || 'FA'}${p.taxi ? ' · <span style="color:var(--gd);">TAXI</span>' : ''}${p.ir ? ' · <span style="color:var(--rd);">IR</span>' : ''}</div>
+            </div>
+            <div class="p-val">${p.ktc_value ? p.ktc_value.toLocaleString() : '—'}</div>
+          </div>`;
+        });
+      });
+
+      // Show picks
+      if (data.picks && data.picks.length) {
+        html += '<div class="sec-title">PICKS OWNED</div>';
+        data.picks.forEach(pk => {
+          html += `<div class="p-row">
+            <div class="pos-badge" style="background:#e74c3c;color:white;font-size:9px;">PICK</div>
+            <div style="flex:1;"><div class="p-name">${pk.label || pk}</div></div>
+          </div>`;
+        });
+      }
+
+      el.innerHTML = html;
+      document.querySelectorAll('[data-name-idx]').forEach(row => {
+        row.addEventListener('click', function() { openProfile(playerNames[+this.dataset.nameIdx]||''); });
+      });
+
+    } catch(e) {
+      el.innerHTML =
+        `<div style="padding-bottom:8px;"><div style="font-family:'Bebas Neue';font-size:15px;">${displayName}</div></div>` +
+        '<div class="empty">Connection error. Tap ⟳ Sync Sleeper to retry.</div>';
+    }
+    return;
+  }
+
+  // CG and TRS use hardcoded ROSTERS object (FFPC — no API)
   const roster = ROSTERS[tab];
   if (!roster) return;
-  let html = '<div style="padding-bottom:10px;"><div style="font-family:\'Bebas Neue\';font-size:15px;letter-spacing:2px;">' + roster.name + '</div>';
-  html += '<div style="font-size:10px;color:var(--t2);margin-top:2px;">' + roster.strategy + '</div></div>';
+  let html = `<div style="padding-bottom:10px;"><div style="font-family:'Bebas Neue';font-size:15px;letter-spacing:2px;">${roster.name}</div>`;
+  html += `<div style="font-size:10px;color:var(--t2);margin-top:2px;">${roster.strategy}</div></div>`;
   if (!roster.players.length) {
-    html += '<div class="empty">Startup draft May 15. Roster will populate after.</div>';
+    html += '<div class="empty">No roster data.</div>';
   } else {
     ['QB','RB','WR','TE'].forEach(pos => {
       const players = roster.players.filter(p => p.p === pos);
@@ -1054,15 +1218,15 @@ function renderRoster(tab) {
         const sc = p.s==='lock'?'st-lock':p.s==='core'?'st-core':p.s==='sell'?'st-sell':p.s==='taxi'?'st-taxi':'';
         const sl = p.s==='lock'?'🔒':p.s==='core'?'CORE':p.s==='sell'?'SELL':p.s==='taxi'?'TAXI':'';
         const ni = storeName(p.n);
-        html += '<div class="p-row" data-name-idx="' + ni + '">';
-        html += '<div class="pos-badge p' + pos + '">' + pos + '</div>';
-        html += '<div style="flex:1;"><div class="p-name">' + p.n + '</div><div class="p-meta">' + p.t + '</div></div>';
-        if (sl) html += '<span class="p-status ' + sc + '">' + sl + '</span>';
-        html += '<div class="p-val">' + (p.v ? p.v.toLocaleString() : '—') + '</div></div>';
+        html += `<div class="p-row" data-name-idx="${ni}">`;
+        html += `<div class="pos-badge p${pos}">${pos}</div>`;
+        html += `<div style="flex:1;"><div class="p-name">${p.n}</div><div class="p-meta">${p.t}</div></div>`;
+        if (sl) html += `<span class="p-status ${sc}">${sl}</span>`;
+        html += `<div class="p-val">${p.v ? p.v.toLocaleString() : '—'}</div></div>`;
       });
     });
   }
-  document.getElementById('roster-content').innerHTML = html;
+  el.innerHTML = html;
   document.querySelectorAll('[data-name-idx]').forEach(row => {
     row.addEventListener('click', function() { openProfile(playerNames[+this.dataset.nameIdx]||''); });
   });
@@ -1083,38 +1247,111 @@ document.querySelectorAll('#pos-filter-row .chip').forEach(chip => {
     document.querySelectorAll('#pos-filter-row .chip').forEach(c => c.classList.remove('active'));
     this.classList.add('active');
     currentPosFilter = this.dataset.pos;
-    if (currentRankTab === 'composite' || currentRankTab === 'signals' || currentRankTab === 'personal') {
+    if (currentRankTab === 'myvalues' || currentRankTab === 'divergence') {
       renderRankTab(currentRankTab);
-    } else if (currentRankTab === 'compare') {
-      matchupPosFilter = currentPosFilter;
-      renderRankTab('compare');
-    } else if (currentRankTab === 'adp') {
-      adpPosFilter = currentPosFilter;
-      renderADPList();
+    } else if (currentRankTab === 'manage') {
+      // manage doesn't need pos filter refresh
     }
   });
 });
 
-document.getElementById('refresh-composite-btn').addEventListener('click', function() { loadComposite(); });
+document.getElementById('refresh-composite-btn').addEventListener('click', function() {
+  renderRankTab(currentRankTab);
+});
 
 async function renderRankTab(tab) {
   currentRankTab = tab;
   const el = document.getElementById('rank-content');
-  if (tab === 'compare') await renderMatchup(el);
-  else if (tab === 'composite') { if (!compositeData.length) await loadComposite(); else renderCompositeList('composite'); }
-  else if (tab === 'signals') { if (!compositeData.length) await loadComposite(); else renderCompositeList('signals'); }
-  else if (tab === 'personal') await renderMyRankings();
+  if (tab === 'myvalues')   await renderMyValues(el);
+  else if (tab === 'divergence') await renderDivergences(el);
   else if (tab === 'manage') renderManage(el);
 }
 
-async function loadComposite() {
-  document.getElementById('rank-content').innerHTML = '<div class="spin-wrap"><div class="spin"></div><div class="spin-txt">BUILDING COMPOSITE...</div></div>';
+async function renderMyValues(el) {
+  el.innerHTML = '<div class="spin-wrap"><div class="spin"></div><div class="spin-txt">LOADING VALUES...</div></div>';
   try {
-    const r = await fetch('/api/rankings/composite?position=' + currentPosFilter);
+    const r = await fetch('/api/values/summary');
     const d = await r.json();
-    if (d.success) { compositeData = d.rankings; renderCompositeList(currentRankTab); }
+    if (!d.success || !d.values.length) {
+      el.innerHTML = '<div class="empty">No values loaded. Go to Manage → Upload your composite rankings spreadsheet.</div>';
+      return;
+    }
+    const posFilter = currentPosFilter;
+    let vals = d.values.filter(v => posFilter === 'ALL' || v.pos === posFilter);
+    const updated = d.last_updated ? new Date(d.last_updated).toLocaleDateString() : 'Unknown';
+    let html = `<div style="font-size:10px;color:var(--t2);padding:8px 4px;">Last updated: ${updated} · ${d.count} players tracked</div>`;
+    html += '<div style="display:flex;flex-direction:column;gap:4px;">';
+    vals.forEach((p, i) => {
+      const delta = p.delta;
+      const deltaStr = delta >= 0 ? '+' + delta.toLocaleString() : delta.toLocaleString();
+      const deltaColor = Math.abs(delta) > 500
+        ? (delta > 0 ? 'var(--gn)' : 'var(--rd)')
+        : 'var(--t2)';
+      const flag = Math.abs(delta) > 500 ? ' ★' : '';
+      html += `<div class="rank-row">
+        <div class="rank-num">${i+1}</div>
+        <div class="pos-badge p${p.pos}">${p.pos}</div>
+        <div class="rank-info">
+          <div class="rank-name">${p.name}</div>
+          <div class="rank-meta" style="display:flex;gap:8px;">
+            <span>MY <strong>${p.my_value.toLocaleString()}</strong></span>
+            <span style="color:var(--t2);">KTC ${p.ktc_value.toLocaleString()}</span>
+            <span style="color:${deltaColor};font-weight:${Math.abs(delta)>500?'700':'400'};">Δ${deltaStr}${flag}</span>
+          </div>
+        </div>
+        <div style="font-size:9px;color:var(--t2);text-align:right;line-height:1.3;">${(p.tier||'').replace('T','').split('—')[0].trim()}</div>
+      </div>`;
+    });
+    html += '</div>';
+    el.innerHTML = html;
   } catch(e) {
-    document.getElementById('rank-content').innerHTML = '<div class="empty">Error loading. Tap ↻ to retry.</div>';
+    el.innerHTML = '<div class="empty">Error loading values. Tap ↻ to retry.</div>';
+  }
+}
+
+async function renderDivergences(el) {
+  el.innerHTML = '<div class="spin-wrap"><div class="spin"></div><div class="spin-txt">LOADING...</div></div>';
+  try {
+    const r = await fetch('/api/values/summary');
+    const d = await r.json();
+    if (!d.success || !d.values.length) {
+      el.innerHTML = '<div class="empty">No values loaded. Go to Manage tab first.</div>';
+      return;
+    }
+    // Show only significant divergences (>500 delta), sorted by absolute delta
+    let divs = d.values
+      .filter(v => Math.abs(v.delta) > 500)
+      .sort((a,b) => Math.abs(b.delta) - Math.abs(a.delta));
+    const posFilter = currentPosFilter;
+    if (posFilter !== 'ALL') divs = divs.filter(v => v.pos === posFilter);
+
+    let html = `<div style="font-size:10px;color:var(--t2);padding:8px 4px;">${divs.length} significant divergences (>500 pts from KTC market)</div>`;
+    html += '<div style="font-size:10px;color:var(--t2);padding:4px 4px 8px;">🟢 You value higher — potential buy target or trade leverage<br>🔴 KTC values higher — may be overpaying if you acquire</div>';
+    html += '<div style="display:flex;flex-direction:column;gap:4px;">';
+    divs.forEach(p => {
+      const isPos = p.delta > 0;
+      const deltaStr = isPos ? '+' + p.delta.toLocaleString() : p.delta.toLocaleString();
+      const color = isPos ? 'var(--gn)' : 'var(--rd)';
+      const label = isPos ? '▲ You higher' : '▼ KTC higher';
+      html += `<div class="rank-row" style="border-left:3px solid ${color};">
+        <div class="pos-badge p${p.pos}">${p.pos}</div>
+        <div class="rank-info">
+          <div class="rank-name">${p.name}</div>
+          <div class="rank-meta" style="display:flex;gap:8px;">
+            <span>MY <strong>${p.my_value.toLocaleString()}</strong></span>
+            <span style="color:var(--t2);">KTC ${p.ktc_value.toLocaleString()}</span>
+          </div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-weight:700;color:${color};font-size:11px;">${deltaStr}</div>
+          <div style="font-size:9px;color:${color};">${label}</div>
+        </div>
+      </div>`;
+    });
+    html += '</div>';
+    el.innerHTML = html;
+  } catch(e) {
+    el.innerHTML = '<div class="empty">Error loading. Tap ↻ to retry.</div>';
   }
 }
 
@@ -2467,82 +2704,247 @@ document.querySelectorAll('.draft-tab').forEach(tab => {
 });
 
 // ── TRADE LISTENERS ──
+// ── TRADE TAB MODE SWITCHER ──────────────────────────────────────────────────
+document.querySelectorAll('.trade-mode-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.trade-mode-btn').forEach(b => b.classList.remove('active'));
+    this.classList.add('active');
+    const mode = this.dataset.mode;
+    document.getElementById('trade-analyze-panel').style.display = mode === 'analyze' ? '' : 'none';
+    document.getElementById('trade-block-panel').style.display   = mode === 'block'   ? '' : 'none';
+  });
+});
+
+// ── TRADE BLOCK FEATURE ──────────────────────────────────────────────────────
+let blockImages = [];
+
+document.getElementById('block-imgs-input').addEventListener('change', function(e) {
+  const files = Array.from(e.target.files).slice(0, 6 - blockImages.length);
+  files.forEach(file => {
+    if (blockImages.length >= 6) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const idx = blockImages.length;
+      blockImages.push({ data: ev.target.result, name: file.name });
+      const previews = document.getElementById('block-img-previews');
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'position:relative;display:inline-block;';
+      wrap.dataset.idx = idx;
+      const img = document.createElement('img');
+      img.src = ev.target.result;
+      img.style.cssText = 'height:64px;border-radius:7px;border:2px solid var(--ac);object-fit:cover;';
+      const badge = document.createElement('div');
+      badge.textContent = idx + 1;
+      badge.style.cssText = 'position:absolute;top:-5px;left:-5px;width:16px;height:16px;background:var(--ac);border-radius:50%;color:white;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;';
+      const xBtn = document.createElement('button');
+      xBtn.textContent = '×';
+      xBtn.style.cssText = 'position:absolute;top:-5px;right:-5px;width:17px;height:17px;background:var(--rd);border:none;border-radius:50%;color:white;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;';
+      xBtn.addEventListener('click', ev2 => {
+        ev2.stopPropagation();
+        blockImages.splice(+wrap.dataset.idx, 1);
+        rebuildBlockPreviews();
+      });
+      wrap.appendChild(img); wrap.appendChild(badge); wrap.appendChild(xBtn);
+      previews.appendChild(wrap);
+      document.getElementById('block-img-zone').style.borderColor = 'var(--ac)';
+      document.getElementById('block-img-zone').style.borderStyle = 'solid';
+    };
+    reader.readAsDataURL(file);
+  });
+  e.target.value = '';
+});
+
+function rebuildBlockPreviews() {
+  const previews = document.getElementById('block-img-previews');
+  previews.innerHTML = '';
+  blockImages.forEach((img, idx) => {
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'position:relative;display:inline-block;';
+    wrap.dataset.idx = idx;
+    const imgEl = document.createElement('img');
+    imgEl.src = img.data;
+    imgEl.style.cssText = 'height:64px;border-radius:7px;border:2px solid var(--ac);object-fit:cover;';
+    const badge = document.createElement('div');
+    badge.textContent = idx + 1;
+    badge.style.cssText = 'position:absolute;top:-5px;left:-5px;width:16px;height:16px;background:var(--ac);border-radius:50%;color:white;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;';
+    const xBtn = document.createElement('button');
+    xBtn.textContent = '×';
+    xBtn.style.cssText = 'position:absolute;top:-5px;right:-5px;width:17px;height:17px;background:var(--rd);border:none;border-radius:50%;color:white;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;';
+    xBtn.addEventListener('click', ev => {
+      ev.stopPropagation();
+      blockImages.splice(+wrap.dataset.idx, 1);
+      rebuildBlockPreviews();
+    });
+    wrap.appendChild(imgEl); wrap.appendChild(badge); wrap.appendChild(xBtn);
+    previews.appendChild(wrap);
+  });
+  if (!blockImages.length) {
+    document.getElementById('block-img-zone').style.borderColor = 'var(--b1)';
+    document.getElementById('block-img-zone').style.borderStyle = 'dashed';
+  }
+}
+
+document.getElementById('block-analyze-btn').addEventListener('click', async function() {
+  const league   = document.getElementById('block-league').value;
+  const manager  = document.getElementById('block-manager').value.trim();
+  const context  = document.getElementById('block-context').value.trim();
+  const resultEl = document.getElementById('block-result');
+
+  if (!blockImages.length) {
+    resultEl.innerHTML = '<div style="color:var(--rd);font-size:12px;padding:10px;background:var(--s2);border-radius:8px;">Upload at least one screenshot of the trade block.</div>';
+    return;
+  }
+
+  this.disabled = true; this.textContent = 'Analyzing...';
+  resultEl.innerHTML = '<div class="spin-wrap"><div class="spin"></div><div class="spin-txt">ANALYZING TRADE BLOCK...</div></div>';
+
+  const prompt = `Analyze this trade block for ${league}.
+${manager ? `Manager: ${manager}` : ''}
+${context ? `Context: ${context}` : ''}
+
+Follow this structure:
+1. PLAYERS ON THE BLOCK — List every player visible and their current KTC/MY value
+2. WHY THEY'RE SELLING — For each player: search for their current NFL situation, then give your read on why this manager is moving them (injury concern, scheme change, timeline mismatch, needs picks, positional surplus, etc.). Flag any NFL situation claim not verified by web search with ⚠ UNVERIFIED.
+3. FIT FOR MY ROSTER — For each player: does this fit my ${league} roster and strategy? Score as STRONG FIT / NEUTRAL / POOR FIT with one-line reason.
+4. PROPOSED OFFERS — For each player that is STRONG FIT or NEUTRAL: propose one specific offer I should make. Apply the KTC-style package valuation model to both sides. Make the offer realistic — it must pass the other side test. Only use assets confirmed in my system prompt rosters.
+5. PRIORITY — Which player on this block should I pursue first and why?`;
+
+  try {
+    const r = await fetch('/api/trade/analyze_block', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        images: blockImages.map(i => i.data),
+        prompt, league, manager, context
+      })
+    });
+    const d = await r.json();
+    if (d.success) {
+      const fmt = d.analysis
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\n\n/g, '</p><p>')
+        .replace(/\n/g, '<br>');
+      resultEl.innerHTML =
+        '<div style="background:var(--s2);border:1px solid var(--b1);border-radius:11px;padding:14px;">' +
+        '<div style="font-family:\'Bebas Neue\';font-size:13px;letter-spacing:2px;color:var(--ac);margin-bottom:8px;">🎯 TRADE BLOCK ANALYSIS</div>' +
+        '<div style="font-size:12px;line-height:1.7;color:var(--tx);"><p>' + fmt + '</p></div>' +
+        '<button class="btn btn-g btn-sm" id="block-copy-btn" style="width:100%;margin-top:10px;">📋 Copy Analysis</button>' +
+        '</div>';
+      document.getElementById('block-copy-btn').addEventListener('click', () => copyText(d.analysis));
+    } else {
+      resultEl.innerHTML = `<div style="color:var(--rd);font-size:12px;padding:10px;background:var(--s2);border-radius:8px;">❌ ${d.error || 'Error analyzing trade block.'}</div>`;
+    }
+  } catch(err) {
+    resultEl.innerHTML = '<div style="color:var(--rd);font-size:12px;">Connection error.</div>';
+  }
+  this.disabled = false; this.textContent = '🎯 Analyze Trade Block';
+});
+
 // ── TRADE TAB ─────────────────────────────────────────────────────────────
 let tradeImages = [];  // [{data, name}] up to 6
+
+const PACKAGE_DISCOUNT_RULE = `
+PACKAGE DISCOUNT RULE (apply to every trade evaluation):
+When one side sends 2+ assets, apply a 10-15% discount to that side's total KTC value.
+Reason: receiving multiple assets adds roster complexity, reduces flexibility, and forces the recipient to value average assets.
+Example: Player A (5000) + Player B (5000) = package worth ~8,500-9,000 to the receiver, NOT 10,000.
+Apply this to BOTH sides. A 1-for-2 trade almost always favors the side receiving the single elite asset.
+Always show the discounted value alongside the raw total.`;
+
+const COUNTER_REALISM_RULE = `
+COUNTER REALISM TEST (apply before presenting any counter):
+Before showing a counter offer, run the "other side test":
+- What does the counterparty actually want? (picks? youth? position need? win-now piece?)
+- Does this counter give them something they would realistically accept?
+- Is the value gap reasonable for them to say yes? (within 10-15% of fair value from their perspective)
+- Would a rational GM in their position engage with this counter or ignore it?
+If a counter fails the other side test, do not present it. A counter they won't accept wastes negotiating capital.
+Present ONE primary counter that passes the other side test, plus one fallback only if the primary is borderline.
+Never present 3+ options — it signals indecision and weakens your position.`;
 
 const TRADE_PROMPTS = {
   screenshot_eval: {
     label: 'Screenshot Eval',
     text: (league, ctx) =>
-      `I'm in ${league}. Evaluate this trade offer. ` +
-      `Compare asset values using KTC (SuperFlex+TE), DDL ADP, and my composite personal rankings. ` +
-      `For each asset identify: KTC value, age, dynasty trajectory (ascending/peak/declining), and positional scarcity in ${league}. ` +
+      `I'm in ${league}. Evaluate this trade offer.\n\n` +
+      `${PACKAGE_DISCOUNT_RULE}\n\n` +
+      `For each asset identify: KTC value, age, dynasty trajectory (ascending/peak/declining), positional scarcity.\n` +
+      `Show: raw KTC totals, then package-discounted totals for any multi-asset side.\n` +
       `Then give a clear ACCEPT / DECLINE / COUNTER verdict with:\n` +
-      `1. Value breakdown — am I winning or losing the trade and by how much\n` +
-      `2. Roster fit — does this improve my team construction and competitive window\n` +
-      `3. Counterparty read — why are they making this offer and what does it signal\n` +
-      `4. Recommended response — if counter, exactly what to ask for\n` +
-      `5. A ready-to-send Sleeper message under 25 words\n` +
-      (ctx ? `Context: ${ctx}` : ''),
+      `1. Value breakdown (use discounted totals) — am I winning or losing\n` +
+      `2. Roster fit — does this improve my team for my competitive window\n` +
+      `3. Counterparty read — why are they making this offer\n` +
+      `4. If COUNTER: one specific counter that passes the other side test\n` +
+      `5. Ready-to-send Sleeper message under 20 words\n` +
+      (ctx ? `\nContext: ${ctx}` : ''),
   },
   accept_decline: {
     label: 'Accept / Decline',
     text: (league, ctx) =>
-      `${league} — should I accept or decline this trade? ` +
-      `Give me a direct verdict first (ACCEPT / DECLINE / COUNTER), then back it up with:\n` +
-      `- Raw value comparison across KTC and DDL\n` +
-      `- Age-adjusted dynasty value (a 24yo RB is worth more than face KTC value vs a 30yo)\n` +
-      `- How this changes my roster's positional balance and competitive timeline\n` +
+      `${league} — should I accept or decline this trade?\n\n` +
+      `${PACKAGE_DISCOUNT_RULE}\n\n` +
+      `Give a direct verdict (ACCEPT / DECLINE / COUNTER), then:\n` +
+      `- Raw KTC totals for each side\n` +
+      `- Package-discounted totals (apply discount to any side with 2+ assets)\n` +
+      `- Age-adjusted dynasty value — a 24yo RB at 5000 KTC is worth more than a 30yo at 5000\n` +
+      `- Roster fit and competitive window impact\n` +
       `- What I'm giving up beyond the numbers (upside, depth, flexibility)\n` +
-      (ctx ? `Context: ${ctx}` : ''),
+      (ctx ? `\nContext: ${ctx}` : ''),
   },
   counter_offer: {
     label: 'Counter Offer',
     text: (league, ctx) =>
-      `I want to counter this trade offer in ${league}. ` +
-      `Based on the assets shown, design the optimal counter offer that:\n` +
-      `1. Gets me closer to fair value or better\n` +
-      `2. Is realistic enough that they'll engage rather than walk away\n` +
-      `3. Addresses my actual roster needs\n` +
-      `Give me 2-3 counter variants from aggressive to reasonable, ` +
-      `and write the exact Sleeper message for the most likely to succeed.\n` +
-      (ctx ? `Context: ${ctx}` : ''),
+      `I want to counter this trade offer in ${league}.\n\n` +
+      `${PACKAGE_DISCOUNT_RULE}\n\n` +
+      `${COUNTER_REALISM_RULE}\n\n` +
+      `Build my counter by:\n` +
+      `1. Identifying what the other manager actually wants (their motivation, roster need, competitive window)\n` +
+      `2. Finding the minimum I need to give to satisfy their need\n` +
+      `3. Applying the package discount — if my counter has 2+ assets, account for the 10-15% discount they'll apply\n` +
+      `4. Verifying the counter passes the other side test before presenting it\n\n` +
+      `Output format:\n` +
+      `- ONE primary counter (the most realistic to be accepted)\n` +
+      `- Why they would say yes (from their perspective)\n` +
+      `- Value check: raw totals → discounted totals → net position for me\n` +
+      `- One fallback counter only if primary is borderline\n` +
+      `- Exact Sleeper message under 20 words\n` +
+      (ctx ? `\nContext: ${ctx}` : ''),
   },
   sell_high: {
     label: 'Sell High',
     text: (league, ctx) =>
-      `Looking at my ${league} roster in these screenshots — who should I be selling right now? ` +
-      `Identify players where:\n` +
-      `- KTC/market value is at or near peak relative to their age and situation\n` +
-      `- Dynasty trajectory is flat or declining over the next 1-2 years\n` +
-      `- I have positional depth that makes them more replaceable\n` +
-      `For each sell candidate: current KTC value, why now is the right time, ` +
-      `what to target in return, and which managers in this league are most likely buyers.\n` +
-      (ctx ? `Context: ${ctx}` : ''),
+      `Looking at my ${league} roster — who should I be selling right now?\n\n` +
+      `${PACKAGE_DISCOUNT_RULE}\n\n` +
+      `Identify players where KTC value is at or near peak relative to age and situation, ` +
+      `trajectory is flat or declining, and I have depth that makes them replaceable.\n` +
+      `For each sell candidate: KTC value, why now is the right time, ` +
+      `realistic ask (apply package discount if bundling), ` +
+      `and which specific manager in this league is the most likely buyer and why.\n` +
+      (ctx ? `\nContext: ${ctx}` : ''),
   },
   buy_low: {
     label: 'Buy Low',
     text: (league, ctx) =>
-      `Based on my ${league} roster — who should I be targeting to acquire right now? ` +
-      `Identify players available leaguewide where:\n` +
-      `- Current KTC value is depressed relative to true dynasty upside\n` +
-      `- Age and trajectory suggest value will recover or grow\n` +
-      `- They fill a genuine need in my roster construction\n` +
-      `For each target: why they're undervalued right now, what it would cost, ` +
+      `Based on my ${league} roster — who should I be targeting to acquire?\n\n` +
+      `${PACKAGE_DISCOUNT_RULE}\n\n` +
+      `Identify players where KTC value is depressed relative to dynasty upside, ` +
+      `age and trajectory suggest recovery, and they fill a genuine roster need.\n` +
+      `For each target: why undervalued, realistic cost to acquire ` +
+      `(remember package discount applies — a 2-for-1 offer costs me more than raw KTC suggests), ` +
       `and which manager is most likely to sell.\n` +
-      (ctx ? `Context: ${ctx}` : ''),
+      (ctx ? `\nContext: ${ctx}` : ''),
   },
   negotiation_msg: {
     label: 'Write Message',
     text: (league, ctx) =>
-      `Write me a Sleeper trade message for this ${league} situation. ` +
+      `Write me a Sleeper trade message for this ${league} situation.\n\n` +
       `The message should:\n` +
-      `- Be under 30 words and conversational (not robotic)\n` +
-      `- Lead with something that appeals to what THEY want, not what I want\n` +
-      `- Create urgency or interest without being desperate\n` +
-      `- Leave room for negotiation\n` +
-      `Give me 2 versions: one opening a new offer, one responding to their offer.\n` +
-      (ctx ? `Context: ${ctx}` : ''),
+      `- Be under 25 words, conversational, not robotic\n` +
+      `- Lead with what appeals to THEM (their roster need, their competitive window) not what I want\n` +
+      `- State exact trade terms clearly\n` +
+      `- Sound like a rational GM making a fair offer, not a lowball or a desperation move\n` +
+      `Give me one message. Not two versions — just the best one.\n` +
+      (ctx ? `\nContext: ${ctx}` : ''),
   },
 };
 
@@ -2889,7 +3291,7 @@ document.getElementById('home-date').textContent = new Date().toLocaleDateString
 loadStaticHome();
 renderRoster('CG');
 renderDraftContent('vsrank');
-renderRankTab('compare');
+renderRankTab('myvalues');
 loadDraftState();
 loadChatHistory();
 </script>
