@@ -1717,7 +1717,113 @@ def get_draft_chart():
     }
     return jsonify({"chart": chart, "success": True})
 
-@app.route('/api/sleeper/sync', methods=['POST'])
+@app.route('/api/sleeper/my_roster', methods=['POST'])
+def my_sleeper_roster():
+    """Fetch dcatlet's roster from a specific Sleeper league, with player names and KTC values."""
+    data        = request.json
+    league_key  = data.get('league', 'velvet_spade')
+    my_username = 'dcatlet'
+
+    league_id = SLEEPER_LEAGUE_IDS.get(league_key)
+    if not league_id:
+        return jsonify({"success": False, "error": f"Unknown league: {league_key}"})
+
+    try:
+        # Get player database
+        players_r = requests.get("https://api.sleeper.app/v1/players/nfl", timeout=30)
+        players_db = players_r.json() if players_r.status_code == 200 else {}
+
+        # Get users to find dcatlet's user_id
+        users_r = requests.get(f"https://api.sleeper.app/v1/league/{league_id}/users", timeout=10)
+        if users_r.status_code != 200:
+            return jsonify({"success": False, "error": "Could not fetch league users"})
+        users = users_r.json()
+        my_user_id = next(
+            (u['user_id'] for u in users
+             if u.get('username','').lower() == my_username.lower()
+             or u.get('display_name','').lower() == my_username.lower()),
+            None
+        )
+        if not my_user_id:
+            return jsonify({"success": False,
+                "error": f"Could not find {my_username} in league. Users: {[u.get('username') for u in users]}"})
+
+        # Get rosters
+        rosters_r = requests.get(f"https://api.sleeper.app/v1/league/{league_id}/rosters", timeout=10)
+        if rosters_r.status_code != 200:
+            return jsonify({"success": False, "error": "Could not fetch rosters"})
+        rosters = rosters_r.json()
+
+        my_roster = next((r for r in rosters if r.get('owner_id') == my_user_id), None)
+        if not my_roster:
+            return jsonify({"success": False, "error": "Could not find your roster"})
+
+        # Pull KTC values from DB for enrichment
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("SELECT player_name, my_value, ktc_value FROM player_values")
+        value_map = {row[0].lower(): {'my_value': row[1], 'ktc_value': row[2]}
+                     for row in c.fetchall()}
+        conn.close()
+
+        def get_value(name):
+            if not name: return None
+            v = value_map.get(name.lower())
+            if v: return v.get('ktc_value')
+            # fuzzy — try last name match
+            last = name.split()[-1].lower() if name else ''
+            for k, vals in value_map.items():
+                if last in k: return vals.get('ktc_value')
+            return None
+
+        taxi_ids = set(my_roster.get('taxi', []) or [])
+        ir_ids   = set(my_roster.get('reserve', []) or [])
+
+        players_out = []
+        for pid in (my_roster.get('players', []) or []):
+            p = players_db.get(pid, {})
+            name = f"{p.get('first_name','')} {p.get('last_name','')}".strip()
+            if not name: name = pid
+            players_out.append({
+                'name':      name,
+                'position':  p.get('position', '?'),
+                'team':      p.get('team', 'FA') or 'FA',
+                'age':       p.get('age'),
+                'ktc_value': get_value(name),
+                'taxi':      pid in taxi_ids,
+                'ir':        pid in ir_ids,
+            })
+
+        # Sort by position priority
+        pos_order = {'QB':0,'RB':1,'WR':2,'TE':3,'K':4,'DEF':5}
+        players_out.sort(key=lambda x: (pos_order.get(x['position'], 9), x['name']))
+
+        # Get traded picks for this roster
+        picks_r = requests.get(f"https://api.sleeper.app/v1/league/{league_id}/traded_picks", timeout=10)
+        picks_raw = picks_r.json() if picks_r.status_code == 200 else []
+        user_map = {u['user_id']: u.get('display_name', u['user_id']) for u in users}
+        my_picks = []
+        for pk in picks_raw:
+            if pk.get('owner_id') == my_user_id:
+                orig = user_map.get(pk.get('previous_owner_id', ''), 'Unknown')
+                rnd  = pk.get('round', '?')
+                yr   = pk.get('season', '')
+                label = f"{yr} R{rnd}" + (f" (from {orig})" if orig != my_username else '')
+                my_picks.append({'label': label, 'round': rnd, 'season': yr})
+
+        return jsonify({
+            "success":  True,
+            "league":   league_key,
+            "total":    len(players_out),
+            "players":  players_out,
+            "picks":    my_picks,
+        })
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+
+
 def sync_sleeper():
     results = {}
     try:
@@ -3788,20 +3894,40 @@ Use web_search to verify each player's current NFL situation:
 
 STEP 3 — VALUE CALCULATION:
 Use MY values (not KTC) as primary. Show KTC as secondary reference.
-PACKAGE DISCOUNT — SLIDING SCALE (always apply, always show the math):
-The more assets packaged, the steeper the discount. Apply to EACH side independently.
+PACKAGE VALUATION — KTC-STYLE DYNAMIC MODEL (always apply, always show the math):
+This mirrors how KTC actually values packages. Flat discounts are wrong.
+The core principle: secondary assets contribute diminishing value the further they fall below the lead asset.
 
-  1 asset  →  0% discount  — face value
-  2 assets → 12% discount  — e.g. 5,000 + 5,000 = 10,000 raw → 8,800 adjusted
-  3 assets → 20% discount  — e.g. 4,000 + 4,000 + 4,000 = 12,000 raw → 9,600 adjusted
-  4+ assets → 27% discount — e.g. four assets totaling 12,000 = 8,760 adjusted
+RULES:
+1. Identify the LEAD asset (highest value on that side)
+2. For each additional asset, calculate its CONTRIBUTION based on its value relative to the lead:
+   - Additional asset worth ≥ 70% of lead → contributes 65% of its face value
+   - Additional asset worth 50-69% of lead → contributes 50% of its face value
+   - Additional asset worth 30-49% of lead → contributes 35% of its face value
+   - Additional asset worth < 30% of lead → contributes 20% of its face value
+3. Package value = lead asset (100%) + sum of all additional asset contributions
+4. Apply to EACH side independently
 
-Always show: [Raw total] → [X% package discount] → [Adjusted total]
-Then compare adjusted totals from each side to determine true value gap.
-Example of correct format:
-  Side A sends: CeeDee Lamb 7,494 + Tate 5,985 = 13,479 raw → 12% discount → 11,862 adjusted
-  Side B sends: Chase 9,999 (1 asset, no discount) → 9,999 adjusted
-  Net gap: Side A adjusted 11,862 vs Side B 9,999 — Side B overpays by 1,863 (19%)
+EXAMPLES:
+  Chase (9,999) + Tate (5,985):
+  Tate is 60% of Chase → contributes 50% → 2,993
+  Package value = 9,999 + 2,993 = 12,992 (NOT 15,984)
+
+  CeeDee (7,494) + 2027 1st (5,200) + Tate (5,985):
+  Lead = CeeDee 7,494
+  2027 1st is 69% of lead → contributes 50% → 2,600
+  Tate is 80% of lead → contributes 65% → 3,890
+  Package value = 7,494 + 2,600 + 3,890 = 13,984 (NOT 18,679)
+
+  Three depth assets (2,000 + 1,800 + 1,500):
+  Lead = 2,000
+  1,800 is 90% of lead → contributes 65% → 1,170
+  1,500 is 75% of lead → contributes 65% → 975
+  Package value = 2,000 + 1,170 + 975 = 4,145 (NOT 5,300)
+  Note: three depth players still can't match one elite player
+
+Always show full calculation so the math is transparent.
+NEVER just add up face values on a multi-asset side.
 
 STEP 4 — VERDICT (ACCEPT / DECLINE / COUNTER):
 State verdict first, one word, in caps.
@@ -3840,6 +3966,69 @@ One Sleeper message: under 20 words, direct, addresses what THEY want.
         for block in response.content:
             if hasattr(block, 'text'):
                 analysis += block.text
+        return jsonify({"success": True, "analysis": analysis})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+
+@app.route('/api/trade/analyze_block', methods=['POST'])
+def analyze_trade_block():
+    """Analyze a manager's trade block — why they're selling, fit, proposed offers."""
+    data    = request.json
+    images  = data.get('images', [])[:6]
+    prompt  = data.get('prompt', '')
+    league  = data.get('league', '')
+    manager = data.get('manager', '')
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("""SELECT player_name, my_value, ktc_value, delta, tier, position
+                 FROM player_values ORDER BY my_value DESC LIMIT 150""")
+    value_rows = c.fetchall()
+    conn.close()
+
+    value_ref = "MY PLAYER VALUES (for offer building):\n"
+    for name, my_val, ktc_val, delta, tier, pos in value_rows:
+        d = f"+{delta}" if delta >= 0 else str(delta)
+        value_ref += f"{name} ({pos}): MY {my_val:,} KTC {ktc_val:,} Δ{d}\n"
+
+    league_contexts = {
+        "Velvet Spade":        "12-team SuperFlex | 1.5x TE | 6pt TD | 2027 window | 4x 2027 1sts",
+        "Capital Gains":       "FFPC #430 | SuperFlex | Rebuild | 4x 2027 1sts",
+        "Twenty Run Savages":  "FFPC #210 | SuperFlex | Competing | Drake Maye core",
+        "Gentleman's Dynasty": "Sleeper | Rebuild | Mahomes+Bowers untouchable",
+    }
+    league_ctx = league_contexts.get(league, league)
+
+    system = f"""{SYSTEM_PROMPT}
+
+{value_ref}
+
+LEAGUE: {league} | {league_ctx}
+{f'MANAGER: {manager}' if manager else ''}
+
+TRADE BLOCK RULES:
+1. Web search each player's current NFL situation before any claim. Flag ⚠ UNVERIFIED if not confirmed.
+2. WHY SELLING: read their full roster context — rebuilding, selling aging vets, window mismatch, needs picks? Give a specific read.
+3. FIT: direct assessment — STRONG FIT / NEUTRAL / POOR FIT with one-line reason tied to my {league} strategy.
+4. OFFERS: KTC-style dynamic package valuation (additional assets contribute diminishing value relative to lead asset). Only use my confirmed {league} roster assets. Must pass other side test.
+5. ONE priority recommendation at the end."""
+
+    content_parts = []
+    for img_data in images:
+        b64 = img_data.split(',')[1] if ',' in img_data else img_data
+        media_type = 'image/png' if 'png' in img_data[:30].lower() else 'image/jpeg'
+        content_parts.append({"type": "image",
+            "source": {"type": "base64", "media_type": media_type, "data": b64}})
+    content_parts.append({"type": "text", "text": prompt})
+
+    try:
+        response = client.messages.create(
+            model="claude-sonnet-4-5", max_tokens=2000, system=system,
+            tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 5}],
+            messages=[{"role": "user", "content": content_parts}]
+        )
+        analysis = "".join(b.text for b in response.content if hasattr(b, 'text'))
         return jsonify({"success": True, "analysis": analysis})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
