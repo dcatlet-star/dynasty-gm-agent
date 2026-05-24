@@ -92,172 +92,56 @@ def get_week_key():
     return week_start.strftime("%Y-W%U")
 
 LEAGUE_CONTEXT = """
-=== OWNER PROFILE ===
-Username: MJBrutus (Sleeper: dcatlet)
-Leagues: Capital Gains (#430 FFPC), Twenty Run Savages (#210 FFPC), Gentleman's Dynasty (Sleeper), Velvet Spade (Sleeper)
-Primary valuation: KTC SuperFlex+TE format
-Philosophy: Day-trading mindset, picks > players in rebuilds, prefer players under 28
-League priority: Velvet Spade > TRS > Capital Gains > Gentleman's
-Last updated: May 8, 2026
-
-=== UNIVERSAL TRADE RULES ===
-- Cornerstones: 25% KTC surplus required
-- Standard trades: 5% surplus target | max 10% deficit if strong fit
-- Never surrender more than 2 firsts without top-12 dynasty asset return
-- Picks > players in rebuild leagues | Prefer players under 28
-- Proactively surface 1+ trade per league per week
-- Trade messages: under 20 words, 2 sentences max, direct and confident
-- KTC SuperFlex+TE is primary valuation always
-
-=== DATA SOURCES ===
-1. KTC (keeptradecut.com) SuperFlex+TE always
-2. RosterAudit (rosteraudit.com)
-3. OurLads (ourlads.com) NFL depth charts
-4. NFL.com official draft capital
-5. Dynasty Data Lab (dynastydatalab.com)
-6. FantasyPros, Rotoballer, ESPN, CBS Sports, Underdog (@UnderdogFantasy)
-7. Schefter, Rapoport, Glazer breaking news
-Flag data older than 72hrs with DATA WARNING. Always web search before answering.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
 LEAGUE 1: CAPITAL GAINS — FFPC #430
-$250 | 12-team SuperFlex TE Premium | 4pt pass TDs | 1.5 TE rec
-Lineup: 1QB/2RB/3WR/1TE/1SFLX/2FLEX | No K/DST | 20+3IR | No taxi | FAAB $1000
-Strategy: ACTIVE REBUILD 2027 contention | Priority: #3
-
-UNTOUCHABLES: Drake Maye, Drake London
-CORE: LaPorta, Burden, MHJ, Tate
+$250 | 12-team SuperFlex TE Premium | 28 rounds | 29+taxi | FAAB $1000
+Strategy: ACTIVE REBUILD → 2027 | Priority: #3
+UNTOUCHABLES: Drake Maye, Drake London | CORE: LaPorta, Burden, MHJ, Tate
 MOVEABLE: Milroe, all RBs, depth WRs/TEs
-
-ROSTER (29 players — cut to 20 September):
-QB: Drake Maye(NE) | Jaxson Dart(NYG) | Carson Beck(ARI) | Jalen Milroe(SEA)
-RB: Dylan Sampson(CLE) | Mike Washington(LV) | Tank Bigsby(PHI) | Kimani Vidal(LAC) | Jaylen Wright(MIA) | Devin Neal(NO)
-WR: Drake London(ATL) | Luther Burden(CHI) | Carnell Tate(TEN) | MHJ(ARI) | Jalen Coker(CAR) | Denzel Boston(CLE) | Calvin Ridley(TEN) | Chris Brazzell(CAR) | Skyler Bell(BUF) | Chimere Dike(TEN) | Malachi Fields(NYG) | Jaylin Noel(HOU) | Caleb Douglas(MIA)
-TE: Sam LaPorta(DET) | Chig Okonkwo(WAS) | Eli Stowers(PHI) | Mason Taylor(NYJ) | Max Klare(LAR) | Oscar Delp(NO)
-2026 PICKS REMAINING: 6.03, 7.03
-2027 PICKS OWNED BY DCATLET (these are picks dcatlet RECEIVES, not gives away):
-- R1 own (Capital Gains own first round pick)
-- R1 from Dudesss (dcatlet owns Dudesss's 2027 first — received in Dart trade)
-- R1 from GNAwin0DSFTF (dcatlet owns GNAwin0's 2027 first — received in London trade)
-- R1 from TeddySaladTF (dcatlet owns TeddySalad's 2027 first — received in Bowers trade)
-- R2 own | R2 from Legends Never Die | R2 from GNAwin0 | R3 | R4 | R5 | R6 | R7
-TOTAL: 4x 2027 FIRST ROUND PICKS owned by dcatlet = exceptional rebuild capital
-
-CONSOLATION: Tank Wks 1-13 (bottom 2 VP) → WIN consolation Wks 14-17 → 1.01 pick 2027
-SEPTEMBER CUTS (9 needed): Neal, Vidal, Wright, Sampson, Noel, Douglas, Coker, Okonkwo, Milroe
-
-LEAGUE INTEL:
-Boston Black Mambas: Allen/CMC/Saquon/Henry/Cook — LAST DANCE, 2027R1 could be top 4
-Seize The Grey: Burrow/Herbert/Love — CONTENDER thin picks
-GNAwin0DSFTF: Lawrence/Jeanty/Tuten — MID, owns dcatlet 2027 picks
-Blunderbuss 430: Mahomes/Swift/Pollard — CONTENDER, has LegendsDie 2027R1
-TeddySaladTF: Daniels/Murray/Bowers — MID no early 2027 picks
-Legends Never Die: C.Williams/Mayfield/Jacobs — REBUILDING only R6/R7
-Mayan Factors: Lamar/Goff/Gibbs/Kittle — CONTENDER 2027R1
-Risk It Brisket: Hurts/Purdy/Bijan/AJBrown — CONTENDER thin picks
-Shoot The Glass: Allen/Mahomes/Barkley/Bowers — ELITE CONTENDER
+{CG_ROSTER_BLOCK}
+2027 PICKS: R1 own | R1 Dudesss | R1 GNAwin0 | R1 TeddySalad | R2 own | R2 LegendsDie | R2 GNAwin0 | R3-R7
+CONSOLATION: Tank Wks 1-13 → WIN consolation → 1.01 pick 2027
+SEPTEMBER CUTS: Neal, Vidal, Wright, Sampson, Noel, Douglas, Coker, Okonkwo, Milroe
+INTEL: BostonBlackMambas(Allen/CMC/Saquon-LAST DANCE) | SeizeTheGrey(Burrow/Herbert-CONTENDER) | GNAwin0(Lawrence/Jeanty-MID) | Blunderbuss(Mahomes/Swift-CONTENDER) | TeddySalad(Daniels-MID) | LegendsNeverDie(REBUILDING R6/R7 only) | MayanFactors(Lamar/Goff-CONTENDER) | RiskItBrisket(Hurts/Bijan-CONTENDER) | ShootTheGlass(Allen/Mahomes/Barkley-ELITE)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 LEAGUE 2: TWENTY RUN SAVAGES — FFPC #210
-$100 | 12-team SuperFlex TE Premium + K+DST | 20+3IR | No taxi | FAAB $1000
-Strategy: COMPETING NOW | Priority: #2
-K+DST REQUIRED ALWAYS — Boswell(K) + TB DST currently rostered
-
-UNTOUCHABLES: Drake Maye, Bijan Robinson
-CORE: Loveland, JSN, Lemon
-MOVEABLE: Mayfield, Watson, depth
-
-ROSTER (23 players confirmed May 8):
-QB: Drake Maye(NE) | Baker Mayfield(TB) | Deshaun Watson(CLE)
-RB: Bijan Robinson(ATL) | Rico Dowdle(PIT) | Kyle Monangai(CHI) | Dylan Sampson(CLE) | Emmett Johnson(KC)
-WR: JSN(SEA) | Mike Evans(SF) | Makai Lemon(PHI) | Jakobi Meyers(JAC) | KC Concepcion(CLE) | Josh Downs(IND) | Jalen McMillan(TB) | Adonai Mitchell(NYJ) | Zachariah Branch(ATL)
-TE: Colston Loveland(CHI) | Dallas Goedert(PHI) | Brenton Strange(JAC) | Eli Raridon(NE)
-K: Chris Boswell(PIT) | DST: TB Team Defense
-2026 PICKS: 3.07, 4.03(Marino's), 4.07, 5.03(Marino's), 5.07, 6.07, 7.07
+$100 | 12-team SuperFlex TE Premium + K+DST | 20+3IR | FAAB $1000
+Strategy: COMPETING NOW | Priority: #2 | K+DST ALWAYS REQUIRED
+UNTOUCHABLES: Drake Maye, Bijan Robinson | CORE: Loveland, JSN, Lemon
+{TRS_ROSTER_BLOCK}
 2027 PICKS: R1(Stinky), R1(own), R2(own), R3-R7
-
-LEAGUE INTEL:
-Shoot The Glass: Allen/Mahomes/Barkley/Bowers/Andrews — ELITE
-Boulder Free Zone: Lamar/CMC/Jeanty/LaPorta/Sadiq — STRONG
-Evil Empire: C.Williams/Hurts/Gibbs/J.Taylor — CONTENDER
-Settler22$: Willis/Stroud/Sanders/Judkins/Tate — STRONG has 2026 R1.08
-Stinky: Burrow/Love/C.Brown — has 2027R1 owed to dcatlet
-Nuclear Options: Stafford/Ward — FULL REBUILD entire pick stack
-H2OSONDC: Daniels/Prescott/Murray/Kittle/Hockenson — STRONG
-Marino's Isotoners: Mendoza/Tua/Stowers — has dcatlet Marino 2026 picks
+INTEL: ShootTheGlass(ELITE) | BoulderFreeZone(Lamar/CMC-STRONG) | EvilEmpire(C.Williams/Gibbs-CONTENDER) | Settler22$(Judkins/Tate-STRONG) | Stinky(owes dcatlet 2027R1) | NuclearOptions(FULL REBUILD) | H2OSONDC(Daniels/Prescott-STRONG)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 LEAGUE 3: GENTLEMAN'S DYNASTY — SLEEPER FREE
-14-team | SuperFlex | TE Premium 1.5 | 4pt TDs | -2 fumble | K+DST
-23+3IR+4taxi | FAAB $200 | Trade deadline Wk14
-Strategy: REBUILD 2027-28 | Priority: #4
-Sleeper ID: 1314472610167279616
-
-UNTOUCHABLES: Mahomes, Bowers
-CORE: Judkins, MHJ, Tate
-
-MAX PF WARNING: Taxi squad points COUNT toward Max PF seeding. Monitor weekly.
-
-ROSTER:
-QB: Mahomes(KC)LOCK | McCarthy(MIN)sell | Flacco(CIN)sell | Richardson(IND)sell | Rodgers sell
-RB: Judkins(CLE) | Tuten(JAX) | McLaughlin(DEN) | Benson(ARI) | T.Etienne(CAR) | Kamara(NO)sell
-WR: MHJ(ARI) | Higgins(HOU) | Meyers(JAX) | Shaheed(SEA) | McCaffrey(WAS) | T.Hunter(JAX) | Thornton(LV) | Kupp(SEA) | Tolbert(MIA)
-TE: Bowers(LV)LOCK | Njoku(FA)sell | All(CIN)
-TAXI: Tate(WR-TEN) | Bell(WR-MIA) | Klare(TE-LAR)
+14-team | SuperFlex | TE Premium 1.5 | 4pt TDs | K+DST | 23+3IR+4taxi
+Strategy: REBUILD 2027-28 | Priority: #4 | Sleeper ID: 1314472610167279616
+UNTOUCHABLES: Mahomes, Bowers | CORE: Judkins, MHJ, Tate
+MAX PF WARNING: Taxi squad points COUNT toward Max PF seeding.
+{GL_ROSTER_BLOCK}
 2027: 1st(own), 2nd(Stiller29), 2nd(own), 4th | 2028: 1st, 2nd, 3rd, 4th
-
-GM SCOUTING:
-c1smith11: LaPorta on block → #1 acquisition target
-McGido: Desperate TE#14 → sell Njoku
-Goooz: Desperate TE#12 → secondary Njoku target
-SenorHyde: Desperate QB#14 → sell McCarthy/Richardson
-mstan16: Desperate RB#14 → sell Kamara/Etienne
-DynastyMad: Desperate WR#13 → sell WR depth
+GM INTEL: c1smith11(LaPorta on block-TARGET) | McGido(Desperate TE-sell Njoku) | Goooz(Desperate TE) | SenorHyde(Desperate QB-sell McCarthy/Richardson) | mstan16(Desperate RB-sell Kamara/Etienne)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-LEAGUE 4: VELVET SPADE — SLEEPER $250/$525 startup (DRAFT COMPLETE)
-12-team | SuperFlex | TE Premium 1.5 | 6PT PASSING TDs
-1QB/2RB/2WR/1TE/3FLEX/1SFLX | 23+5taxi+2IR | Max 30
-FAAB $1000 tradeable | Waivers Wed 3AM ET | Trade deadline Wk13
+LEAGUE 4: VELVET SPADE — SLEEPER $250 startup (DRAFT COMPLETE)
+12-team | SuperFlex | TE Premium 1.5 | 6PT PASSING TDs | 23+5taxi+2IR
+FAAB $1000 | Waivers Wed 3AM ET | Trade deadline Wk13
 Draft completed May 2026 | Sleeper ID: 1315445968161734656 | Priority: #1
-
-SCORING: All TDs 6pt | Pass 0.04/yd | Rush/Rec 0.1/yd | PPR RB/WR 1.0 TE 1.5
-BONUSES: 40+yd play +1 | 400+pass yd +2 | 200+rush/rec yd +2 | -2 INT | -2 fumble
-
-STATUS: POST-STARTUP — NOW IN TRADE SEASON. Draft is 100% complete. Do NOT reference draft picks or startup strategy. Focus on roster construction, trade opportunities, and dynasty build.
-
-MY VS ROSTER (post-draft, 28 rounds completed):
-QB: Drake Maye (NE) | Jaxson Dart (NYG) | Carson Beck (ARI) | Jalen Milroe (SEA)
-RB: Dylan Sampson (CLE) | Mike Washington (LV) | Tank Bigsby (PHI) | Kimani Vidal (LAC) | Jaylen Wright (MIA) | Devin Neal (NO)
-WR: Drake London (ATL) | Luther Burden (CHI) | Carnell Tate (TEN) | Marvin Harrison Jr (ARI) | Jalen Coker (CAR) | Denzel Boston (CLE) | Calvin Ridley (TEN) | Malachi Fields (NYG) | Chris Brazzell (CAR) | Caleb Douglas (MIA) | Jaylin Noel (HOU) | Skyler Bell (BUF) | Chimere Dike (TEN)
-TE: Sam LaPorta (DET) | Chig Okonkwo (WAS) | Eli Stowers (PHI) | Mason Taylor (NYJ) | Oscar Delp (NO) | Max Klare (LAR)
-
-PICK CAPITAL (2027): Own R1 | R1 from Dudesss | R1 from GNAwin0DSFTF | R1 from TeddySaladTF | Own R2 | R2 from Legends Never Die | R2 from GNAwin0DSFTF | Own R3 | Own R4 | Own R5 | Own R6 | Own R7
-NOTE: Capital Gains is the FFPC team name — this is a different league. Do not confuse.
-
-LEAGUE MANAGERS: pdwyer13 | yerkdog | jefisk24 | Smohr609 | ColeTrain8300 | DrTrollPhD | coinball | EazyDakar | jakemills69 | NateSneller | sneller
-
-COMPETITIVE WINDOW: 2027-2028. Drake Maye is the untouchable cornerstone QB. Heavy pick capital = asset to trade for established players or hold for 2027 rookie class.
-
-TRADE PRIORITIES: Add proven RB2/RB3. Add veteran WR with KTC upside. Monitor Maye/Dart/Beck for QB value trades. 4x 2027 first round picks = massive leverage.
+SCORING: All TDs 6pt | Pass 0.04/yd | Rec RB/WR 1.0 TE 1.5
+STATUS: TRADE SEASON — draft complete, focus on trades only
+{VS_ROSTER_BLOCK}
+2027 PICKS: Own R1 | R1 Dudesss | R1 GNAwin0 | R1 TeddySalad | Own R2 | R2 LegendsDie | R2 GNAwin0 | Own R3-R7
+NOTE: Capital Gains is a DIFFERENT FFPC league — never confuse with Velvet Spade.
+MANAGERS: pdwyer13 | yerkdog | jefisk24 | Smohr609 | ColeTrain8300 | DrTrollPhD | coinball | EazyDakar | jakemills69 | NateSneller | sneller
+WINDOW: 2027-2028 | Drake Maye untouchable | 4x 2027 firsts = major leverage
+PRIORITIES: Add proven RB2/RB3 | Add veteran WR | Use pick capital as trade leverage
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-ROOKIE RANKINGS (May 8 2026 KTC SuperFlex+TE):
-GONE: Love|Tate|Mendoza|Tyson|Lemon|Price|Sadiq|Concepcion|Simpson|Cooper|Stowers|Boston
-AVAILABLE: Coleman 2940|Bell 2904(+8)|Singleton 2877|Bernard 2860(+10)|Sarratt 2709
-Brazzell 2621|Branch 2563|Fields 2542(+3)|M.Washington 2502|A.Williams 2445(+7)
-Klare 2286(+1)|S.Bell 2326|Lane 2283|Allen 2273|Hurst 1853|Nussmeier 1763
-Stribling 1575(+19)|Klubnik 1571|Trigg 1546|Claiborne 1429|Allar 1001|Beck 993|Delp 1154|Raridon 734|Joly ~700
-
-KTC BASELINE May 2 2026 (flag 500+ moves):
-Maye 9500|Bowers 8100|Bijan 8200|JSN 7800|London 6500|Loveland 6200|LaPorta 5800
-Mahomes 5600|MHJ 5200|Lemon 4978|Tate 4567|Dart 4500|Concepcion 4452|Judkins 3500
-Downs 3800|McCarthy 3200|Richardson 2800|Mayfield 2800|Watson 1800|Tuten 1500
+KTC BASELINE May 2026: Maye 9500|Bowers 8100|Bijan 8200|JSN 7800|London 6500|Loveland 6200|LaPorta 5800|Mahomes 5600|MHJ 5200|Tate 4567|Dart 4500|Judkins 3500|Downs 3800
 """
 
 SYSTEM_PROMPT = f"""You are an elite dynasty fantasy football Assistant GM for MJBrutus. You manage 4 leagues with different strategies, scoring systems, and timelines. Deep expertise in dynasty formats, startup drafts, trade theory, and roster construction.
@@ -1027,10 +911,14 @@ def chat():
     if len(messages) > 20:
         messages = messages[-20:]
 
-    # Inject fresh player values + knowledge base context from DB
+    # Inject fresh player values + knowledge base context + live VS roster from DB
     live_values = get_player_values_block()
     kb_context  = get_kb_context()
-    system_with_values = SYSTEM_PROMPT
+    system_with_values = (SYSTEM_PROMPT
+        .replace('{VS_ROSTER_BLOCK}',  get_roster_block('velvet_spade'))
+        .replace('{GL_ROSTER_BLOCK}',  get_roster_block('gentlemans_dynasty'))
+        .replace('{CG_ROSTER_BLOCK}',  get_roster_block('Capital Gains'))
+        .replace('{TRS_ROSTER_BLOCK}', get_roster_block('TRS')))
     if live_values: system_with_values += "\n\n" + live_values
     if kb_context:  system_with_values += "\n\n" + kb_context
 
@@ -3636,7 +3524,60 @@ def seed_player_values():
         print(f"  Seeded {count} player values from system prompt")
 
 
-def get_player_values_block():
+def get_roster_block(league_key, fallback=''):
+    """
+    Pull dcatlet's roster from league_rosters DB for a given league.
+    league_key: 'velvet_spade', 'gentlemans_dynasty', 'Capital Gains', 'TRS'
+    Returns formatted position-grouped roster string.
+    """
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("""SELECT position, player_name, team FROM league_rosters
+                 WHERE league=? AND (
+                   manager='dcatlet' OR
+                   manager='Capital Gains' OR
+                   manager='Twenty Run Savages'
+                 )
+                 ORDER BY CASE position
+                   WHEN 'QB' THEN 1 WHEN 'RB' THEN 2
+                   WHEN 'WR' THEN 3 WHEN 'TE' THEN 4
+                   WHEN 'K'  THEN 5 ELSE 6 END, player_name""",
+              (league_key,))
+    rows = c.fetchall()
+
+    # If no manager-filtered results, try getting the right manager name
+    if not rows:
+        mgr_map = {
+            'velvet_spade':       'dcatlet',
+            'gentlemans_dynasty': 'dcatlet',
+            'Capital Gains':      'Capital Gains',
+            'TRS':                'Twenty Run Savages',
+        }
+        mgr = mgr_map.get(league_key, 'dcatlet')
+        c.execute("""SELECT position, player_name, team FROM league_rosters
+                     WHERE league=? AND manager=?
+                     ORDER BY CASE position
+                       WHEN 'QB' THEN 1 WHEN 'RB' THEN 2
+                       WHEN 'WR' THEN 3 WHEN 'TE' THEN 4 ELSE 5 END, player_name""",
+                  (league_key, mgr))
+        rows = c.fetchall()
+    conn.close()
+
+    if not rows:
+        return fallback if fallback else f"[{league_key} roster not synced — tap ⟳ Sync Sleeper or upload spreadsheet]"
+
+    from collections import defaultdict
+    by_pos = defaultdict(list)
+    for pos, name, team in rows:
+        by_pos[pos].append(f"{name}({team})" if team else name)
+
+    lines = [f"MY {league_key.upper().replace('_',' ')} ROSTER (live from DB):"]
+    for pos in ['QB','RB','WR','TE','K']:
+        if by_pos[pos]:
+            lines.append(f"{pos}: {' | '.join(by_pos[pos])}")
+    return '\n'.join(lines)
+
+
     """
     Build the player values reference string from DB.
     Used in chat route to inject fresh values into every request.
@@ -4307,7 +4248,12 @@ def analyze_trade_screenshots():
     }
     league_ctx = league_settings.get(league, f"{league} — dynasty league")
 
-    system = f"""{SYSTEM_PROMPT}
+    _sp = (SYSTEM_PROMPT
+        .replace('{VS_ROSTER_BLOCK}',  get_roster_block('velvet_spade'))
+        .replace('{GL_ROSTER_BLOCK}',  get_roster_block('gentlemans_dynasty'))
+        .replace('{CG_ROSTER_BLOCK}',  get_roster_block('Capital Gains'))
+        .replace('{TRS_ROSTER_BLOCK}', get_roster_block('TRS')))
+    system = f"""{_sp}
 
 {value_ref}
 
@@ -4441,7 +4387,12 @@ def analyze_trade_block():
         league_roster_ctx = ("\n⚠ LEAGUE ROSTER DATA NOT SYNCED — Go to Rosters tab → Sync Sleeper "
                              "to load full VS/GL manager rosters for accurate trade block analysis.")
 
-    system = f"""{SYSTEM_PROMPT}
+    _sp = (SYSTEM_PROMPT
+        .replace('{VS_ROSTER_BLOCK}',  get_roster_block('velvet_spade'))
+        .replace('{GL_ROSTER_BLOCK}',  get_roster_block('gentlemans_dynasty'))
+        .replace('{CG_ROSTER_BLOCK}',  get_roster_block('Capital Gains'))
+        .replace('{TRS_ROSTER_BLOCK}', get_roster_block('TRS')))
+    system = f"""{_sp}
 
 {value_ref}
 
