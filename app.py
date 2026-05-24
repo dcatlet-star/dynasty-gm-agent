@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify, send_from_directory
 import anthropic
+from collections import defaultdict
 import os
 import re
 import json
@@ -911,14 +912,20 @@ def chat():
     if len(messages) > 20:
         messages = messages[-20:]
 
-    # Inject fresh player values + knowledge base context + live VS roster from DB
-    live_values = get_player_values_block()
-    kb_context  = get_kb_context()
-    system_with_values = (SYSTEM_PROMPT
-        .replace('{VS_ROSTER_BLOCK}',  get_roster_block('velvet_spade'))
-        .replace('{GL_ROSTER_BLOCK}',  get_roster_block('gentlemans_dynasty'))
-        .replace('{CG_ROSTER_BLOCK}',  get_roster_block('Capital Gains'))
-        .replace('{TRS_ROSTER_BLOCK}', get_roster_block('TRS')))
+    # Build fully dynamic system prompt — all roster data from DB, nothing hardcoded
+    try:
+        live_values = get_player_values_block()
+    except Exception: live_values = ''
+    try:
+        kb_context = get_kb_context()
+    except Exception: kb_context = ''
+    try:
+        system_with_values = (SYSTEM_PROMPT
+            .replace('{VS_ROSTER_BLOCK}',  get_roster_block('velvet_spade'))
+            .replace('{GL_ROSTER_BLOCK}',  get_roster_block('gentlemans_dynasty'))
+            .replace('{CG_ROSTER_BLOCK}',  get_roster_block('Capital Gains'))
+            .replace('{TRS_ROSTER_BLOCK}', get_roster_block('TRS')))
+    except Exception: system_with_values = SYSTEM_PROMPT
     if live_values: system_with_values += "\n\n" + live_values
     if kb_context:  system_with_values += "\n\n" + kb_context
 
@@ -1232,7 +1239,6 @@ def get_boundary_pair():
                        "error": "Not enough players with KTC tier data. Run Refresh KTC Tiers first."})
 
     # Group players by KTC tier
-    from collections import defaultdict
     tier_groups = defaultdict(list)
     for name, pos, team, elo, comps, kt in rows:
         tier_groups[kt].append({
@@ -2022,7 +2028,6 @@ def get_league_roster_context(league_key):
         return ""
 
     # Group by manager
-    from collections import defaultdict
     mgr_rosters = defaultdict(lambda: defaultdict(list))
     for mgr, pos, name, team in rows:
         mgr_rosters[mgr][pos].append(f"{name}({team})")
@@ -2241,7 +2246,6 @@ def get_ktc_values():
         conn.close()
 
         # Build player value history
-        from collections import defaultdict
         history = defaultdict(list)
         for name, val, week in rows:
             history[name].append({'value': val, 'week': week})
@@ -3566,7 +3570,6 @@ def get_roster_block(league_key, fallback=''):
     if not rows:
         return fallback if fallback else f"[{league_key} roster not synced — tap ⟳ Sync Sleeper or upload spreadsheet]"
 
-    from collections import defaultdict
     by_pos = defaultdict(list)
     for pos, name, team in rows:
         by_pos[pos].append(f"{name}({team})" if team else name)
@@ -4102,7 +4105,6 @@ def get_draft_activity():
               'position': r[3], 'logged_at': r[4], 'source': r[5]} for r in rows]
 
     # Build manager pick counts for tendency analysis
-    from collections import defaultdict
     manager_pos = defaultdict(lambda: defaultdict(int))
     for p in picks:
         if p['manager'] and p['position']:
@@ -4147,7 +4149,6 @@ def live_draft_recommendation():
     conn.close()
 
     # Build manager tendency summary
-    from collections import defaultdict
     mgr_pos = defaultdict(lambda: defaultdict(int))
     for mgr, pos, cnt in tendency_rows:
         mgr_pos[mgr][pos] = cnt
