@@ -921,16 +921,18 @@ def chat():
         kb_context = get_kb_context()
     except Exception: kb_context = ''
     try:
+        # Single combined Sleeper fetch per league — gets my roster AND all managers in one pass
+        vs_context = get_full_league_context('velvet_spade')
+        gl_context = get_full_league_context('gentlemans_dynasty')
+
         system_with_values = (SYSTEM_PROMPT
-            .replace('{VS_ROSTER_BLOCK}',  get_roster_block('velvet_spade'))
-            .replace('{GL_ROSTER_BLOCK}',  get_roster_block('gentlemans_dynasty'))
+            .replace('{VS_ROSTER_BLOCK}',  vs_context['my_roster'])
+            .replace('{GL_ROSTER_BLOCK}',  gl_context['my_roster'])
             .replace('{CG_ROSTER_BLOCK}',  get_roster_block('Capital Gains'))
             .replace('{TRS_ROSTER_BLOCK}', get_roster_block('TRS')))
-        # Append full all-manager rosters for Sleeper leagues
-        vs_all = get_league_context_block('velvet_spade')
-        gl_all = get_league_context_block('gentlemans_dynasty')
-        if vs_all: system_with_values += vs_all
-        if gl_all: system_with_values += gl_all
+
+        if vs_context['all_rosters']: system_with_values += vs_context['all_rosters']
+        if gl_context['all_rosters']: system_with_values += gl_context['all_rosters']
     except Exception: system_with_values = SYSTEM_PROMPT
     if live_values: system_with_values += "\n\n" + live_values
     if kb_context:  system_with_values += "\n\n" + kb_context
@@ -3576,35 +3578,93 @@ def seed_player_values():
         print(f"  Seeded {count} player values from system prompt")
 
 
+def fetch_sleeper_rosters_live(league_key):
+    """
+    Fetch ALL manager rosters directly from Sleeper API at request time.
+    No DB dependency — always current. Called during chat request.
+    Falls back to empty string if API unavailable.
+    """
+    league_id = SLEEPER_LEAGUE_IDS.get(league_key)
+    if not league_id:
+        return ""
+
+    try:
+        players_r = requests.get("https://api.sleeper.app/v1/players/nfl", timeout=20)
+        if players_r.status_code != 200:
+            return ""
+        players_db = players_r.json()
+
+        users_r = requests.get(
+            f"https://api.sleeper.app/v1/league/{league_id}/users", timeout=10)
+        rosters_r = requests.get(
+            f"https://api.sleeper.app/v1/league/{league_id}/rosters", timeout=10)
+        if users_r.status_code != 200 or rosters_r.status_code != 200:
+            return ""
+
+        users   = users_r.json()
+        rosters = rosters_r.json()
+        user_map = {u['user_id']: u.get('display_name', u.get('username','?'))
+                    for u in users}
+
+        # Find dcatlet's user_id
+        my_id = next(
+            (u['user_id'] for u in users
+             if u.get('username','').lower() == 'dcatlet'
+             or u.get('display_name','').lower() == 'dcatlet'),
+            None)
+
+        pos_order = {'QB':0,'RB':1,'WR':2,'TE':3,'K':4,'DEF':5}
+        lines = [f"\n{league_key.upper().replace('_',' ')} ALL ROSTERS (live from Sleeper):"]
+
+        for roster in sorted(rosters, key=lambda r: r['roster_id']):
+            owner_id = roster.get('owner_id','')
+            mgr = user_map.get(owner_id, f"Team{roster['roster_id']}")
+            is_me = (owner_id == my_id)
+
+            by_pos = defaultdict(list)
+            for pid in (roster.get('players',[]) or []):
+                p = players_db.get(pid, {})
+                name = f"{p.get('first_name','')} {p.get('last_name','')}".strip()
+                pos  = p.get('position','?')
+                if pos in ('QB','RB','WR','TE') and name:
+                    by_pos[pos].append(name)
+
+            parts = []
+            for pos in ['QB','RB','WR','TE']:
+                if by_pos[pos]:
+                    parts.append(f"{pos}:{','.join(by_pos[pos])}")
+
+            prefix = "★ MY TEAM — " if is_me else ""
+            lines.append(f"{prefix}{mgr}: {' | '.join(parts)}")
+
+        return '\n'.join(lines)
+
+    except Exception:
+        return ""
+
+
 def get_league_context_block(league_key):
-    """
-    Build a compact ALL-MANAGER roster summary for a league.
-    Used to inject full league context into trade analysis.
-    """
+    """Wrapper — try live API first, fall back to DB."""
+    live = fetch_sleeper_rosters_live(league_key)
+    if live:
+        return live
+    # Fallback: read from DB if API unavailable
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("""SELECT manager, position, player_name FROM league_rosters
                  WHERE league=?
                  ORDER BY manager, CASE position
                    WHEN 'QB' THEN 1 WHEN 'RB' THEN 2
-                   WHEN 'WR' THEN 3 WHEN 'TE' THEN 4 ELSE 5 END""",
-              (league_key,))
+                   WHEN 'WR' THEN 3 WHEN 'TE' THEN 4 ELSE 5 END""", (league_key,))
     rows = c.fetchall()
-    c.execute("SELECT MAX(last_updated) FROM league_rosters WHERE league=?", (league_key,))
-    last_sync = (c.fetchone() or [None])[0]
     conn.close()
-
     if not rows:
         return ""
-
-    from collections import defaultdict
     mgr_pos = defaultdict(lambda: defaultdict(list))
     for mgr, pos, name in rows:
         if pos in ('QB','RB','WR','TE'):
             mgr_pos[mgr][pos].append(name)
-
-    date_str = last_sync[:10] if last_sync else 'unknown'
-    lines = [f"\n{league_key.upper().replace('_',' ')} ALL ROSTERS (synced: {date_str}):"]
+    lines = [f"\n{league_key.upper().replace('_',' ')} ALL ROSTERS (from DB):"]
     for mgr in sorted(mgr_pos.keys()):
         parts = []
         for pos in ['QB','RB','WR','TE']:
@@ -4311,11 +4371,15 @@ def analyze_trade_screenshots():
     }
     league_ctx = league_settings.get(league, f"{league} — dynasty league")
 
+    _vs = get_full_league_context('velvet_spade')
+    _gl = get_full_league_context('gentlemans_dynasty')
     _sp = (SYSTEM_PROMPT
-        .replace('{VS_ROSTER_BLOCK}',  get_roster_block('velvet_spade'))
-        .replace('{GL_ROSTER_BLOCK}',  get_roster_block('gentlemans_dynasty'))
+        .replace('{VS_ROSTER_BLOCK}',  _vs['my_roster'])
+        .replace('{GL_ROSTER_BLOCK}',  _gl['my_roster'])
         .replace('{CG_ROSTER_BLOCK}',  get_roster_block('Capital Gains'))
         .replace('{TRS_ROSTER_BLOCK}', get_roster_block('TRS')))
+    if _vs['all_rosters']: _sp += _vs['all_rosters']
+    if _gl['all_rosters']: _sp += _gl['all_rosters']
     system = f"""{_sp}
 
 {value_ref}
@@ -4450,11 +4514,15 @@ def analyze_trade_block():
         league_roster_ctx = ("\n⚠ LEAGUE ROSTER DATA NOT SYNCED — Go to Rosters tab → Sync Sleeper "
                              "to load full VS/GL manager rosters for accurate trade block analysis.")
 
+    _vs = get_full_league_context('velvet_spade')
+    _gl = get_full_league_context('gentlemans_dynasty')
     _sp = (SYSTEM_PROMPT
-        .replace('{VS_ROSTER_BLOCK}',  get_roster_block('velvet_spade'))
-        .replace('{GL_ROSTER_BLOCK}',  get_roster_block('gentlemans_dynasty'))
+        .replace('{VS_ROSTER_BLOCK}',  _vs['my_roster'])
+        .replace('{GL_ROSTER_BLOCK}',  _gl['my_roster'])
         .replace('{CG_ROSTER_BLOCK}',  get_roster_block('Capital Gains'))
         .replace('{TRS_ROSTER_BLOCK}', get_roster_block('TRS')))
+    if _vs['all_rosters']: _sp += _vs['all_rosters']
+    if _gl['all_rosters']: _sp += _gl['all_rosters']
     system = f"""{_sp}
 
 {value_ref}
@@ -4619,3 +4687,302 @@ Be direct and specific. Reference actual players/picks mentioned in the screensh
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port, debug=False)
+def get_full_league_context(league_key):
+    """
+    Single Sleeper API call that returns BOTH:
+    - my_roster: dcatlet's position-grouped roster string
+    - all_rosters: all 12 manager rosters for full league context
+    Uses 3 API calls total (players, users, rosters) — reused for both outputs.
+    Falls back gracefully if API unavailable.
+    """
+    empty = {'my_roster': f'[{league_key} roster not available]', 'all_rosters': ''}
+
+    league_id = SLEEPER_LEAGUE_IDS.get(league_key)
+    if not league_id:
+        return empty
+
+    try:
+        players_r = requests.get("https://api.sleeper.app/v1/players/nfl", timeout=20)
+        users_r   = requests.get(f"https://api.sleeper.app/v1/league/{league_id}/users", timeout=10)
+        rosters_r = requests.get(f"https://api.sleeper.app/v1/league/{league_id}/rosters", timeout=10)
+
+        if any(r.status_code != 200 for r in [players_r, users_r, rosters_r]):
+            return empty
+
+        players_db = players_r.json()
+        users      = users_r.json()
+        rosters    = rosters_r.json()
+        user_map   = {u['user_id']: u.get('display_name', u.get('username','?')) for u in users}
+
+        my_id = next(
+            (u['user_id'] for u in users
+             if u.get('username','').lower() == 'dcatlet'
+             or u.get('display_name','').lower() == 'dcatlet'),
+            None)
+
+        pos_order = {'QB':0,'RB':1,'WR':2,'TE':3,'K':4,'DEF':5}
+        my_roster_lines  = []
+        all_roster_lines = [f"\n{league_key.upper().replace('_',' ')} FULL LEAGUE ROSTERS (live):"]
+
+        for roster in sorted(rosters, key=lambda r: r['roster_id']):
+            owner_id = roster.get('owner_id','')
+            mgr      = user_map.get(owner_id, f"Team{roster['roster_id']}")
+            is_me    = (owner_id == my_id)
+
+            by_pos = defaultdict(list)
+            for pid in (roster.get('players',[]) or []):
+                p    = players_db.get(pid, {})
+                name = f"{p.get('first_name','')} {p.get('last_name','')}".strip()
+                pos  = p.get('position','?')
+                team = p.get('team','FA') or 'FA'
+                if name and pos in ('QB','RB','WR','TE','K'):
+                    by_pos[pos].append((name, team))
+
+            # Build compact all-roster line
+            parts = []
+            for pos in ['QB','RB','WR','TE']:
+                if by_pos[pos]:
+                    parts.append(f"{pos}:{','.join(n for n,t in by_pos[pos])}")
+            prefix = "★MY TEAM " if is_me else ""
+            all_roster_lines.append(f"{prefix}{mgr}: {' | '.join(parts)}")
+
+            # Build my full roster block
+            if is_me:
+                total = sum(len(v) for v in by_pos.values())
+                my_roster_lines.append(
+                    f"MY {league_key.upper().replace('_',' ')} ROSTER — {total} players (live):")
+                for pos in ['QB','RB','WR','TE','K']:
+                    if by_pos[pos]:
+                        players_str = ' | '.join(f"{n}({t})" for n,t in by_pos[pos])
+                        my_roster_lines.append(f"{pos}: {players_str}")
+
+        return {
+            'my_roster':   '\n'.join(my_roster_lines) if my_roster_lines else empty['my_roster'],
+            'all_rosters': '\n'.join(all_roster_lines),
+        }
+
+    except Exception as e:
+        return {'my_roster': f'[{league_key}: {str(e)[:60]}]', 'all_rosters': ''}
+
+
+def get_roster_block(league_key, fallback=''):
+    """
+    Get dcatlet's roster for a league.
+    Sleeper leagues: fetch live from API (always current).
+    FFPC leagues: read from DB (populated via KB import).
+    """
+    SLEEPER_LEAGUES = {'velvet_spade', 'gentlemans_dynasty'}
+
+    if league_key in SLEEPER_LEAGUES:
+        # Fetch live from Sleeper — same approach as Rosters tab
+        league_id = SLEEPER_LEAGUE_IDS.get(league_key)
+        if not league_id:
+            return fallback or f"[{league_key}: no league ID configured]"
+        try:
+            players_r = requests.get("https://api.sleeper.app/v1/players/nfl", timeout=20)
+            users_r   = requests.get(f"https://api.sleeper.app/v1/league/{league_id}/users", timeout=10)
+            rosters_r = requests.get(f"https://api.sleeper.app/v1/league/{league_id}/rosters", timeout=10)
+
+            if any(r.status_code != 200 for r in [players_r, users_r, rosters_r]):
+                return fallback or f"[{league_key}: Sleeper API unavailable]"
+
+            players_db = players_r.json()
+            users      = users_r.json()
+            rosters    = rosters_r.json()
+
+            my_id = next(
+                (u['user_id'] for u in users
+                 if u.get('username','').lower() == 'dcatlet'
+                 or u.get('display_name','').lower() == 'dcatlet'),
+                None)
+
+            my_roster = next(
+                (r for r in rosters if r.get('owner_id') == my_id), None)
+
+            if not my_roster:
+                return fallback or f"[{league_key}: could not find dcatlet roster]"
+
+            by_pos = defaultdict(list)
+            for pid in (my_roster.get('players',[]) or []):
+                p = players_db.get(pid, {})
+                name = f"{p.get('first_name','')} {p.get('last_name','')}".strip()
+                pos  = p.get('position','?')
+                team = p.get('team','FA') or 'FA'
+                if pos in ('QB','RB','WR','TE','K') and name:
+                    by_pos[pos].append(f"{name}({team})")
+
+            total = sum(len(v) for v in by_pos.values())
+            lines = [f"MY {league_key.upper().replace('_',' ')} ROSTER — {total} players (live):"]
+            for pos in ['QB','RB','WR','TE','K']:
+                if by_pos[pos]:
+                    lines.append(f"{pos}: {' | '.join(by_pos[pos])}")
+            return '\n'.join(lines)
+
+        except Exception as e:
+            return fallback or f"[{league_key}: API error — {str(e)[:50]}]"
+
+    else:
+        # FFPC leagues — read from DB (populated via KB spreadsheet import)
+        MY_NAMES = {'dcatlet', 'mjbrutus', 'capital gains', 'twenty run savages'}
+
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("SELECT DISTINCT manager FROM league_rosters WHERE league=?", (league_key,))
+        all_managers = [r[0] for r in c.fetchall()]
+
+        def clean(s):
+            return s.replace('\u2190','').replace('\u2192','').replace('←','').replace('→','').strip().lower().replace(' ','')
+
+        my_manager = next(
+            (m for m in all_managers if clean(m) in {n.replace(' ','') for n in MY_NAMES}),
+            None)
+
+        if not my_manager:
+            conn.close()
+            return fallback or f"[{league_key}: upload spreadsheet to load FFPC roster]"
+
+        c.execute("""SELECT position, player_name, team FROM league_rosters
+                     WHERE league=? AND manager=?
+                     ORDER BY CASE position
+                       WHEN 'QB' THEN 1 WHEN 'RB' THEN 2
+                       WHEN 'WR' THEN 3 WHEN 'TE' THEN 4 ELSE 5 END, player_name""",
+                  (league_key, my_manager))
+        rows = c.fetchall()
+        conn.close()
+
+        if not rows:
+            return fallback or f"[{league_key}: no roster data — upload spreadsheet]"
+
+        by_pos = defaultdict(list)
+        for pos, name, team in rows:
+            by_pos[pos].append(f"{name}({team})" if team else name)
+
+        total = sum(len(v) for v in by_pos.values())
+        lines = [f"MY {league_key.upper().replace('_',' ')} ROSTER — {total} players:"]
+        for pos in ['QB','RB','WR','TE','K']:
+            if by_pos[pos]:
+                lines.append(f"{pos}: {' | '.join(by_pos[pos])}")
+        return '\n'.join(lines)
+
+def init_db():
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS chat_history
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, week_key TEXT, role TEXT, content TEXT, timestamp TEXT)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS player_rankings
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, player_name TEXT UNIQUE, position TEXT, team TEXT,
+                  elo_score REAL DEFAULT 1500, comparisons INTEGER DEFAULT 0, last_updated TEXT,
+                  ktc_tier INTEGER DEFAULT 10)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS player_profiles
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, player_name TEXT UNIQUE, profile_data TEXT, last_updated TEXT)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS player_values
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, player_name TEXT UNIQUE,
+                  position TEXT, my_value INTEGER, ktc_value INTEGER, delta INTEGER,
+                  tier TEXT, last_updated TEXT)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS league_rosters
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, league TEXT, manager TEXT,
+                  player_name TEXT, position TEXT, team TEXT, last_updated TEXT)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS gm_tendencies
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, manager TEXT, league TEXT,
+                  window TEXT, style TEXT, loves_buy TEXT, loves_sell TEXT,
+                  never_sells TEXT, overpays_for TEXT, trade_notes TEXT,
+                  last_updated TEXT, UNIQUE(manager, league))''')
+    c.execute('''CREATE TABLE IF NOT EXISTS trade_log
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, league TEXT, date TEXT,
+                  their_manager TEXT, what_they_want TEXT, what_i_want TEXT,
+                  status TEXT, my_next_move TEXT, notes TEXT, last_updated TEXT)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS pick_capital
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, league TEXT, year TEXT,
+                  round TEXT, original_owner TEXT, current_owner TEXT,
+                  label TEXT, last_updated TEXT)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS kb_meta
+                 (id INTEGER PRIMARY KEY, last_upload TEXT, filename TEXT,
+                  tabs_parsed TEXT, row_counts TEXT)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS dashboard_cache
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, cache_key TEXT UNIQUE, data TEXT, last_updated TEXT)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS vs_rankings
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, player_name TEXT UNIQUE, position TEXT, team TEXT,
+                  elo_score REAL DEFAULT 1500, comparisons INTEGER DEFAULT 0, last_updated TEXT,
+                  ktc_tier INTEGER DEFAULT 10)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS market_data
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, source TEXT NOT NULL, player_name TEXT NOT NULL,
+                  rank INTEGER, value INTEGER, position TEXT, team TEXT, updated_at TEXT NOT NULL,
+                  UNIQUE(source, player_name))''')
+    # Draft activity: picks made, trades, opponent tendencies
+    c.execute('''CREATE TABLE IF NOT EXISTS draft_activity
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, draft_id TEXT DEFAULT 'vs_2026',
+                  pick_slot TEXT, player_name TEXT, manager TEXT, position TEXT,
+                  logged_at TEXT, source TEXT DEFAULT 'manual')''')
+    # Manager profiles for trade targeting
+    c.execute('''CREATE TABLE IF NOT EXISTS manager_profiles
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, manager TEXT UNIQUE,
+                  roster_data TEXT, trade_activity TEXT, tendencies TEXT, updated_at TEXT)''')
+    # Alter existing tables to add ktc_tier if missing
+    try:
+        c.execute("ALTER TABLE player_rankings ADD COLUMN ktc_tier INTEGER DEFAULT 10")
+    except: pass
+    try:
+        c.execute("ALTER TABLE vs_rankings ADD COLUMN ktc_tier INTEGER DEFAULT 10")
+    except: pass
+    conn.commit()
+    conn.close()
+
+init_db()
+
+def get_week_key():
+    now = datetime.now()
+    week_start = now - timedelta(days=now.weekday())
+    return week_start.strftime("%Y-W%U")
+
+LEAGUE_CONTEXT = """
+LEAGUE 1: CAPITAL GAINS — FFPC #430
+$250 | 12-team SuperFlex TE Premium | 28 rounds | 29+taxi | FAAB $1000
+Strategy: ACTIVE REBUILD → 2027 | Priority: #3
+UNTOUCHABLES: Drake Maye, Drake London | CORE: LaPorta, Burden, MHJ, Tate
+MOVEABLE: Milroe, all RBs, depth WRs/TEs
+{CG_ROSTER_BLOCK}
+2027 PICKS: R1 own | R1 Dudesss | R1 GNAwin0 | R1 TeddySalad | R2 own | R2 LegendsDie | R2 GNAwin0 | R3-R7
+CONSOLATION: Tank Wks 1-13 → WIN consolation → 1.01 pick 2027
+SEPTEMBER CUTS: Neal, Vidal, Wright, Sampson, Noel, Douglas, Coker, Okonkwo, Milroe
+INTEL: BostonBlackMambas(Allen/CMC/Saquon-LAST DANCE) | SeizeTheGrey(Burrow/Herbert-CONTENDER) | GNAwin0(Lawrence/Jeanty-MID) | Blunderbuss(Mahomes/Swift-CONTENDER) | TeddySalad(Daniels-MID) | LegendsNeverDie(REBUILDING R6/R7 only) | MayanFactors(Lamar/Goff-CONTENDER) | RiskItBrisket(Hurts/Bijan-CONTENDER) | ShootTheGlass(Allen/Mahomes/Barkley-ELITE)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+LEAGUE 2: TWENTY RUN SAVAGES — FFPC #210
+$100 | 12-team SuperFlex TE Premium + K+DST | 20+3IR | FAAB $1000
+Strategy: COMPETING NOW | Priority: #2 | K+DST ALWAYS REQUIRED
+UNTOUCHABLES: Drake Maye, Bijan Robinson | CORE: Loveland, JSN, Lemon
+{TRS_ROSTER_BLOCK}
+2027 PICKS: R1(Stinky), R1(own), R2(own), R3-R7
+INTEL: ShootTheGlass(ELITE) | BoulderFreeZone(Lamar/CMC-STRONG) | EvilEmpire(C.Williams/Gibbs-CONTENDER) | Settler22$(Judkins/Tate-STRONG) | Stinky(owes dcatlet 2027R1) | NuclearOptions(FULL REBUILD) | H2OSONDC(Daniels/Prescott-STRONG)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+LEAGUE 3: GENTLEMAN'S DYNASTY — SLEEPER FREE
+14-team | SuperFlex | TE Premium 1.5 | 4pt TDs | K+DST | 23+3IR+4taxi
+Strategy: REBUILD 2027-28 | Priority: #4 | Sleeper ID: 1314472610167279616
+UNTOUCHABLES: Mahomes, Bowers | CORE: Judkins, MHJ, Tate
+MAX PF WARNING: Taxi squad points COUNT toward Max PF seeding.
+{GL_ROSTER_BLOCK}
+2027: 1st(own), 2nd(Stiller29), 2nd(own), 4th | 2028: 1st, 2nd, 3rd, 4th
+GM INTEL: c1smith11(LaPorta on block-TARGET) | McGido(Desperate TE-sell Njoku) | Goooz(Desperate TE) | SenorHyde(Desperate QB-sell McCarthy/Richardson) | mstan16(Desperate RB-sell Kamara/Etienne)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+LEAGUE 4: VELVET SPADE — SLEEPER $250 startup (DRAFT COMPLETE)
+12-team | SuperFlex | TE Premium 1.5 | 6PT PASSING TDs | 23+5taxi+2IR
+FAAB $1000 | Waivers Wed 3AM ET | Trade deadline Wk13
+Draft completed May 2026 | Sleeper ID: 1315445968161734656 | Priority: #1
+SCORING: All TDs 6pt | Pass 0.04/yd | Rec RB/WR 1.0 TE 1.5
+STATUS: TRADE SEASON — draft complete, focus on trades only
+{VS_ROSTER_BLOCK}
+2027 PICKS: Own R1 | R1 Dudesss | R1 GNAwin0 | R1 TeddySalad | Own R2 | R2 LegendsDie | R2 GNAwin0 | Own R3-R7
+NOTE: Capital Gains is a DIFFERENT FFPC league — never confuse with Velvet Spade.
+MANAGERS: pdwyer13 | yerkdog | jefisk24 | Smohr609 | ColeTrain8300 | DrTrollPhD | coinball | EazyDakar | jakemills69 | NateSneller | sneller
+WINDOW: 2027-2028 | Drake Maye untouchable | 4x 2027 firsts = major leverage
+PRIORITIES: Add proven RB2/RB3 | Add veteran WR | Use pick capital as trade leverage
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+KTC BASELINE May 2026: Maye 9500|Bowers 8100|Bijan 8200|JSN 7800|London 6500|Loveland 6200|LaPorta 5800|Mahomes 5600|MHJ 5200|Tate 4567|Dart 4500|Judkins 3500|Downs 3800
+"""
