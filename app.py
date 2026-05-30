@@ -2089,18 +2089,30 @@ def my_sleeper_roster():
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
         c.execute("SELECT player_name, my_value, ktc_value FROM player_values")
-        value_map = {row[0].lower(): {'my_value': row[1], 'ktc_value': row[2]}
-                     for row in c.fetchall()}
+        value_rows = c.fetchall()
         conn.close()
+
+        # Build lookup: exact lowercase name → values
+        value_map = {row[0].lower(): {'my_value': row[1], 'ktc_value': row[2]}
+                     for row in value_rows}
+
+        def normalize(s):
+            import re as _re
+            return _re.sub(r"[^a-z0-9]", "", s.lower()) if s else ""
+
+        # Also build normalized lookup for close matches
+        value_map_norm = {normalize(row[0]): {'my_value': row[1], 'ktc_value': row[2]}
+                         for row in value_rows}
 
         def get_value(name):
             if not name: return None
+            # 1. Exact match
             v = value_map.get(name.lower())
             if v: return v.get('ktc_value')
-            # fuzzy — try last name match
-            last = name.split()[-1].lower() if name else ''
-            for k, vals in value_map.items():
-                if last in k: return vals.get('ktc_value')
+            # 2. Normalized match (handles punctuation differences)
+            v = value_map_norm.get(normalize(name))
+            if v: return v.get('ktc_value')
+            # 3. No match — return None rather than a wrong value
             return None
 
         taxi_ids = set(my_roster.get('taxi', []) or [])
