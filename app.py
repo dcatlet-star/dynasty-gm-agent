@@ -2085,34 +2085,38 @@ def my_sleeper_roster():
         if not my_roster:
             return jsonify({"success": False, "error": "Could not find your roster"})
 
-        # Pull KTC values from DB for enrichment
+        # Pull values from DB — three tiers:
+        # 1. player_values (your composite — most accurate)
+        # 2. market_data KTC source (from KTC paste — broader coverage)
+        # 3. None — show as unranked
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
         c.execute("SELECT player_name, my_value, ktc_value FROM player_values")
-        value_rows = c.fetchall()
+        pv_rows = c.fetchall()
+        c.execute("SELECT player_name, value FROM market_data WHERE source='ktc'")
+        md_rows = c.fetchall()
         conn.close()
-
-        # Build lookup: exact lowercase name → values
-        value_map = {row[0].lower(): {'my_value': row[1], 'ktc_value': row[2]}
-                     for row in value_rows}
 
         def normalize(s):
             import re as _re
             return _re.sub(r"[^a-z0-9]", "", s.lower()) if s else ""
 
-        # Also build normalized lookup for close matches
-        value_map_norm = {normalize(row[0]): {'my_value': row[1], 'ktc_value': row[2]}
-                         for row in value_rows}
+        # Build lookups
+        pv_map   = {row[0].lower(): row[2] for row in pv_rows}   # name → ktc_value
+        pv_norm  = {normalize(row[0]): row[2] for row in pv_rows}
+        md_map   = {row[0].lower(): row[1] for row in md_rows}    # name → ktc value from paste
+        md_norm  = {normalize(row[0]): row[1] for row in md_rows}
 
         def get_value(name):
             if not name: return None
-            # 1. Exact match
-            v = value_map.get(name.lower())
-            if v: return v.get('ktc_value')
-            # 2. Normalized match (handles punctuation differences)
-            v = value_map_norm.get(normalize(name))
-            if v: return v.get('ktc_value')
-            # 3. No match — return None rather than a wrong value
+            nl = name.lower()
+            nn = normalize(name)
+            # Tier 1: player_values exact
+            if nl in pv_map:   return pv_map[nl]
+            if nn in pv_norm:  return pv_norm[nn]
+            # Tier 2: market_data KTC paste
+            if nl in md_map:   return md_map[nl]
+            if nn in md_norm:  return md_norm[nn]
             return None
 
         taxi_ids = set(my_roster.get('taxi', []) or [])
@@ -3850,21 +3854,41 @@ def update_player_values():
 
 @app.route('/api/values/summary', methods=['GET'])
 def values_summary():
-    """Return current player values for display in app."""
+    """Return current player values — merges player_values (composite) and market_data (KTC paste)."""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
+
+    # Primary: player_values (your composite)
     c.execute("""SELECT player_name, position, my_value, ktc_value, delta, tier, last_updated
-                 FROM player_values ORDER BY my_value DESC LIMIT 200""")
-    rows = c.fetchall()
+                 FROM player_values ORDER BY my_value DESC""")
+    pv_rows = c.fetchall()
+
+    # Secondary: market_data KTC — players not in player_values
+    c.execute("""SELECT m.player_name, m.rank, m.value
+                 FROM market_data m
+                 WHERE m.source='ktc'
+                 AND LOWER(m.player_name) NOT IN
+                     (SELECT LOWER(player_name) FROM player_values)
+                 ORDER BY m.rank ASC LIMIT 300""")
+    md_rows = c.fetchall()
+
     c.execute("SELECT MAX(last_updated) FROM player_values")
     last_updated = c.fetchone()[0] or 'Never'
     conn.close()
+
+    values = [{"name":r[0],"pos":r[1],"my_value":r[2],"ktc_value":r[3],
+               "delta":r[4],"tier":r[5]} for r in pv_rows]
+
+    # Add market_data players with ktc_value only (no my_value)
+    for name, rank, ktc_val in md_rows:
+        values.append({"name":name,"pos":"","my_value":0,
+                       "ktc_value":ktc_val,"delta":0,"tier":"KTC only"})
+
     return jsonify({
         "success": True,
-        "count": len(rows),
+        "count": len(values),
         "last_updated": last_updated,
-        "values": [{"name":r[0],"pos":r[1],"my_value":r[2],"ktc_value":r[3],
-                    "delta":r[4],"tier":r[5]} for r in rows]
+        "values": values
     })
 
 
