@@ -1583,13 +1583,8 @@ def reorder_rankings():
     return jsonify({"success": True, "reordered": n, "pool": pool})
 
 
-@app.route('/api/vs/vote', methods=['POST'])
+@app.route('/api/rankings/vote_elo', methods=['POST'])
 def submit_vote():
-    winner = request.json.get('winner')
-    loser = request.json.get('loser')
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("SELECT elo_score FROM player_rankings WHERE player_name=?", (winner,))
     w_row = c.fetchone()
     c.execute("SELECT elo_score FROM player_rankings WHERE player_name=?", (loser,))
     l_row = c.fetchone()
