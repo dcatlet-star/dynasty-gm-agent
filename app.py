@@ -99,7 +99,7 @@ Strategy: ACTIVE REBUILD → 2027 | Priority: #3
 UNTOUCHABLES: Drake Maye, Drake London | CORE: LaPorta, Burden, MHJ, Tate
 MOVEABLE: Milroe, all RBs, depth WRs/TEs
 {CG_ROSTER_BLOCK}
-2027 PICKS: R1 own | R1 Dudesss | R1 GNAwin0 | R1 TeddySalad | R2 own | R2 LegendsDie | R2 GNAwin0 | R3-R7
+{CG_PICKS_BLOCK}
 CONSOLATION: Tank Wks 1-13 → WIN consolation → 1.01 pick 2027
 SEPTEMBER CUTS: Neal, Vidal, Wright, Sampson, Noel, Douglas, Coker, Okonkwo, Milroe
 INTEL: BostonBlackMambas(Allen/CMC/Saquon-LAST DANCE) | SeizeTheGrey(Burrow/Herbert-CONTENDER) | GNAwin0(Lawrence/Jeanty-MID) | Blunderbuss(Mahomes/Swift-CONTENDER) | TeddySalad(Daniels-MID) | LegendsNeverDie(REBUILDING R6/R7 only) | MayanFactors(Lamar/Goff-CONTENDER) | RiskItBrisket(Hurts/Bijan-CONTENDER) | ShootTheGlass(Allen/Mahomes/Barkley-ELITE)
@@ -134,10 +134,10 @@ Draft completed May 2026 | Sleeper ID: 1315445968161734656 | Priority: #1
 SCORING: All TDs 6pt | Pass 0.04/yd | Rec RB/WR 1.0 TE 1.5
 STATUS: TRADE SEASON — draft complete, focus on trades only
 {VS_ROSTER_BLOCK}
-2027 PICKS: Own R1 | R1 Dudesss | R1 GNAwin0 | R1 TeddySalad | Own R2 | R2 LegendsDie | R2 GNAwin0 | Own R3-R7
+{VS_PICKS_BLOCK}
 NOTE: Capital Gains is a DIFFERENT FFPC league — never confuse with Velvet Spade.
 MANAGERS: pdwyer13 | yerkdog | jefisk24 | Smohr609 | ColeTrain8300 | DrTrollPhD | coinball | EazyDakar | jakemills69 | NateSneller | sneller
-WINDOW: 2027-2028 | Drake Maye untouchable | 4x 2027 firsts = major leverage
+WINDOW: 2027-2028 | Drake Maye untouchable | See PICKS OWNED below for current pick capital
 PRIORITIES: Add proven RB2/RB3 | Add veteran WR | Use pick capital as trade leverage
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -927,8 +927,10 @@ def chat():
 
         system_with_values = (SYSTEM_PROMPT
             .replace('{VS_ROSTER_BLOCK}',  vs_context['my_roster'])
+            .replace('{VS_PICKS_BLOCK}',   vs_context.get('my_picks', '[picks not loaded]'))
             .replace('{GL_ROSTER_BLOCK}',  gl_context['my_roster'])
             .replace('{CG_ROSTER_BLOCK}',  get_roster_block('Capital Gains'))
+            .replace('{CG_PICKS_BLOCK}',   'R1 own | R1 Dudesss | R1 GNAwin0 | R1 TeddySalad | R2 own | R2 LegendsDie | R2 GNAwin0 | R3-R7')
             .replace('{TRS_ROSTER_BLOCK}', get_roster_block('TRS')))
 
         if vs_context['all_rosters']: system_with_values += vs_context['all_rosters']
@@ -4790,6 +4792,7 @@ def get_full_league_context(league_key):
         return {
             'my_roster':   '\n'.join(my_roster_lines) if my_roster_lines else empty['my_roster'],
             'all_rosters': '\n'.join(all_roster_lines),
+            'my_picks':    ' | '.join(sorted(my_picks)) if my_picks else '[no traded picks — own standard R1-R7]',
         }
 
     except Exception as e:
@@ -4972,7 +4975,7 @@ Strategy: ACTIVE REBUILD → 2027 | Priority: #3
 UNTOUCHABLES: Drake Maye, Drake London | CORE: LaPorta, Burden, MHJ, Tate
 MOVEABLE: Milroe, all RBs, depth WRs/TEs
 {CG_ROSTER_BLOCK}
-2027 PICKS: R1 own | R1 Dudesss | R1 GNAwin0 | R1 TeddySalad | R2 own | R2 LegendsDie | R2 GNAwin0 | R3-R7
+{CG_PICKS_BLOCK}
 CONSOLATION: Tank Wks 1-13 → WIN consolation → 1.01 pick 2027
 SEPTEMBER CUTS: Neal, Vidal, Wright, Sampson, Noel, Douglas, Coker, Okonkwo, Milroe
 INTEL: BostonBlackMambas(Allen/CMC/Saquon-LAST DANCE) | SeizeTheGrey(Burrow/Herbert-CONTENDER) | GNAwin0(Lawrence/Jeanty-MID) | Blunderbuss(Mahomes/Swift-CONTENDER) | TeddySalad(Daniels-MID) | LegendsNeverDie(REBUILDING R6/R7 only) | MayanFactors(Lamar/Goff-CONTENDER) | RiskItBrisket(Hurts/Bijan-CONTENDER) | ShootTheGlass(Allen/Mahomes/Barkley-ELITE)
@@ -5007,10 +5010,10 @@ Draft completed May 2026 | Sleeper ID: 1315445968161734656 | Priority: #1
 SCORING: All TDs 6pt | Pass 0.04/yd | Rec RB/WR 1.0 TE 1.5
 STATUS: TRADE SEASON — draft complete, focus on trades only
 {VS_ROSTER_BLOCK}
-2027 PICKS: Own R1 | R1 Dudesss | R1 GNAwin0 | R1 TeddySalad | Own R2 | R2 LegendsDie | R2 GNAwin0 | Own R3-R7
+{VS_PICKS_BLOCK}
 NOTE: Capital Gains is a DIFFERENT FFPC league — never confuse with Velvet Spade.
 MANAGERS: pdwyer13 | yerkdog | jefisk24 | Smohr609 | ColeTrain8300 | DrTrollPhD | coinball | EazyDakar | jakemills69 | NateSneller | sneller
-WINDOW: 2027-2028 | Drake Maye untouchable | 4x 2027 firsts = major leverage
+WINDOW: 2027-2028 | Drake Maye untouchable | See PICKS OWNED below for current pick capital
 PRIORITIES: Add proven RB2/RB3 | Add veteran WR | Use pick capital as trade leverage
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
