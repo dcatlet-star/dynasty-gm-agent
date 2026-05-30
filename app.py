@@ -167,7 +167,7 @@ CORE BEHAVIORS:
 14. Velvet Spade: DRAFT COMPLETE — trade season only, no draft strategy
 15. Capital Gains: always factor two-phase consolation strategy
 
-ASSET VERIFICATION RULE — CRITICAL:
+SUPERFLEX QB RULE — CRITICAL: In SuperFlex leagues (VS, CG, TRS, GL) every QB on my roster is a POTENTIAL STARTER — there are no backup QBs. With 2 QB/SF start slots, QB2 and QB3 are legitimate starters competing for flex spots. NEVER describe a QB as a "backup" or "depth only" in SuperFlex context. Evaluate each QB by their dynasty value and starting upside, not NFL depth chart status. A QB1 in dynasty terms = elite starter. QB2 = solid SF starter. QB3+ = developmental asset or trade chip.
 When building trade counters, ONLY use players that are:
 a) Explicitly visible in the uploaded screenshot, OR
 b) Confirmed in MY ROSTER sections of this system prompt
@@ -4755,6 +4755,37 @@ def get_full_league_context(league_key):
                     if by_pos[pos]:
                         players_str = ' | '.join(f"{n}({t})" for n,t in by_pos[pos])
                         my_roster_lines.append(f"{pos}: {players_str}")
+
+        # Pull traded picks — who owns what
+        try:
+            picks_r = requests.get(
+                f"https://api.sleeper.app/v1/league/{league_id}/traded_picks", timeout=10)
+            if picks_r.status_code == 200:
+                picks_raw = picks_r.json()
+                # Group picks by current owner
+                my_picks = []
+                all_pick_lines = [f"\n{league_key.upper().replace('_',' ')} TRADED PICKS (current ownership):"]
+                owner_picks = defaultdict(list)
+                for pk in picks_raw:
+                    owner_id = pk.get('owner_id','')
+                    prev_id  = pk.get('previous_owner_id','')
+                    rnd  = pk.get('round','?')
+                    yr   = pk.get('season','')
+                    owner_name = user_map.get(owner_id, owner_id)
+                    orig_name  = user_map.get(prev_id, prev_id)
+                    label = f"{yr} R{rnd}" + (f" (orig: {orig_name})" if prev_id != owner_id else '')
+                    owner_picks[owner_name].append(label)
+                    if owner_id == my_id:
+                        my_picks.append(label)
+                # Add my picks to my_roster block
+                if my_picks:
+                    my_roster_lines.append(f"PICKS OWNED: {' | '.join(sorted(my_picks))}")
+                # Add all pick ownership to all_rosters context
+                for owner, picks in sorted(owner_picks.items()):
+                    all_pick_lines.append(f"{owner}: {', '.join(sorted(picks))}")
+                all_roster_lines.extend(all_pick_lines)
+        except Exception:
+            pass  # picks are supplementary — don't fail if unavailable
 
         return {
             'my_roster':   '\n'.join(my_roster_lines) if my_roster_lines else empty['my_roster'],
