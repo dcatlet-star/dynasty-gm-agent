@@ -3561,18 +3561,25 @@ def get_roster_block(league_key, fallback=''):
         conn.close()
         return fallback if fallback else f"[{league_key} roster not synced — tap \u23f3 Sync Sleeper]"
 
-    # Find which manager is dcatlet
+    # Strip arrow markers and whitespace before matching
+    # DB stores names like "Capital Gains  ←" — need to clean before comparing
+    def clean(s):
+        return s.replace('\u2190','').replace('\u2192','').replace('←','').replace('→','').strip().lower().replace(' ','')
+
     my_manager = None
     for mgr in all_managers:
-        if mgr.lower().replace(' ','') in {n.replace(' ','') for n in MY_NAMES}:
+        if clean(mgr) in {n.replace(' ','') for n in MY_NAMES}:
             my_manager = mgr
             break
-    if not my_manager and 'capital' in league_key.lower():
-        my_manager = next((m for m in all_managers if 'capital' in m.lower()), None)
-    if not my_manager and ('trs' in league_key.lower() or 'savages' in league_key.lower()):
-        my_manager = next((m for m in all_managers if 'savages' in m.lower() or 'twenty' in m.lower()), None)
     if not my_manager:
-        # Last resort: look for the manager with the most players (likely dcatlet with 29)
+        # Fallback: partial match
+        for mgr in all_managers:
+            cm = clean(mgr)
+            if any(n.replace(' ','') in cm or cm in n.replace(' ','') for n in MY_NAMES):
+                my_manager = mgr
+                break
+    if not my_manager:
+        # Last resort: manager with most players
         c.execute("""SELECT manager, COUNT(*) as cnt FROM league_rosters
                      WHERE league=? GROUP BY manager ORDER BY cnt DESC LIMIT 1""", (league_key,))
         row = c.fetchone()
