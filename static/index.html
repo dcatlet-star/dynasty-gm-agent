@@ -610,7 +610,7 @@ const MANAGERS = [
 ];
 
 const ROSTERS = {
-  CG:{name:"Capital Gains #430",strategy:"ACTIVE REBUILD → 2027 | 4x 2027 R1",
+  CG:{name:"Capital Gains #430",strategy:"ACTIVE REBUILD → 2027",
     players:[
       {n:"Drake Maye",p:"QB",t:"NE",s:"lock",v:9500},
       {n:"Jaxson Dart",p:"QB",t:"NYG",s:"core",v:6660},
@@ -667,7 +667,7 @@ const ROSTERS = {
       {n:"Jayden Higgins",p:"WR",t:"HOU",s:"hold",v:3465},{n:"Travis Hunter",p:"WR",t:"JAC",s:"hold",v:3304},
       {n:"David Njoku",p:"TE",t:"FA",s:"sell",v:2837},{n:"Erick All",p:"TE",t:"CIN",s:"hold",v:1666},
     ]},
-  VS:{name:"Velvet Spade",strategy:"DRAFT COMPLETE — Trade Season | 2027 window | 4x 2027 1sts",players:[
+  VS:{name:"Velvet Spade",strategy:"DRAFT COMPLETE — Trade Season | 2027 window",players:[
     {n:"Drake Maye",p:"QB",t:"NE",s:"lock",v:9500},
     {n:"Jaxson Dart",p:"QB",t:"NYG",s:"core",v:6660},
     {n:"Carson Beck",p:"QB",t:"ARI",s:"",v:993},
@@ -1131,7 +1131,7 @@ async function renderRoster(tab) {
     const leagueName = tab === 'VS' ? 'velvet_spade' : 'gentlemans_dynasty';
     const displayName = tab === 'VS' ? 'Velvet Spade' : "Gentleman's Dynasty";
     const strategy = tab === 'VS'
-      ? 'DRAFT COMPLETE — Trade Season | 2027 window | 4x 2027 1sts'
+      ? 'DRAFT COMPLETE — Trade Season | 2027 window'
       : 'REBUILD → 2027-28 | Mahomes + Bowers untouchable';
 
     el.innerHTML =
