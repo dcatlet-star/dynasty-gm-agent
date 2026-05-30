@@ -1965,8 +1965,8 @@ def debug_rosters():
 
 
 
+@app.route('/api/sleeper/sync_rosters', methods=['POST'])
 def sync_all_rosters():
-    now = datetime.now().isoformat()
     total_synced = 0
     errors = []
 
@@ -3614,15 +3614,8 @@ def get_roster_block(league_key, fallback=''):
     return '\n'.join(lines)
 
 
+@app.route('/api/values/update', methods=['POST'])
 def update_player_values():
-    """
-    Update player values from uploaded Excel file or KTC paste.
-    Accepts:
-    - file_data: base64 Excel (same format as chat upload)
-    - ktc_paste: raw KTC paste text
-    - manual_updates: list of {name, my_value, ktc_value, position, tier}
-    """
-    data = request.json
     file_data    = data.get('file_data')
     ktc_paste    = data.get('ktc_paste', '')
     manual       = data.get('manual_updates', [])
