@@ -1212,27 +1212,48 @@ async function renderRoster(tab) {
     return;
   }
 
-  // CG and TRS use hardcoded ROSTERS object (FFPC — no API)
+  // CG and TRS — fetch live values from DB, sort by value
   const roster = ROSTERS[tab];
   if (!roster) return;
+
+  // Fetch current values from DB
+  let valueMap = {};
+  try {
+    const vr = await fetch('/api/values/summary');
+    const vd = await vr.json();
+    if (vd.success) {
+      vd.values.forEach(v => { valueMap[v.name.toLowerCase()] = v.ktc_value; });
+    }
+  } catch(e) { /* use hardcoded values as fallback */ }
+
+  // Enrich players with DB values, fall back to hardcoded
+  const enriched = roster.players.map(p => ({
+    ...p,
+    ktc: valueMap[p.n.toLowerCase()] || p.v || 0
+  }));
+
   let html = `<div style="padding-bottom:10px;"><div style="font-family:'Bebas Neue';font-size:15px;letter-spacing:2px;">${roster.name}</div>`;
   html += `<div style="font-size:10px;color:var(--t2);margin-top:2px;">${roster.strategy}</div></div>`;
-  if (!roster.players.length) {
+
+  if (!enriched.length) {
     html += '<div class="empty">No roster data.</div>';
   } else {
     ['QB','RB','WR','TE'].forEach(pos => {
-      const players = roster.players.filter(p => p.p === pos);
+      const players = enriched
+        .filter(p => p.p === pos)
+        .sort((a,b) => (b.ktc||0) - (a.ktc||0));  // sort by value desc
       if (!players.length) return;
       html += '<div class="sec-title">' + pos + '</div>';
       players.forEach(p => {
         const sc = p.s==='lock'?'st-lock':p.s==='core'?'st-core':p.s==='sell'?'st-sell':p.s==='taxi'?'st-taxi':'';
         const sl = p.s==='lock'?'🔒':p.s==='core'?'CORE':p.s==='sell'?'SELL':p.s==='taxi'?'TAXI':'';
         const ni = storeName(p.n);
+        const displayVal = p.ktc ? p.ktc.toLocaleString() : '—';
         html += `<div class="p-row" data-name-idx="${ni}">`;
         html += `<div class="pos-badge p${pos}">${pos}</div>`;
         html += `<div style="flex:1;"><div class="p-name">${p.n}</div><div class="p-meta">${p.t}</div></div>`;
         if (sl) html += `<span class="p-status ${sc}">${sl}</span>`;
-        html += `<div class="p-val">${p.v ? p.v.toLocaleString() : '—'}</div></div>`;
+        html += `<div class="p-val">${displayVal}</div></div>`;
       });
     });
   }
