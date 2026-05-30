@@ -926,6 +926,11 @@ def chat():
             .replace('{GL_ROSTER_BLOCK}',  get_roster_block('gentlemans_dynasty'))
             .replace('{CG_ROSTER_BLOCK}',  get_roster_block('Capital Gains'))
             .replace('{TRS_ROSTER_BLOCK}', get_roster_block('TRS')))
+        # Append full all-manager rosters for Sleeper leagues
+        vs_all = get_league_context_block('velvet_spade')
+        gl_all = get_league_context_block('gentlemans_dynasty')
+        if vs_all: system_with_values += vs_all
+        if gl_all: system_with_values += gl_all
     except Exception: system_with_values = SYSTEM_PROMPT
     if live_values: system_with_values += "\n\n" + live_values
     if kb_context:  system_with_values += "\n\n" + kb_context
@@ -2138,6 +2143,36 @@ def my_sleeper_roster():
         # Sort by position priority
         pos_order = {'QB':0,'RB':1,'WR':2,'TE':3,'K':4,'DEF':5}
         players_out.sort(key=lambda x: (pos_order.get(x['position'], 9), x['name']))
+
+        # ── WRITE ALL ROSTERS TO DB ──────────────────────────────────────────
+        # Save every manager's roster so chat has full league context
+        now = datetime.now().isoformat()
+        try:
+            conn2 = sqlite3.connect(DB_PATH)
+            c2 = conn2.cursor()
+            # Clear old data for this league
+            c2.execute("DELETE FROM league_rosters WHERE league=?", (league_key,))
+            # Write all managers
+            for roster in rosters:
+                owner_id = roster.get('owner_id', '')
+                mgr_name = user_map.get(owner_id, f"Team{roster['roster_id']}")
+                # Mark dcatlet's team with arrow for easy identification
+                if owner_id == my_user_id:
+                    mgr_name = mgr_name  # keep clean for dcatlet
+                for pid in (roster.get('players', []) or []):
+                    p = players_db.get(pid, {})
+                    name = f"{p.get('first_name','')} {p.get('last_name','')}".strip()
+                    if not name: name = pid
+                    pos  = p.get('position', '?')
+                    team = p.get('team', 'FA') or 'FA'
+                    c2.execute("""INSERT INTO league_rosters
+                                  (league, manager, player_name, position, team, last_updated)
+                                  VALUES (?,?,?,?,?,?)""",
+                               (league_key, mgr_name, name, pos, team, now))
+            conn2.commit()
+            conn2.close()
+        except Exception as e:
+            pass  # DB write failure shouldn't break roster display
 
         # Get traded picks for this roster
         picks_r = requests.get(f"https://api.sleeper.app/v1/league/{league_id}/traded_picks", timeout=10)
@@ -3541,7 +3576,44 @@ def seed_player_values():
         print(f"  Seeded {count} player values from system prompt")
 
 
-def get_roster_block(league_key, fallback=''):
+def get_league_context_block(league_key):
+    """
+    Build a compact ALL-MANAGER roster summary for a league.
+    Used to inject full league context into trade analysis.
+    """
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("""SELECT manager, position, player_name FROM league_rosters
+                 WHERE league=?
+                 ORDER BY manager, CASE position
+                   WHEN 'QB' THEN 1 WHEN 'RB' THEN 2
+                   WHEN 'WR' THEN 3 WHEN 'TE' THEN 4 ELSE 5 END""",
+              (league_key,))
+    rows = c.fetchall()
+    c.execute("SELECT MAX(last_updated) FROM league_rosters WHERE league=?", (league_key,))
+    last_sync = (c.fetchone() or [None])[0]
+    conn.close()
+
+    if not rows:
+        return ""
+
+    from collections import defaultdict
+    mgr_pos = defaultdict(lambda: defaultdict(list))
+    for mgr, pos, name in rows:
+        if pos in ('QB','RB','WR','TE'):
+            mgr_pos[mgr][pos].append(name)
+
+    date_str = last_sync[:10] if last_sync else 'unknown'
+    lines = [f"\n{league_key.upper().replace('_',' ')} ALL ROSTERS (synced: {date_str}):"]
+    for mgr in sorted(mgr_pos.keys()):
+        parts = []
+        for pos in ['QB','RB','WR','TE']:
+            if mgr_pos[mgr][pos]:
+                parts.append(f"{pos}:{','.join(mgr_pos[mgr][pos])}")
+        lines.append(f"{mgr}: {' | '.join(parts)}")
+    return '\n'.join(lines)
+
+
     """Pull dcatlet's roster from league_rosters DB. Flexible manager name matching."""
     MY_NAMES = {'dcatlet', 'mjbrutus', 'capital gains', 'twenty run savages'}
 
