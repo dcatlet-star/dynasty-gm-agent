@@ -225,7 +225,6 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--tx);display:
     <div class="home-date" id="home-date"></div>
     <div class="home-btns">
       <button class="btn btn-p btn-sm" id="intel-btn">⚡ Get Live Intel</button>
-      <button class="btn btn-s btn-sm" id="sleeper-btn">⟳ Sync Sleeper</button>
     </div>
   </div>
   <div id="home-content"></div>
@@ -241,7 +240,6 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--tx);display:
     <div class="rtab" data-roster="VS">Velvet Spade</div>
   </div>
   <div style="padding:8px 12px;display:flex;gap:8px;">
-    <button class="btn btn-s btn-sm" id="sync-sleeper-btn2">⟳ Sync Sleeper</button>
     <button class="btn btn-g btn-sm" id="update-ctx-btn">✎ Update Context</button>
   </div>
   <div class="sec" id="roster-content"></div>
@@ -871,15 +869,7 @@ document.getElementById('intel-btn').addEventListener('click', async function() 
   } catch(e) { loadStaticHome(); }
 });
 
-document.getElementById('sleeper-btn').addEventListener('click', async function() {
-  this.textContent = '⟳ Syncing...';
-  try {
-    const r = await fetch('/api/sleeper/sync', {method:'POST'});
-    const d = await r.json();
-    alert(d.success ? 'Sleeper synced!' : 'Sync failed.');
-  } catch(e) { alert('Error.'); }
-  this.textContent = '⟳ Sync Sleeper';
-});
+// Sync Sleeper removed
 
 // ── CHAT ──
 document.querySelectorAll('.chat-bar .chip').forEach(btn => {
@@ -1124,27 +1114,7 @@ document.querySelectorAll('.rtab').forEach(tab => {
   });
 });
 
-document.getElementById('sync-sleeper-btn2').addEventListener('click', async function() {
-  this.textContent = 'Syncing...'; this.disabled = true;
-  try {
-    // Sync my rosters + all league rosters in parallel
-    const [syncR, rostersR] = await Promise.all([
-      fetch('/api/sleeper/sync', {method:'POST'}),
-      fetch('/api/sleeper/sync_rosters', {method:'POST'})
-    ]);
-    const [syncD, rostersD] = await Promise.all([syncR.json(), rostersR.json()]);
-    // Clear roster cache so next tab load pulls fresh data
-    sleeperRosterCache = {};
-    if (syncD.success && rostersD.success) {
-      alert(`Synced! ${rostersD.synced} player-roster records updated across all leagues.`);
-    } else {
-      alert(`Partial sync. Errors: ${[...(syncD.errors||[]), ...(rostersD.errors||[])].join(', ')}`);
-    }
-  } catch(e) {
-    alert('Sync error: ' + e.message);
-  }
-  this.textContent = '⟳ Sync Sleeper'; this.disabled = false;
-});
+// Sync Sleeper removed — rosters now pull live from API on demand
 
 document.getElementById('update-ctx-btn').addEventListener('click', function() {
   document.getElementById('ctx-modal').classList.add('open');
@@ -1237,7 +1207,7 @@ async function renderRoster(tab) {
     } catch(e) {
       el.innerHTML =
         `<div style="padding-bottom:8px;"><div style="font-family:'Bebas Neue';font-size:15px;">${displayName}</div></div>` +
-        '<div class="empty">Connection error. Tap ⟳ Sync Sleeper to retry.</div>';
+        '<div class="empty">Connection error. Pull down to refresh.</div>';
     }
     return;
   }
