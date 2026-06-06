@@ -3749,7 +3749,11 @@ def update_player_values():
     errors  = []
 
     if file_data:
-        # Parse Excel and extract composite values
+        # Parse Excel and extract values
+        # Handles multiple formats:
+        # 1. Your composite spreadsheet (Player, Position, My Value, KTC)
+        # 2. Community Trade Value Data sheet (Player Name, Pos, Team, KTC Value, FC Value, etc.)
+        # 3. Any sheet with a player name column + a numeric value column
         try:
             import io, base64 as b64lib
             from openpyxl import load_workbook as _lwb
@@ -3757,72 +3761,132 @@ def update_player_values():
             b64 = raw.split(',')[1] if ',' in raw else raw
             wb_xl = _lwb(io.BytesIO(b64lib.b64decode(b64)), data_only=True)
 
-            # Look for a sheet with player name + value columns
-            target_sheet = None
+            # Try each sheet to find one with player data
             for sname in wb_xl.sheetnames:
                 ws_xl = wb_xl[sname]
-                # Check first row for column headers
-                headers = [str(ws_xl.cell(1,i).value or '').lower()
-                           for i in range(1, 10)]
-                if any('player' in h for h in headers) and \
-                   any('value' in h or 'rank' in h for h in headers):
-                    target_sheet = sname
-                    break
+                # Read headers from first few rows (some sheets have headers at row 1, 2, or 3)
+                headers = []
+                header_row = None
+                for try_row in range(1, 5):
+                    h = [str(ws_xl.cell(try_row, i).value or '').lower().strip()
+                         for i in range(1, min(ws_xl.max_column+1, 25))]
+                    if any('player' in x or 'name' in x for x in h):
+                        headers = h
+                        header_row = try_row
+                        break
 
-            if target_sheet:
-                ws_xl = wb_xl[target_sheet]
-                headers = [str(ws_xl.cell(1,i).value or '').lower()
-                           for i in range(1, ws_xl.max_column+1)]
+                if not headers or header_row is None: continue
 
-                # Find column indices
-                def col_idx(keywords):
+                # Flexible column detection
+                def find_col(keywords):
                     for kw in keywords:
-                        for i,h in enumerate(headers):
-                            if kw in h: return i+1
+                        for i, h in enumerate(headers):
+                            if kw in h: return i
                     return None
 
-                name_col  = col_idx(['player'])
-                pos_col   = col_idx(['position','pos'])
-                my_col    = col_idx(['composite','my value','personal'])
-                ktc_col   = col_idx(['ktc'])
-                tier_col  = col_idx(['tier'])
+                name_col  = find_col(['player', 'name'])
+                pos_col   = find_col(['pos', 'position'])
+                team_col  = find_col(['team', 'nfl'])
+                # Value columns — try several formats
+                ktc_col   = find_col(['ktc val', 'ktc value', 'ktc dyn', 'dynasty value', 'value'])
+                fc_col    = find_col(['fc val', 'fantasycalc', 'fc value', 'calc val'])
+                my_col    = find_col(['composite', 'my value', 'personal'])
+                tier_col  = find_col(['tier'])
 
-                if name_col and my_col:
-                    for row in ws_xl.iter_rows(min_row=2, values_only=True):
-                        try:
-                            name = str(row[name_col-1] or '').strip()
-                            if not name or name == 'None': continue
-                            pos      = str(row[pos_col-1]) if pos_col else ''
-                            my_val   = int(float(row[my_col-1] or 0))
-                            ktc_val  = int(float(row[ktc_col-1] or 0)) if ktc_col else 0
-                            tier     = str(row[tier_col-1] or '') if tier_col else ''
-                            delta    = my_val - ktc_val
-                            c.execute("""INSERT OR REPLACE INTO player_values
-                                        (player_name,position,my_value,ktc_value,delta,tier,last_updated)
-                                        VALUES (?,?,?,?,?,?,?)""",
-                                     (name,pos,my_val,ktc_val,delta,tier,now))
-                            updated += 1
-                        except: pass
+                if name_col is None: continue
+                # Use best available value column
+                val_col = ktc_col or fc_col or my_col or find_col(['rank', 'overall'])
+
+                for row in ws_xl.iter_rows(min_row=header_row+1, values_only=True):
+                    try:
+                        name = str(row[name_col] or '').strip()
+                        if not name or name == 'None' or len(name) < 3: continue
+                        pos = str(row[pos_col]) if pos_col is not None and row[pos_col] else ''
+                        team = str(row[team_col]) if team_col is not None and row[team_col] else ''
+                        tier = str(row[tier_col]) if tier_col is not None and row[tier_col] else ''
+
+                        # Get KTC value
+                        ktc_val = 0
+                        if ktc_col is not None and row[ktc_col]:
+                            try: ktc_val = int(float(str(row[ktc_col])))
+                            except: pass
+
+                        # Get FC value as secondary
+                        fc_val = 0
+                        if fc_col is not None and row[fc_col]:
+                            try: fc_val = int(float(str(row[fc_col])))
+                            except: pass
+
+                        # Get my value
+                        my_val = 0
+                        if my_col is not None and row[my_col]:
+                            try: my_val = int(float(str(row[my_col])))
+                            except: pass
+
+                        # Best available value
+                        best_val = ktc_val or fc_val or my_val
+                        if best_val <= 0: continue
+
+                        # Store in player_values (my_value = composite if available, else ktc)
+                        use_my = my_val if my_val > 0 else best_val
+                        use_ktc = ktc_val if ktc_val > 0 else (fc_val if fc_val > 0 else best_val)
+                        delta = use_my - use_ktc
+
+                        c.execute("""INSERT OR REPLACE INTO player_values
+                                    (player_name,position,my_value,ktc_value,delta,tier,last_updated)
+                                    VALUES (?,?,?,?,?,?,?)""",
+                                 (name, pos, use_my, use_ktc, delta, tier, now))
+
+                        # Also store in market_data for broad coverage
+                        c.execute("""INSERT OR REPLACE INTO market_data
+                                    (source,player_name,rank,value,position,team,updated_at)
+                                    VALUES ('ktc',?,?,?,?,?,?)""",
+                                 (name, updated, use_ktc, pos, team, now))
+                        updated += 1
+                    except: pass
+
+                if updated > 0:
+                    break  # Found a valid sheet, stop looking
 
         except Exception as ex:
             errors.append(f"Excel parse error: {ex}")
 
     if ktc_paste:
-        # Parse raw KTC paste (same format as the app's existing KTC paste endpoint)
+        # Parse KTC paste inline — same logic as /api/market/paste
         try:
-            resp = requests.post(f'http://localhost:{os.environ.get("PORT",8080)}/api/market/paste',
-                               json={'source':'ktc','text':ktc_paste},
-                               timeout=10)
-            if resp.status_code == 200:
-                d = resp.json()
-                if d.get('success'):
-                    # Sync new KTC values into player_values table
-                    c.execute("SELECT player_name, value FROM market_data WHERE source='ktc'")
-                    for name, ktc_val in c.fetchall():
-                        c.execute("""UPDATE player_values SET ktc_value=?, delta=my_value-?,
-                                    last_updated=? WHERE player_name=?""",
-                                 (ktc_val, ktc_val, now, name))
-                    updated += d.get('parsed', 0)
+            lines = ktc_paste.strip().split('\n')
+            ktc_rank = 0
+            ktc_parsed = 0
+            for line in lines:
+                line = line.strip()
+                if not line: continue
+                val_match = re.search(r'\b(\d{3,5})\s*$', line)
+                if not val_match: continue
+                val = int(val_match.group(1))
+                if val < 100: continue
+                pos_match = re.search(r'\b(QB|RB|WR|TE|PICK)\b', line)
+                if not pos_match: continue
+                pos = pos_match.group(1)
+                team_match = re.search(r'\b([A-Z]{2,3})\b', line)
+                team = team_match.group(1) if team_match else 'FA'
+                name_part = re.sub(r'\b(QB|RB|WR|TE|PICK|QB\d+|RB\d+|WR\d+|TE\d+)\b.*', '', line)
+                name_part = re.sub(r'^\d+\s*', '', name_part)
+                name_part = re.sub(r'\b[A-Z]{2,3}\b', '', name_part)
+                name = re.sub(r'\s+', ' ', name_part).strip()
+                name = re.sub(r"[^\w\s'.]", '', name).strip()
+                if len(name) < 3: continue
+                ktc_rank += 1
+                # Store in market_data
+                c.execute("""INSERT OR REPLACE INTO market_data
+                            (source, player_name, rank, value, position, team, updated_at)
+                            VALUES ('ktc',?,?,?,?,?,?)""",
+                         (name, ktc_rank, val, pos, team, now))
+                # Update player_values if player exists there
+                c.execute("""UPDATE player_values SET ktc_value=?, delta=my_value-?,
+                            last_updated=? WHERE LOWER(player_name)=LOWER(?)""",
+                         (val, val, now, name))
+                ktc_parsed += 1
+            updated += ktc_parsed
         except Exception as ex:
             errors.append(f"KTC paste error: {ex}")
 
@@ -4794,6 +4858,87 @@ def get_board(league_key):
 
     if not managers:
         return jsonify({"success": False, "error": "No roster data. Sync Sleeper or upload spreadsheet."})
+
+    # Add draft pick capital for Sleeper leagues
+    if sleeper_key:
+        try:
+            league_id = SLEEPER_LEAGUE_IDS.get(sleeper_key)
+            picks_r = requests.get(
+                f"https://api.sleeper.app/v1/league/{league_id}/traded_picks", timeout=10)
+            if picks_r.status_code == 200:
+                traded_picks = picks_r.json()
+                rosters_r2 = requests.get(
+                    f"https://api.sleeper.app/v1/league/{league_id}/rosters", timeout=10)
+                rosters_data = rosters_r2.json() if rosters_r2.status_code == 200 else []
+
+                # Build roster_id → manager name mapping
+                users_r2 = requests.get(
+                    f"https://api.sleeper.app/v1/league/{league_id}/users", timeout=10)
+                users_data = users_r2.json() if users_r2.status_code == 200 else []
+                user_map2 = {u['user_id']: u.get('display_name', u.get('username','?'))
+                             for u in users_data}
+                rid_to_mgr = {}
+                for r in rosters_data:
+                    rid = str(r['roster_id'])
+                    rid_to_mgr[rid] = user_map2.get(r.get('owner_id',''), f'Team{rid}')
+
+                # Compute pick ownership per manager
+                # Start: every manager owns their own R1-R7 for each future season
+                # Then apply trades: owner_id is the current owner, previous_owner_id lost it
+                num_teams = len(rosters_data)
+                mgr_picks = defaultdict(list)  # manager name → list of pick labels
+
+                # Get all future seasons (typically current year + 1 or 2)
+                future_seasons = set()
+                for tp in traded_picks:
+                    future_seasons.add(tp.get('season', ''))
+                future_seasons = sorted([s for s in future_seasons if s])
+
+                # For each season, every roster starts with R1-R7
+                # Then traded_picks tells us which moved
+                for season in future_seasons:
+                    # Track ownership: roster_id → list of (round, original_owner_name)
+                    ownership = defaultdict(list)
+                    # Everyone starts with their own
+                    for r in rosters_data:
+                        rid = str(r['roster_id'])
+                        mgr = rid_to_mgr.get(rid, rid)
+                        for rnd in range(1, 8):  # R1-R7
+                            ownership[rid].append((rnd, mgr))
+
+                    # Apply trades for this season
+                    for tp in traded_picks:
+                        if tp.get('season') != season: continue
+                        rnd = tp.get('round')
+                        owner_rid = str(tp.get('owner_id',''))  # current owner roster_id
+                        prev_rid  = str(tp.get('previous_owner_id',''))  # who lost it
+                        orig_name = rid_to_mgr.get(str(tp.get('roster_id','')), '?')
+
+                        # Remove from previous owner
+                        if prev_rid in ownership:
+                            ownership[prev_rid] = [
+                                p for p in ownership[prev_rid]
+                                if not (p[0] == rnd and p[1] == orig_name)]
+
+                        # Add to current owner
+                        ownership[owner_rid].append((rnd, orig_name))
+
+                    # Convert to labels and add to managers
+                    for rid, picks in ownership.items():
+                        mgr = rid_to_mgr.get(rid, rid)
+                        for rnd, orig in sorted(picks):
+                            own = ' (own)' if orig == mgr else f' (from {orig})'
+                            mgr_picks[mgr].append(f"{season} R{rnd}{own}")
+
+                # Attach to managers
+                for m in managers:
+                    m['picks'] = sorted(mgr_picks.get(m['manager'], []))
+        except Exception:
+            for m in managers:
+                m['picks'] = []
+    else:
+        for m in managers:
+            m['picks'] = []
 
     # Compute window + needs for each manager
     STARTER_THRESHOLDS = {'QB': 4500, 'RB': 4000, 'WR': 4000, 'TE': 4000}
