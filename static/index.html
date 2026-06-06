@@ -49,6 +49,47 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--tx);display:
 .sel{background:var(--s3);border:1px solid var(--b1);border-radius:9px;padding:9px 13px;color:var(--tx);font-family:'Syne',sans-serif;font-size:14px;width:100%;outline:none;appearance:none;}
 .chip{padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;border:1px solid var(--b1);background:var(--s3);color:var(--t2);cursor:pointer;transition:all .15s;flex-shrink:0;}
 .chip.active{background:rgba(79,158,255,.15);border-color:var(--ac);color:var(--ac);}
+/* THE BOARD */
+.board-league-strip{display:flex;gap:0;overflow-x:auto;background:var(--s1);border-bottom:1px solid var(--b1);scrollbar-width:none;flex-shrink:0;}
+.board-league-strip::-webkit-scrollbar{display:none;}
+.bls-tab{padding:11px 16px;font-size:12px;font-weight:700;color:var(--t2);cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent;transition:all .15s;letter-spacing:.5px;}
+.bls-tab.active{color:var(--ac);border-bottom-color:var(--ac);}
+.board-legend{display:flex;gap:14px;padding:8px 14px;background:var(--s1);flex-wrap:wrap;border-bottom:1px solid var(--b1);}
+.bl-item{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--t2);font-weight:600;}
+.bl-dot{width:8px;height:8px;border-radius:50%;display:inline-block;}
+.board-mgr{background:var(--s2);border:1px solid var(--b1);border-radius:12px;margin:8px 12px;overflow:hidden;}
+.board-mgr.is-me{border-color:var(--ac);box-shadow:0 0 0 1px var(--ac);}
+.bm-head{display:flex;align-items:center;gap:8px;padding:11px 13px;cursor:pointer;border-left:3px solid transparent;}
+.bm-head.w-contending{border-left-color:var(--gn);}
+.bm-head.w-winnow{border-left-color:var(--ac);}
+.bm-head.w-transitioning{border-left-color:var(--gd);}
+.bm-head.w-rebuilding{border-left-color:var(--rd);}
+.bm-name{font-weight:700;font-size:13px;flex:1;}
+.bm-name .me-tag{color:var(--ac);font-size:9px;font-weight:700;margin-left:5px;letter-spacing:1px;}
+.bm-window{font-size:9px;font-weight:700;letter-spacing:.5px;padding:2px 7px;border-radius:10px;text-transform:uppercase;}
+.bm-window.w-contending{background:rgba(61,220,132,.15);color:var(--gn);}
+.bm-window.w-winnow{background:rgba(79,158,255,.15);color:var(--ac);}
+.bm-window.w-transitioning{background:rgba(240,192,64,.15);color:var(--gd);}
+.bm-window.w-rebuilding{background:rgba(255,92,92,.15);color:var(--rd);}
+.bm-total{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--t2);font-weight:500;}
+.bm-meta{display:flex;gap:6px;padding:0 13px 9px;flex-wrap:wrap;}
+.bm-tag{font-size:9px;padding:2px 7px;border-radius:5px;font-weight:600;}
+.bm-tag.need{background:rgba(255,92,92,.12);color:var(--rd);}
+.bm-tag.surplus{background:rgba(61,220,132,.12);color:var(--gn);}
+.bm-tag.fit{background:rgba(167,139,250,.15);color:var(--pu);}
+.bm-body{display:none;padding:0 13px 12px;}
+.board-mgr.open .bm-body{display:block;}
+.bm-pos-group{margin-top:8px;}
+.bm-pos-label{font-family:'Bebas Neue';font-size:11px;letter-spacing:1.5px;color:var(--t2);margin-bottom:3px;}
+.bm-player{display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--b1);}
+.bm-player:last-child{border-bottom:none;}
+.bm-pname{flex:1;font-size:12px;}
+.bm-pteam{font-size:9px;color:var(--t2);}
+.bm-pval{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:500;color:var(--tx);}
+.bm-pval.elite{color:var(--gn);}
+.bm-pval.zero{color:var(--t2);}
+.bm-chevron{font-size:10px;color:var(--t2);transition:transform .2s;}
+.board-mgr.open .bm-chevron{transform:rotate(180deg);}
 .spin-wrap{display:flex;align-items:center;justify-content:center;padding:40px;flex-direction:column;gap:10px;}
 .spin{width:26px;height:26px;border:2px solid var(--b2);border-top-color:var(--ac);border-radius:50%;animation:spin .8s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -243,6 +284,23 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--tx);display:
     <button class="btn btn-g btn-sm" id="update-ctx-btn">✎ Update Context</button>
   </div>
   <div class="sec" id="roster-content"></div>
+</div>
+
+<!-- THE BOARD -->
+<div class="page" id="page-board">
+  <div class="board-league-strip" id="board-league-strip">
+    <div class="bls-tab active" data-bl="velvet_spade">Velvet Spade</div>
+    <div class="bls-tab" data-bl="gentlemans_dynasty">Gentleman's</div>
+    <div class="bls-tab" data-bl="cg">Capital Gains</div>
+    <div class="bls-tab" data-bl="trs">TRS</div>
+  </div>
+  <div class="board-legend" id="board-legend">
+    <span class="bl-item"><span class="bl-dot" style="background:var(--gn)"></span>Contending</span>
+    <span class="bl-item"><span class="bl-dot" style="background:var(--ac)"></span>Win-Now</span>
+    <span class="bl-item"><span class="bl-dot" style="background:var(--gd)"></span>Transitioning</span>
+    <span class="bl-item"><span class="bl-dot" style="background:var(--rd)"></span>Rebuilding</span>
+  </div>
+  <div id="board-content"></div>
 </div>
 
 <!-- MY VALUES -->
@@ -454,6 +512,7 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--tx);display:
   <button class="ni active" data-page="home"><span class="ni-icon">🏠</span><span class="ni-lbl">Home</span></button>
   <button class="ni" data-page="chat"><span class="ni-icon">💬</span><span class="ni-lbl">Chat</span></button>
   <button class="ni" data-page="rosters"><span class="ni-icon">📋</span><span class="ni-lbl">Rosters</span></button>
+  <button class="ni" data-page="board"><span class="ni-icon">🎯</span><span class="ni-lbl">The Board</span></button>
   <button class="ni" data-page="composite"><span class="ni-icon">📊</span><span class="ni-lbl">My Values</span></button>
   <button class="ni" data-page="trade"><span class="ni-icon">⚡</span><span class="ni-lbl">Trade</span></button>
 </nav>
@@ -746,6 +805,7 @@ document.querySelectorAll('.ni').forEach(btn => {
     }
     this.classList.add('active');
     if (page === 'rosters') renderRoster(currentRosterTab);
+    if (page === 'board') renderBoard(currentBoardLeague);
     if (page === 'composite') renderRankTab(currentRankTab);
     if (page === 'draft') { currentDraftTab = 'vsrank'; renderDraftContent('vsrank'); }
     if (page === 'chat') loadChatHistory();
@@ -1261,6 +1321,106 @@ async function renderRoster(tab) {
   document.querySelectorAll('[data-name-idx]').forEach(row => {
     row.addEventListener('click', function() { openProfile(playerNames[+this.dataset.nameIdx]||''); });
   });
+}
+
+// ── THE BOARD ──
+let currentBoardLeague = 'velvet_spade';
+let boardCache = {};
+
+document.querySelectorAll('.bls-tab').forEach(tab => {
+  tab.addEventListener('click', function() {
+    document.querySelectorAll('.bls-tab').forEach(t => t.classList.remove('active'));
+    this.classList.add('active');
+    currentBoardLeague = this.dataset.bl;
+    renderBoard(currentBoardLeague);
+  });
+});
+
+async function renderBoard(league) {
+  const el = document.getElementById('board-content');
+  el.innerHTML = '<div class="spin-wrap"><div class="spin"></div><div class="spin-txt">BUILDING THE BOARD...</div></div>';
+
+  try {
+    let data = boardCache[league];
+    if (!data) {
+      const r = await fetch('/api/board/' + league);
+      data = await r.json();
+      if (data.success) boardCache[league] = data;
+    }
+
+    if (!data.success) {
+      el.innerHTML = '<div class="empty" style="padding:30px 16px;text-align:center;color:var(--t2);">' +
+        (data.error || 'Could not load board.') + '</div>';
+      return;
+    }
+
+    // Find MY needs/surplus for fit detection
+    const me = data.managers.find(m => m.is_me);
+    const mySurplus = me ? me.surplus : [];
+    const myNeeds   = me ? me.needs : [];
+
+    const wClass = w => 'w-' + w.toLowerCase().replace('-','').replace(' ','');
+
+    let html = '';
+    data.managers.forEach((m, idx) => {
+      // Fit: their needs match my surplus, or their surplus matches my needs
+      const fitsForMe = !m.is_me && (
+        m.needs.some(n => mySurplus.includes(n)) ||
+        m.surplus.some(s => myNeeds.includes(s))
+      );
+
+      const posGroups = {QB:[],RB:[],WR:[],TE:[]};
+      m.players.forEach(p => { if (posGroups[p.pos]) posGroups[p.pos].push(p); });
+
+      html += `<div class="board-mgr ${m.is_me?'is-me':''}" data-idx="${idx}">`;
+      html += `<div class="bm-head ${wClass(m.window)}" onclick="toggleBoardMgr(${idx})">`;
+      html += `<span class="bm-chevron">▼</span>`;
+      html += `<span class="bm-name">${m.manager}${m.is_me?'<span class="me-tag">YOU</span>':''}</span>`;
+      if (fitsForMe) html += `<span class="bm-tag fit">★ FIT</span>`;
+      html += `<span class="bm-window ${wClass(m.window)}">${m.window}</span>`;
+      html += `</div>`;
+
+      // Needs/surplus tags
+      html += `<div class="bm-meta">`;
+      m.needs.forEach(n => html += `<span class="bm-tag need">NEEDS ${n}</span>`);
+      m.surplus.forEach(s => html += `<span class="bm-tag surplus">SURPLUS ${s}</span>`);
+      html += `<span class="bm-total" style="margin-left:auto;">${(m.total_value/1000).toFixed(1)}k total</span>`;
+      html += `</div>`;
+
+      // Body — players by position
+      html += `<div class="bm-body">`;
+      ['QB','RB','WR','TE'].forEach(pos => {
+        const players = posGroups[pos];
+        if (!players.length) return;
+        html += `<div class="bm-pos-group"><div class="bm-pos-label">${pos}</div>`;
+        players.forEach(p => {
+          const vClass = p.value >= 6000 ? 'elite' : (p.value === 0 ? 'zero' : '');
+          const vStr = p.value ? p.value.toLocaleString() : '—';
+          html += `<div class="bm-player"><span class="bm-pname">${p.name}</span>` +
+                  `<span class="bm-pteam">${p.team}</span>` +
+                  `<span class="bm-pval ${vClass}">${vStr}</span></div>`;
+        });
+        html += `</div>`;
+      });
+      html += `</div></div>`;
+    });
+
+    el.innerHTML = html;
+    // Auto-open my team
+    const meIdx = data.managers.findIndex(m => m.is_me);
+    if (meIdx >= 0) {
+      const meEl = document.querySelector(`.board-mgr[data-idx="${meIdx}"]`);
+      if (meEl) meEl.classList.add('open');
+    }
+
+  } catch(e) {
+    el.innerHTML = '<div class="empty" style="padding:30px 16px;text-align:center;color:var(--rd);">Error loading board. Tap a league tab to retry.</div>';
+  }
+}
+
+function toggleBoardMgr(idx) {
+  const el = document.querySelector(`.board-mgr[data-idx="${idx}"]`);
+  if (el) el.classList.toggle('open');
 }
 
 // ── COMPOSITE RANKINGS ──
