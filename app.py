@@ -4702,7 +4702,152 @@ Be direct and specific. Reference actual players/picks mentioned in the screensh
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port, debug=False)
-def get_full_league_context(league_key):
+@app.route('/api/board/<league_key>', methods=['GET'])
+def get_board(league_key):
+    """
+    The Board — full league value grid with auto-inferred windows and needs.
+    Returns every manager's roster valued by MY composite, plus computed
+    competitive window and positional surplus/deficit.
+    """
+    # Resolve display name → sleeper key
+    name_map = {
+        'velvet_spade': 'velvet_spade', 'gentlemans_dynasty': 'gentlemans_dynasty',
+        'vs': 'velvet_spade', 'gl': 'gentlemans_dynasty',
+    }
+    sleeper_key = name_map.get(league_key.lower())
+
+    # Load my values for valuation
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT player_name, my_value, ktc_value, position FROM player_values")
+    pv = c.fetchall()
+    c.execute("SELECT player_name, value FROM market_data WHERE source='ktc'")
+    md = c.fetchall()
+    conn.close()
+
+    def norm(s):
+        import re as _re
+        return _re.sub(r"[^a-z0-9]", "", s.lower()) if s else ""
+
+    val_exact = {r[0].lower(): r[1] for r in pv}      # my_value
+    val_norm  = {norm(r[0]): r[1] for r in pv}
+    ktc_exact = {r[0].lower(): r[1] for r in pv}
+    ktc_norm  = {norm(r[0]): r[1] for r in pv}
+    md_exact  = {r[0].lower(): r[1] for r in md}
+    md_norm   = {norm(r[0]): r[1] for r in md}
+
+    def value_of(name):
+        nl, nn = name.lower(), norm(name)
+        if nl in val_exact: return val_exact[nl]
+        if nn in val_norm:  return val_norm[nn]
+        if nl in md_exact:  return md_exact[nl]
+        if nn in md_norm:   return md_norm[nn]
+        return 0
+
+    # Get rosters — Sleeper live or DB for FFPC
+    managers = []  # list of {manager, is_me, players:[{name,pos,team,age,value}]}
+
+    if sleeper_key:
+        league_id = SLEEPER_LEAGUE_IDS.get(sleeper_key)
+        try:
+            players_db = requests.get("https://api.sleeper.app/v1/players/nfl", timeout=20).json()
+            users      = requests.get(f"https://api.sleeper.app/v1/league/{league_id}/users", timeout=10).json()
+            rosters    = requests.get(f"https://api.sleeper.app/v1/league/{league_id}/rosters", timeout=10).json()
+            user_map   = {u['user_id']: u.get('display_name', u.get('username','?')) for u in users}
+            my_id = next((u['user_id'] for u in users
+                          if u.get('username','').lower()=='dcatlet'
+                          or u.get('display_name','').lower()=='dcatlet'), None)
+
+            for r in rosters:
+                oid = r.get('owner_id','')
+                mgr = user_map.get(oid, f"Team{r['roster_id']}")
+                plist = []
+                for pid in (r.get('players',[]) or []):
+                    p = players_db.get(pid, {})
+                    name = f"{p.get('first_name','')} {p.get('last_name','')}".strip()
+                    if not name: continue
+                    plist.append({
+                        'name': name, 'pos': p.get('position','?'),
+                        'team': p.get('team','FA') or 'FA',
+                        'age':  p.get('age'),
+                        'value': value_of(name),
+                    })
+                managers.append({'manager': mgr, 'is_me': oid==my_id, 'players': plist})
+        except Exception as e:
+            return jsonify({"success": False, "error": f"Sleeper fetch failed: {e}"})
+    else:
+        # FFPC — from DB
+        db_league = 'Capital Gains' if 'capital' in league_key.lower() or league_key.lower()=='cg' else 'TRS'
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("SELECT manager, player_name, position, team FROM league_rosters WHERE league=?", (db_league,))
+        rows = c.fetchall()
+        conn.close()
+        from collections import defaultdict
+        by_mgr = defaultdict(list)
+        for mgr, name, pos, team in rows:
+            by_mgr[mgr].append({'name':name,'pos':pos,'team':team,'age':None,'value':value_of(name)})
+        my_clean = {'capitalgains','twentyrunsavages','dcatlet','mjbrutus'}
+        for mgr, plist in by_mgr.items():
+            is_me = mgr.replace('←','').replace('→','').strip().lower().replace(' ','') in my_clean
+            managers.append({'manager': mgr, 'is_me': is_me, 'players': plist})
+
+    if not managers:
+        return jsonify({"success": False, "error": "No roster data. Sync Sleeper or upload spreadsheet."})
+
+    # Compute window + needs for each manager
+    STARTER_THRESHOLDS = {'QB': 4500, 'RB': 4000, 'WR': 4000, 'TE': 4000}
+    for m in managers:
+        from collections import defaultdict
+        pos_players = defaultdict(list)
+        for p in m['players']:
+            if p['pos'] in ('QB','RB','WR','TE'):
+                pos_players[p['pos']].append(p['value'])
+        for pos in pos_players:
+            pos_players[pos].sort(reverse=True)
+
+        # Window inference: count elite assets vs aging/pick-heavy
+        total_value = sum(p['value'] for p in m['players'])
+        top_tier = sum(1 for p in m['players'] if p['value'] >= 6000)
+        young_studs = sum(1 for p in m['players']
+                          if p['value'] >= 5000 and (p['age'] is None or p['age'] <= 25))
+        aging_vets = sum(1 for p in m['players']
+                         if p['value'] >= 4000 and p['age'] is not None and p['age'] >= 28)
+
+        if young_studs >= 4 and top_tier >= 3:
+            window = 'Contending'
+        elif aging_vets >= 3 and young_studs <= 2:
+            window = 'Win-Now'
+        elif top_tier <= 2 and young_studs <= 2:
+            window = 'Rebuilding'
+        else:
+            window = 'Transitioning'
+
+        # Needs: positions where they lack a starter-quality player
+        needs, surplus = [], []
+        for pos, thresh in STARTER_THRESHOLDS.items():
+            vals = pos_players.get(pos, [])
+            starters = [v for v in vals if v >= thresh]
+            need_count = 2 if pos in ('RB','WR') else 1  # rough starter slots
+            if len(starters) < need_count:
+                needs.append(pos)
+            elif len(starters) >= need_count + 2:
+                surplus.append(pos)
+
+        m['window'] = window
+        m['needs'] = needs
+        m['surplus'] = surplus
+        m['total_value'] = total_value
+        # Sort players by value for display
+        m['players'].sort(key=lambda p: -p['value'])
+
+    # Sort: me first, then by total value
+    managers.sort(key=lambda m: (not m['is_me'], -m['total_value']))
+
+    return jsonify({"success": True, "league": league_key, "managers": managers})
+
+
+
     """
     Single Sleeper API call that returns BOTH:
     - my_roster: dcatlet's position-grouped roster string
