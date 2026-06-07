@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
 <title>Dynasty GM</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Syne:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -110,7 +110,7 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--tx);display:
 /* CHAT */
 /* chat page managed entirely via JS display toggle */
 #page-chat{display:none;overflow:hidden;}
-#page-chat.active{display:flex !important;flex-direction:column;height:calc(100vh - var(--hdr) - var(--nav));overflow:hidden;}
+#page-chat.active{display:flex !important;flex-direction:column;height:calc(100vh - var(--hdr) - var(--nav));height:calc(100dvh - var(--hdr) - var(--nav));overflow:hidden;}
 .chat-bar{padding:8px 12px;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;background:var(--s1);border-bottom:1px solid var(--b1);flex-shrink:0;}
 .chat-bar::-webkit-scrollbar{display:none;}
 .chat-msgs{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:12px;}
@@ -1402,6 +1402,31 @@ async function renderBoard(league) {
         });
         html += `</div>`;
       });
+      // Draft picks
+      if (m.picks && m.picks.length) {
+        html += `<div class="bm-pos-group"><div class="bm-pos-label">DRAFT CAPITAL</div>`;
+        // Group by season
+        const bySeason = {};
+        m.picks.forEach(pk => {
+          const yr = pk.substring(0,4) || '????';
+          if (!bySeason[yr]) bySeason[yr] = [];
+          bySeason[yr].push(pk.substring(5)); // strip year prefix
+        });
+        Object.keys(bySeason).sort().forEach(yr => {
+          html += `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;align-items:center;">`;
+          html += `<span style="font-family:'JetBrains Mono';font-size:10px;color:var(--gd);font-weight:700;min-width:32px;">${yr}</span>`;
+          bySeason[yr].forEach(pk => {
+            const isR1 = pk.startsWith('R1');
+            const isOwn = pk.includes('(own)');
+            const bg = isR1 ? 'rgba(240,192,64,.15)' : 'rgba(152,152,184,.08)';
+            const color = isR1 ? 'var(--gd)' : 'var(--t2)';
+            const border = isOwn ? 'var(--b2)' : 'var(--b1)';
+            html += `<span style="font-size:9px;padding:2px 6px;border-radius:4px;background:${bg};color:${color};border:1px solid ${border};">${pk}</span>`;
+          });
+          html += `</div>`;
+        });
+        html += `</div>`;
+      }
       html += `</div></div>`;
     });
 
@@ -2960,6 +2985,38 @@ document.getElementById('kb-import-input').addEventListener('change', async func
 
 // Check KB status on load
 checkKBStatus();
+
+// ── MOBILE KEYBOARD FIX ──────────────────────────────────────────────────────
+// iOS Safari doesn't support dvh — scroll chat input into view when keyboard opens
+const chatInput = document.getElementById('chat-inp');
+if (chatInput) {
+  chatInput.addEventListener('focus', function() {
+    // Small delay to let keyboard animate in
+    setTimeout(() => {
+      this.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      // Also scroll the chat wrap so messages stay visible
+      const msgs = document.getElementById('chat-msgs');
+      if (msgs) msgs.scrollTop = msgs.scrollHeight;
+    }, 350);
+  });
+}
+
+// Resize handler — recalculate chat height when window resizes (keyboard open/close)
+let chatResizeTimer;
+window.addEventListener('resize', function() {
+  clearTimeout(chatResizeTimer);
+  chatResizeTimer = setTimeout(() => {
+    const pageChat = document.getElementById('page-chat');
+    if (pageChat && pageChat.classList.contains('active')) {
+      const hdr = document.querySelector('.hdr');
+      const nav = document.querySelector('.nav');
+      const hdrH = hdr ? hdr.offsetHeight : 52;
+      const navH = nav ? nav.offsetHeight : 56;
+      const avail = window.innerHeight - hdrH - navH;
+      pageChat.style.height = avail + 'px';
+    }
+  }, 100);
+});
 
 // ── TRADE TAB MODE SWITCHER ──────────────────────────────────────────────────
 document.querySelectorAll('.trade-mode-btn').forEach(btn => {
