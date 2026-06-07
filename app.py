@@ -3828,31 +3828,38 @@ def update_player_values():
                             if kw in h: return i
                     return None
 
-                # Column mapping
-                # Player name: col A (even if header is a timestamp)
-                name_col = 0
-                pos_col  = find_col(['position']) or 2
-                team_col = find_col(['team']) or 3
+                def find_col_exact(keywords):
+                    """Prefer exact match, fall back to contains."""
+                    for kw in keywords:
+                        for i, h in enumerate(hl):
+                            if h == kw.lower(): return i
+                    return find_col(keywords)
 
-                # KTC SF value: column E (index 4) = "Value" in Community sheet
-                # In other sheets look for 'ktc' + 'value' or just 'value'
+                # Column mapping — use exact match where possible to avoid
+                # "Position Rank" matching before "Position"
+                name_col = 0  # Col A always player name
+                pos_col  = find_col_exact(['position']) or 2
+                team_col = find_col_exact(['team']) or 3
+
+                # KTC SF TE+ value: col E "Value" (not "KTC 1QB Value", not "Redraft")
                 ktc_col = None
                 for i, h in enumerate(hl):
-                    if 'value' in h and 'ktc' in h and '1qb' not in h and 'redraft' not in h and 'fc' not in h.replace('fantasycalc',''):
+                    if h == 'value':  # exact match for col E
                         ktc_col = i; break
                 if ktc_col is None:
-                    # Community sheet: 5th column (index 4) is KTC SF TE+ value
                     for i, h in enumerate(hl):
-                        if h == 'value': ktc_col = i; break
-                if ktc_col is None: ktc_col = 4  # fallback to col E
+                        if 'value' in h and 'ktc' in h and '1qb' not in h and 'redraft' not in h:
+                            ktc_col = i; break
+                if ktc_col is None: ktc_col = 4
 
-                # My Value: labeled "my value" explicitly
-                my_col = find_col(['my value', 'personal', 'composite'])
+                # My Value: exact label "my value"
+                my_col = find_col_exact(['my value'])
 
-                # FantasyCalc SF value as secondary reference
+                # FantasyCalc SF value — must have actual values, not just a header label
                 fc_col = None
                 for i, h in enumerate(hl):
-                    if 'fantasycalc' in h and 'value' in h and '1qb' not in h and 'redraft' not in h:
+                    if 'fantasycalc' in h and 'value' in h and '1qb' not in h \
+                       and 'redraft' not in h and '->' not in h:
                         fc_col = i; break
 
                 age_col  = find_col(['age'])
