@@ -3736,8 +3736,42 @@ def get_league_context_block(league_key):
     return '\n'.join(lines)
 
 
+@app.route('/api/values/debug_upload', methods=['POST'])
+def debug_upload():
+    """Debug endpoint: shows exactly what the parser sees in an uploaded Excel file."""
+    data = request.json
+    file_obj = data.get('file_data', {})
+    raw = file_obj.get('data', '')
+    if not raw:
+        return jsonify({"error": "No file data"})
+    try:
+        import io, base64 as b64lib
+        from openpyxl import load_workbook as _lwb
+        b64 = raw.split(',')[1] if ',' in raw else raw
+        wb_xl = _lwb(io.BytesIO(b64lib.b64decode(b64)), data_only=True)
+
+        result = {"sheets": []}
+        for sname in wb_xl.sheetnames:
+            ws = wb_xl[sname]
+            # Show first 3 rows of each sheet
+            rows_preview = []
+            for r in range(1, 5):
+                row_vals = [str(ws.cell(r, c).value or '') for c in range(1, 26)]
+                rows_preview.append(row_vals)
+            result["sheets"].append({
+                "name": sname,
+                "max_row": ws.max_row,
+                "max_col": ws.max_column,
+                "first_4_rows": rows_preview
+            })
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
+
 @app.route('/api/values/update', methods=['POST'])
 def update_player_values():
+    data         = request.json
     file_data    = data.get('file_data')
     ktc_paste    = data.get('ktc_paste', '')
     manual       = data.get('manual_updates', [])
