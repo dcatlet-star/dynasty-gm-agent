@@ -4834,6 +4834,27 @@ Be direct and specific. Reference actual players/picks mentioned in the screensh
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port, debug=False)
+@app.route('/api/board/debug', methods=['GET'])
+def board_debug():
+    """Quick debug: shows what the board sees without full roster fetch."""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT COUNT(*) FROM player_values WHERE ktc_value > 0")
+    val_count = c.fetchone()[0]
+    c.execute("SELECT COUNT(*) FROM market_data WHERE source='ktc'")
+    ktc_count = c.fetchone()[0]
+    c.execute("SELECT player_name, ktc_value FROM player_values ORDER BY ktc_value DESC LIMIT 5")
+    top5 = c.fetchall()
+    conn.close()
+    return jsonify({
+        "player_values_with_ktc": val_count,
+        "market_data_ktc": ktc_count,
+        "top5_players": [{"name": r[0], "ktc": r[1]} for r in top5],
+        "has_values": val_count > 0 or ktc_count > 0
+    })
+
+
+
 @app.route('/api/board/<league_key>', methods=['GET'])
 def get_board(league_key):
     """
@@ -5016,9 +5037,10 @@ def get_board(league_key):
             m['picks'] = []
 
     # Compute window + needs for each manager
-    STARTER_THRESHOLDS = {'QB': 4500, 'RB': 4000, 'WR': 4000, 'TE': 4000}
+    # Thresholds: top starter quality in dynasty SF TE+ context
+    STARTER_THRESHOLDS = {'QB': 3500, 'RB': 2500, 'WR': 2500, 'TE': 2500}
+    ELITE_THRESHOLD = 5500  # true elite asset
     for m in managers:
-        from collections import defaultdict
         pos_players = defaultdict(list)
         for p in m['players']:
             if p['pos'] in ('QB','RB','WR','TE'):
@@ -5026,39 +5048,43 @@ def get_board(league_key):
         for pos in pos_players:
             pos_players[pos].sort(reverse=True)
 
-        # Window inference: count elite assets vs aging/pick-heavy
         total_value = sum(p['value'] for p in m['players'])
-        top_tier = sum(1 for p in m['players'] if p['value'] >= 6000)
+        top_tier    = sum(1 for p in m['players'] if p['value'] >= ELITE_THRESHOLD)
         young_studs = sum(1 for p in m['players']
-                          if p['value'] >= 5000 and (p['age'] is None or p['age'] <= 25))
-        aging_vets = sum(1 for p in m['players']
-                         if p['value'] >= 4000 and p['age'] is not None and p['age'] >= 28)
+                          if p['value'] >= 4000 and (p['age'] is None or p['age'] <= 25))
+        aging_vets  = sum(1 for p in m['players']
+                          if p['value'] >= 3000 and p['age'] is not None and p['age'] >= 28)
 
-        if young_studs >= 4 and top_tier >= 3:
+        # Window: use relative ranking if most values are 0
+        valued_players = [p for p in m['players'] if p['value'] > 0]
+        if len(valued_players) < 5:
+            # Fall back to raw count-based inference
+            window = 'Unknown'
+        elif young_studs >= 3 and top_tier >= 2:
             window = 'Contending'
-        elif aging_vets >= 3 and young_studs <= 2:
+        elif aging_vets >= 3 and young_studs <= 1:
             window = 'Win-Now'
-        elif top_tier <= 2 and young_studs <= 2:
+        elif top_tier <= 1 and young_studs <= 1:
             window = 'Rebuilding'
         else:
             window = 'Transitioning'
 
-        # Needs: positions where they lack a starter-quality player
+        # Needs/surplus — only compute if we have enough value data
         needs, surplus = [], []
-        for pos, thresh in STARTER_THRESHOLDS.items():
-            vals = pos_players.get(pos, [])
-            starters = [v for v in vals if v >= thresh]
-            need_count = 2 if pos in ('RB','WR') else 1  # rough starter slots
-            if len(starters) < need_count:
-                needs.append(pos)
-            elif len(starters) >= need_count + 2:
-                surplus.append(pos)
+        if len(valued_players) >= 5:
+            for pos, thresh in STARTER_THRESHOLDS.items():
+                vals        = pos_players.get(pos, [])
+                starters    = [v for v in vals if v >= thresh]
+                need_count  = 2 if pos in ('RB','WR') else 1
+                if len(starters) < need_count:
+                    needs.append(pos)
+                elif len(starters) >= need_count + 2:
+                    surplus.append(pos)
 
-        m['window'] = window
-        m['needs'] = needs
-        m['surplus'] = surplus
+        m['window']      = window
+        m['needs']       = needs
+        m['surplus']     = surplus
         m['total_value'] = total_value
-        # Sort players by value for display
         m['players'].sort(key=lambda p: -p['value'])
 
     # Sort: me first, then by total value
