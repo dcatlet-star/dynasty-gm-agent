@@ -3749,11 +3749,6 @@ def update_player_values():
     errors  = []
 
     if file_data:
-        # Parse Excel and extract values
-        # Handles multiple formats:
-        # 1. Your composite spreadsheet (Player, Position, My Value, KTC)
-        # 2. Community Trade Value Data sheet (Player Name, Pos, Team, KTC Value, FC Value, etc.)
-        # 3. Any sheet with a player name column + a numeric value column
         try:
             import io, base64 as b64lib
             from openpyxl import load_workbook as _lwb
@@ -3761,92 +3756,118 @@ def update_player_values():
             b64 = raw.split(',')[1] if ',' in raw else raw
             wb_xl = _lwb(io.BytesIO(b64lib.b64decode(b64)), data_only=True)
 
-            # Try each sheet to find one with player data
             for sname in wb_xl.sheetnames:
                 ws_xl = wb_xl[sname]
-                # Read headers from first few rows (some sheets have headers at row 1, 2, or 3)
+                if ws_xl.max_row < 5: continue
+
+                # Read header row — try rows 1-3
                 headers = []
                 header_row = None
-                for try_row in range(1, 5):
-                    h = [str(ws_xl.cell(try_row, i).value or '').lower().strip()
-                         for i in range(1, min(ws_xl.max_column+1, 25))]
-                    if any('player' in x or 'name' in x for x in h):
+                for try_row in range(1, 4):
+                    h = [str(ws_xl.cell(try_row, i).value or '').strip()
+                         for i in range(1, min(ws_xl.max_column+1, 30))]
+                    # Valid header row: has Position, Team, and at least one value column
+                    has_pos   = any('position' in x.lower() for x in h)
+                    has_value = any('value' in x.lower() or 'my value' in x.lower() for x in h)
+                    if has_pos and has_value:
                         headers = h
                         header_row = try_row
                         break
 
+                if not headers:
+                    # Special case: Community Trade Value format
+                    # Row 1 col A = timestamp, col C = Position, col D = Team, col E = KTC SF value
+                    h1 = [str(ws_xl.cell(1, i).value or '').strip()
+                          for i in range(1, min(ws_xl.max_column+1, 30))]
+                    # Detect by checking if col C looks like a position header
+                    if len(h1) >= 5 and 'position' in h1[2].lower():
+                        headers = h1
+                        header_row = 1
+
                 if not headers or header_row is None: continue
 
-                # Flexible column detection
+                hl = [h.lower() for h in headers]
+
                 def find_col(keywords):
                     for kw in keywords:
-                        for i, h in enumerate(headers):
+                        for i, h in enumerate(hl):
                             if kw in h: return i
                     return None
 
-                name_col  = find_col(['player', 'name'])
-                pos_col   = find_col(['pos', 'position'])
-                team_col  = find_col(['team', 'nfl'])
-                # Value columns — try several formats
-                ktc_col   = find_col(['ktc val', 'ktc value', 'ktc dyn', 'dynasty value', 'value'])
-                fc_col    = find_col(['fc val', 'fantasycalc', 'fc value', 'calc val'])
-                my_col    = find_col(['composite', 'my value', 'personal'])
-                tier_col  = find_col(['tier'])
+                # Column mapping
+                # Player name: col A (even if header is a timestamp)
+                name_col = 0
+                pos_col  = find_col(['position']) or 2
+                team_col = find_col(['team']) or 3
 
-                if name_col is None: continue
-                # Use best available value column
-                val_col = ktc_col or fc_col or my_col or find_col(['rank', 'overall'])
+                # KTC SF value: column E (index 4) = "Value" in Community sheet
+                # In other sheets look for 'ktc' + 'value' or just 'value'
+                ktc_col = None
+                for i, h in enumerate(hl):
+                    if 'value' in h and 'ktc' in h and '1qb' not in h and 'redraft' not in h and 'fc' not in h.replace('fantasycalc',''):
+                        ktc_col = i; break
+                if ktc_col is None:
+                    # Community sheet: 5th column (index 4) is KTC SF TE+ value
+                    for i, h in enumerate(hl):
+                        if h == 'value': ktc_col = i; break
+                if ktc_col is None: ktc_col = 4  # fallback to col E
 
+                # My Value: labeled "my value" explicitly
+                my_col = find_col(['my value', 'personal', 'composite'])
+
+                # FantasyCalc SF value as secondary reference
+                fc_col = None
+                for i, h in enumerate(hl):
+                    if 'fantasycalc' in h and 'value' in h and '1qb' not in h and 'redraft' not in h:
+                        fc_col = i; break
+
+                age_col  = find_col(['age'])
+                tier_col = find_col(['tier'])
+
+                rows_parsed = 0
                 for row in ws_xl.iter_rows(min_row=header_row+1, values_only=True):
                     try:
+                        if all(v is None for v in row): continue
                         name = str(row[name_col] or '').strip()
-                        if not name or name == 'None' or len(name) < 3: continue
-                        pos = str(row[pos_col]) if pos_col is not None and row[pos_col] else ''
-                        team = str(row[team_col]) if team_col is not None and row[team_col] else ''
-                        tier = str(row[tier_col]) if tier_col is not None and row[tier_col] else ''
+                        if not name or name in ('None', 'Player', 'Name') or len(name) < 3: continue
+                        # Skip rows that look like headers or section dividers
+                        if name.lower() in ('quarterback','running back','wide receiver','tight end',
+                                            'qb','rb','wr','te','pick','player','name'): continue
 
-                        # Get KTC value
-                        ktc_val = 0
-                        if ktc_col is not None and row[ktc_col]:
-                            try: ktc_val = int(float(str(row[ktc_col])))
-                            except: pass
+                        pos  = str(row[pos_col] or '').strip()  if pos_col < len(row) else ''
+                        team = str(row[team_col] or '').strip() if team_col < len(row) else ''
+                        tier = str(row[tier_col] or '').strip() if tier_col is not None and tier_col < len(row) else ''
 
-                        # Get FC value as secondary
-                        fc_val = 0
-                        if fc_col is not None and row[fc_col]:
-                            try: fc_val = int(float(str(row[fc_col])))
-                            except: pass
+                        def safe_int(val):
+                            if val is None: return 0
+                            try: return int(float(str(val).replace(',','')))
+                            except: return 0
 
-                        # Get my value
-                        my_val = 0
-                        if my_col is not None and row[my_col]:
-                            try: my_val = int(float(str(row[my_col])))
-                            except: pass
+                        ktc_val = safe_int(row[ktc_col]) if ktc_col < len(row) else 0
+                        my_val  = safe_int(row[my_col])  if my_col is not None and my_col < len(row) else 0
+                        fc_val  = safe_int(row[fc_col])  if fc_col is not None and fc_col < len(row) else 0
 
-                        # Best available value
-                        best_val = ktc_val or fc_val or my_val
-                        if best_val <= 0: continue
+                        if ktc_val <= 0 and my_val <= 0 and fc_val <= 0: continue
 
-                        # Store in player_values (my_value = composite if available, else ktc)
-                        use_my = my_val if my_val > 0 else best_val
-                        use_ktc = ktc_val if ktc_val > 0 else (fc_val if fc_val > 0 else best_val)
-                        delta = use_my - use_ktc
+                        # If no personal value set, use KTC as both
+                        use_my  = my_val if my_val > 0 else ktc_val
+                        use_ktc = ktc_val if ktc_val > 0 else fc_val
+                        delta   = use_my - use_ktc if use_ktc > 0 else 0
 
                         c.execute("""INSERT OR REPLACE INTO player_values
-                                    (player_name,position,my_value,ktc_value,delta,tier,last_updated)
+                                    (player_name, position, my_value, ktc_value, delta, tier, last_updated)
                                     VALUES (?,?,?,?,?,?,?)""",
                                  (name, pos, use_my, use_ktc, delta, tier, now))
-
-                        # Also store in market_data for broad coverage
                         c.execute("""INSERT OR REPLACE INTO market_data
-                                    (source,player_name,rank,value,position,team,updated_at)
+                                    (source, player_name, rank, value, position, team, updated_at)
                                     VALUES ('ktc',?,?,?,?,?,?)""",
-                                 (name, updated, use_ktc, pos, team, now))
+                                 (name, updated+1, use_ktc, pos, team, now))
                         updated += 1
+                        rows_parsed += 1
                     except: pass
 
-                if updated > 0:
-                    break  # Found a valid sheet, stop looking
+                if rows_parsed > 10:
+                    break  # found a valid data sheet
 
         except Exception as ex:
             errors.append(f"Excel parse error: {ex}")
