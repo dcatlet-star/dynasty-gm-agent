@@ -4836,7 +4836,7 @@ if __name__ == '__main__':
     app.run(host='0.0.0.0', port=port, debug=False)
 @app.route('/api/board/debug', methods=['GET'])
 def board_debug():
-    """Quick debug: shows what the board sees without full roster fetch."""
+    """Debug: shows DB values AND live board sample for velvet_spade."""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("SELECT COUNT(*) FROM player_values WHERE ktc_value > 0")
@@ -4846,11 +4846,29 @@ def board_debug():
     c.execute("SELECT player_name, ktc_value FROM player_values ORDER BY ktc_value DESC LIMIT 5")
     top5 = c.fetchall()
     conn.close()
+
+    # Also try fetching just the traded picks to verify Sleeper API works
+    picks_sample = []
+    picks_error = None
+    league_id = SLEEPER_LEAGUE_IDS.get('velvet_spade')
+    try:
+        r = requests.get(f"https://api.sleeper.app/v1/league/{league_id}/traded_picks", timeout=10)
+        if r.status_code == 200:
+            raw = r.json()
+            picks_sample = raw[:5]  # first 5 raw picks
+        else:
+            picks_error = f"HTTP {r.status_code}"
+    except Exception as e:
+        picks_error = str(e)
+
     return jsonify({
         "player_values_with_ktc": val_count,
         "market_data_ktc": ktc_count,
         "top5_players": [{"name": r[0], "ktc": r[1]} for r in top5],
-        "has_values": val_count > 0 or ktc_count > 0
+        "has_values": val_count > 0 or ktc_count > 0,
+        "traded_picks_sample": picks_sample,
+        "traded_picks_error": picks_error,
+        "sleeper_league_id": league_id
     })
 
 
@@ -4864,7 +4882,34 @@ def get_board(league_key):
         return jsonify({"success": False, "error": str(e), "trace": traceback.format_exc()[-500:]})
 
 
-def _get_board_inner(league_key):
+@app.route('/api/board/summary/<league_key>', methods=['GET'])
+def board_summary(league_key):
+    """Shows picks and needs/surplus for first 3 managers without full render."""
+    try:
+        result = _get_board_inner(league_key)
+        data = json.loads(result.get_data())
+        if not data.get('success'):
+            return result
+        summary = []
+        for m in data['managers'][:4]:
+            summary.append({
+                'manager': m['manager'],
+                'is_me': m['is_me'],
+                'window': m['window'],
+                'needs': m['needs'],
+                'surplus': m['surplus'],
+                'picks_count': len(m.get('picks', [])),
+                'picks_sample': m.get('picks', [])[:6],
+                'players_with_value': sum(1 for p in m['players'] if p['value'] > 0),
+                'total_players': len(m['players']),
+            })
+        return jsonify({"success": True, "summary": summary})
+    except Exception as e:
+        import traceback
+        return jsonify({"success": False, "error": str(e), "trace": traceback.format_exc()[-800:]})
+
+
+
     # Resolve display name → sleeper key
     name_map = {
         'velvet_spade': 'velvet_spade', 'gentlemans_dynasty': 'gentlemans_dynasty',
