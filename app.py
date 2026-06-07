@@ -4931,83 +4931,86 @@ def get_board(league_key):
     if not managers:
         return jsonify({"success": False, "error": "No roster data. Sync Sleeper or upload spreadsheet."})
 
-    # Add draft pick capital for Sleeper leagues
+    # Add draft pick capital — reuse already-fetched rosters/users, just add traded_picks call
     if sleeper_key:
         try:
             league_id = SLEEPER_LEAGUE_IDS.get(sleeper_key)
             picks_r = requests.get(
                 f"https://api.sleeper.app/v1/league/{league_id}/traded_picks", timeout=10)
-            if picks_r.status_code == 200:
-                traded_picks = picks_r.json()
-                rosters_r2 = requests.get(
-                    f"https://api.sleeper.app/v1/league/{league_id}/rosters", timeout=10)
-                rosters_data = rosters_r2.json() if rosters_r2.status_code == 200 else []
 
-                # Build roster_id → manager name mapping
-                users_r2 = requests.get(
-                    f"https://api.sleeper.app/v1/league/{league_id}/users", timeout=10)
-                users_data = users_r2.json() if users_r2.status_code == 200 else []
-                user_map2 = {u['user_id']: u.get('display_name', u.get('username','?'))
-                             for u in users_data}
+            if picks_r.status_code == 200 and managers:
+                traded_picks_raw = picks_r.json()
+
+                # Build roster_id → manager name from already-fetched data
+                # managers list has 'manager' names; we need roster_id → mgr mapping
+                # Re-use the rosters variable from above (still in scope)
                 rid_to_mgr = {}
-                for r in rosters_data:
-                    rid = str(r['roster_id'])
-                    rid_to_mgr[rid] = user_map2.get(r.get('owner_id',''), f'Team{rid}')
+                for r in rosters:
+                    oid = r.get('owner_id', '')
+                    mgr_name = user_map.get(oid, f"Team{r['roster_id']}")
+                    rid_to_mgr[str(r['roster_id'])] = mgr_name
 
-                # Compute pick ownership per manager
-                # Start: every manager owns their own R1-R7 for each future season
-                # Then apply trades: owner_id is the current owner, previous_owner_id lost it
-                num_teams = len(rosters_data)
-                mgr_picks = defaultdict(list)  # manager name → list of pick labels
+                # Simple approach: traded_picks tells us the CURRENT state
+                # owner_id = who owns it now (roster_id)
+                # previous_owner_id = who had it before (roster_id)
+                # roster_id = original team it belongs to (roster_id)
+                # season = draft year, round = pick round
 
-                # Get all future seasons (typically current year + 1 or 2)
-                future_seasons = set()
-                for tp in traded_picks:
-                    future_seasons.add(tp.get('season', ''))
-                future_seasons = sorted([s for s in future_seasons if s])
+                # Start with each manager owning all their own picks
+                # then override with what traded_picks says
+                mgr_picks = defaultdict(set)
 
-                # For each season, every roster starts with R1-R7
-                # Then traded_picks tells us which moved
+                # Get future seasons from traded picks
+                future_seasons = sorted(set(
+                    tp.get('season','') for tp in traded_picks_raw
+                    if tp.get('season','')
+                ))
+
                 for season in future_seasons:
-                    # Track ownership: roster_id → list of (round, original_owner_name)
-                    ownership = defaultdict(list)
-                    # Everyone starts with their own
-                    for r in rosters_data:
-                        rid = str(r['roster_id'])
-                        mgr = rid_to_mgr.get(rid, rid)
-                        for rnd in range(1, 8):  # R1-R7
-                            ownership[rid].append((rnd, mgr))
+                    # Every manager starts with their own R1-R7
+                    for r in rosters:
+                        mgr = rid_to_mgr.get(str(r['roster_id']), f"Team{r['roster_id']}")
+                        for rnd in range(1, 8):
+                            mgr_picks[mgr].add(f"{season}|R{rnd}|{mgr}|own")
 
-                    # Apply trades for this season
-                    for tp in traded_picks:
+                    # Apply trades: remove from previous owner, add to current owner
+                    for tp in traded_picks_raw:
                         if tp.get('season') != season: continue
-                        rnd = tp.get('round')
-                        owner_rid = str(tp.get('owner_id',''))  # current owner roster_id
-                        prev_rid  = str(tp.get('previous_owner_id',''))  # who lost it
-                        orig_name = rid_to_mgr.get(str(tp.get('roster_id','')), '?')
+                        rnd  = tp.get('round')
+                        orig_rid  = str(tp.get('roster_id', ''))
+                        owner_rid = str(tp.get('owner_id', ''))
+                        prev_rid  = str(tp.get('previous_owner_id', ''))
 
-                        # Remove from previous owner
-                        if prev_rid in ownership:
-                            ownership[prev_rid] = [
-                                p for p in ownership[prev_rid]
-                                if not (p[0] == rnd and p[1] == orig_name)]
+                        orig_mgr  = rid_to_mgr.get(orig_rid, orig_rid)
+                        owner_mgr = rid_to_mgr.get(owner_rid, owner_rid)
+                        prev_mgr  = rid_to_mgr.get(prev_rid, prev_rid)
 
+                        # Remove this pick from previous owner (regardless of label)
+                        mgr_picks[prev_mgr] = {
+                            p for p in mgr_picks[prev_mgr]
+                            if not (p.startswith(f"{season}|R{rnd}|{orig_mgr}|"))
+                        }
                         # Add to current owner
-                        ownership[owner_rid].append((rnd, orig_name))
+                        label = 'own' if owner_mgr == orig_mgr else f'from {orig_mgr}'
+                        mgr_picks[owner_mgr].add(f"{season}|R{rnd}|{orig_mgr}|{label}")
 
-                    # Convert to labels and add to managers
-                    for rid, picks in ownership.items():
-                        mgr = rid_to_mgr.get(rid, rid)
-                        for rnd, orig in sorted(picks):
-                            own = ' (own)' if orig == mgr else f' (from {orig})'
-                            mgr_picks[mgr].append(f"{season} R{rnd}{own}")
-
-                # Attach to managers
+                # Convert to sorted display strings and attach to managers
                 for m in managers:
-                    m['picks'] = sorted(mgr_picks.get(m['manager'], []))
-        except Exception:
+                    raw_picks = sorted(mgr_picks.get(m['manager'], []))
+                    display = []
+                    for p in raw_picks:
+                        parts = p.split('|')
+                        if len(parts) == 4:
+                            season, rnd, orig, label = parts
+                            display.append(
+                                f"{season} {rnd}" + ('' if label == 'own' else f" ({label})")
+                            )
+                    m['picks'] = display
+
+        except Exception as ex:
             for m in managers:
-                m['picks'] = []
+                if 'picks' not in m:
+                    m['picks'] = []
     else:
         for m in managers:
             m['picks'] = []
