@@ -4944,7 +4944,7 @@ def _get_board_inner(league_key):
         rows = c.fetchall()
         conn.close()
         from collections import defaultdict
-        by_mgr = defaultdict(list)
+        by_mgr = _dd(list)
         for mgr, name, pos, team in rows:
             by_mgr[mgr].append({'name':name,'pos':pos,'team':team,'age':None,'value':value_of(name)})
         my_clean = {'capitalgains','twentyrunsavages','dcatlet','mjbrutus'}
@@ -4982,7 +4982,7 @@ def _get_board_inner(league_key):
 
                 # Start with each manager owning all their own picks
                 # then override with what traded_picks says
-                mgr_picks = defaultdict(set)
+                mgr_picks = _dd(set)
 
                 # Get future seasons from traded picks
                 future_seasons = sorted(set(
@@ -5041,10 +5041,11 @@ def _get_board_inner(league_key):
 
     # Compute window + needs for each manager
     # Thresholds: top starter quality in dynasty SF TE+ context
+    from collections import defaultdict as _dd
     STARTER_THRESHOLDS = {'QB': 3500, 'RB': 2500, 'WR': 2500, 'TE': 2500}
     ELITE_THRESHOLD = 5500  # true elite asset
     for m in managers:
-        pos_players = defaultdict(list)
+        pos_players = _dd(list)
         for p in m['players']:
             if p['pos'] in ('QB','RB','WR','TE'):
                 pos_players[p['pos']].append(p['value'])
@@ -5138,7 +5139,7 @@ def _get_board_inner(league_key):
             mgr      = user_map.get(owner_id, f"Team{roster['roster_id']}")
             is_me    = (owner_id == my_id)
 
-            by_pos = defaultdict(list)
+            by_pos = _dd(list)
             for pid in (roster.get('players',[]) or []):
                 p    = players_db.get(pid, {})
                 name = f"{p.get('first_name','')} {p.get('last_name','')}".strip()
@@ -5179,7 +5180,7 @@ def _get_board_inner(league_key):
                 # Group picks by current owner
                 my_picks = []
                 all_pick_lines = [f"\n{league_key.upper().replace('_',' ')} TRADED PICKS (current ownership):"]
-                owner_picks = defaultdict(list)
+                owner_picks = _dd(list)
                 for pk in picks_raw:
                     owner_id = pk.get('owner_id','')
                     prev_id  = pk.get('previous_owner_id','')
