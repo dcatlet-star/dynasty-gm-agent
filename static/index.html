@@ -1431,7 +1431,6 @@ async function renderBoard(league) {
           bySeason[yr].forEach(pk => {
             const isR1 = pk.startsWith('R1');
             const isR2 = pk.startsWith('R2');
-            const isOwn = !pk.includes('(');
             const bg    = isR1 ? 'rgba(240,192,64,.18)' : isR2 ? 'rgba(79,158,255,.12)' : 'rgba(152,152,184,.08)';
             const color = isR1 ? 'var(--gd)' : isR2 ? 'var(--ac)' : 'var(--t2)';
             html += `<span style="font-size:9px;padding:2px 7px;border-radius:4px;background:${bg};color:${color};border:1px solid ${color}30;">${pk}</span>`;
@@ -1439,6 +1438,9 @@ async function renderBoard(league) {
           html += `</div>`;
         });
         html += `</div>`;
+      } else {
+        html += `<div class="bm-pos-group"><div class="bm-pos-label" style="color:var(--t2);">DRAFT CAPITAL</div>` +
+          `<div style="font-size:10px;color:var(--t2);padding:2px 0;">No traded picks data — own picks R1-R7</div></div>`;
       }
 
       // Build Offer button for FIT managers
