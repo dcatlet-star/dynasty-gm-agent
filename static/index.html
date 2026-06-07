@@ -1345,6 +1345,14 @@ async function renderBoard(league) {
 
   try {
     const r = await fetch('/api/board/' + league);
+    if (!r.ok) {
+      el.innerHTML = `<div class="empty" style="padding:30px 16px;text-align:center;">` +
+        `<div style="color:var(--rd);font-weight:700;font-size:13px;">HTTP ${r.status}</div>` +
+        `<div style="color:var(--t2);font-size:11px;margin-top:6px;">` +
+        `Route returned an error — check Render logs for details.</div>` +
+        `<div style="font-family:monospace;font-size:10px;color:var(--t2);margin-top:4px;">/api/board/${league}</div></div>`;
+      return;
+    }
     const data = await r.json();
     if (data.success) {
       boardCache[league] = data;
@@ -1352,8 +1360,11 @@ async function renderBoard(league) {
     }
 
     if (!data.success) {
-      el.innerHTML = '<div class="empty" style="padding:30px 16px;text-align:center;color:var(--t2);">' +
-        (data.error || 'Could not load board.') + '</div>';
+      el.innerHTML = '<div class="empty" style="padding:30px 16px;text-align:center;">' +
+        '<div style="color:var(--rd);font-weight:700;margin-bottom:8px;">Board Error</div>' +
+        '<div style="color:var(--t2);font-size:11px;">' + (data.error || 'Unknown error') + '</div>' +
+        '<div style="color:var(--t2);font-size:10px;margin-top:8px;">League: ' + league + '</div>' +
+        '</div>';
       return;
     }
 
