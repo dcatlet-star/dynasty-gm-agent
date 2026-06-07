@@ -1332,20 +1332,23 @@ document.querySelectorAll('.bls-tab').forEach(tab => {
     document.querySelectorAll('.bls-tab').forEach(t => t.classList.remove('active'));
     this.classList.add('active');
     currentBoardLeague = this.dataset.bl;
+    delete boardCache[currentBoardLeague]; // always fetch fresh
     renderBoard(currentBoardLeague);
   });
 });
+
+let boardData = null; // store last board response for buildOffer
 
 async function renderBoard(league) {
   const el = document.getElementById('board-content');
   el.innerHTML = '<div class="spin-wrap"><div class="spin"></div><div class="spin-txt">BUILDING THE BOARD...</div></div>';
 
   try {
-    let data = boardCache[league];
-    if (!data) {
-      const r = await fetch('/api/board/' + league);
-      data = await r.json();
-      if (data.success) boardCache[league] = data;
+    const r = await fetch('/api/board/' + league);
+    const data = await r.json();
+    if (data.success) {
+      boardCache[league] = data;
+      boardData = data;
     }
 
     if (!data.success) {
@@ -1405,28 +1408,35 @@ async function renderBoard(league) {
       // Draft picks
       if (m.picks && m.picks.length) {
         html += `<div class="bm-pos-group"><div class="bm-pos-label">DRAFT CAPITAL</div>`;
-        // Group by season
         const bySeason = {};
         m.picks.forEach(pk => {
           const yr = pk.substring(0,4) || '????';
           if (!bySeason[yr]) bySeason[yr] = [];
-          bySeason[yr].push(pk.substring(5)); // strip year prefix
+          bySeason[yr].push(pk.substring(5));
         });
         Object.keys(bySeason).sort().forEach(yr => {
           html += `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;align-items:center;">`;
           html += `<span style="font-family:'JetBrains Mono';font-size:10px;color:var(--gd);font-weight:700;min-width:32px;">${yr}</span>`;
           bySeason[yr].forEach(pk => {
             const isR1 = pk.startsWith('R1');
-            const isOwn = pk.includes('(own)');
-            const bg = isR1 ? 'rgba(240,192,64,.15)' : 'rgba(152,152,184,.08)';
-            const color = isR1 ? 'var(--gd)' : 'var(--t2)';
-            const border = isOwn ? 'var(--b2)' : 'var(--b1)';
-            html += `<span style="font-size:9px;padding:2px 6px;border-radius:4px;background:${bg};color:${color};border:1px solid ${border};">${pk}</span>`;
+            const isR2 = pk.startsWith('R2');
+            const isOwn = !pk.includes('(');
+            const bg    = isR1 ? 'rgba(240,192,64,.18)' : isR2 ? 'rgba(79,158,255,.12)' : 'rgba(152,152,184,.08)';
+            const color = isR1 ? 'var(--gd)' : isR2 ? 'var(--ac)' : 'var(--t2)';
+            html += `<span style="font-size:9px;padding:2px 7px;border-radius:4px;background:${bg};color:${color};border:1px solid ${color}30;">${pk}</span>`;
           });
           html += `</div>`;
         });
         html += `</div>`;
       }
+
+      // Build Offer button for FIT managers
+      if (fitsForMe && !m.is_me) {
+        html += `<div style="padding-top:6px;">` +
+          `<button class="btn btn-p btn-sm" style="width:100%;font-size:11px;" ` +
+          `onclick="buildOffer(${idx}, event)">⚡ Build Trade Offer</button></div>`;
+      }
+
       html += `</div></div>`;
     });
 
@@ -1446,6 +1456,72 @@ async function renderBoard(league) {
 function toggleBoardMgr(idx) {
   const el = document.querySelector(`.board-mgr[data-idx="${idx}"]`);
   if (el) el.classList.toggle('open');
+}
+
+function buildOffer(idx, evt) {
+  evt.stopPropagation();
+  if (!boardData) return;
+
+  const them = boardData.managers[idx];
+  const me   = boardData.managers.find(m => m.is_me);
+  if (!them || !me) return;
+
+  // Pre-populate trade tab with context
+  const league = currentBoardLeague.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
+  const leagueMap = {
+    'Velvet Spade': 'Velvet Spade',
+    'Gentlemans Dynasty': "Gentleman's Dynasty",
+    'Cg': 'Capital Gains',
+    'Trs': 'Twenty Run Savages'
+  };
+  const leagueName = leagueMap[league] || league;
+
+  // Build context string: their needs, my surplus, their top players
+  const theirNeeds   = them.needs.join(', ') || 'unknown';
+  const mySurplus    = me.surplus.join(', ') || 'none';
+  const theirTopPlayers = them.players.slice(0,5).map(p => `${p.name} (${p.pos}, ${p.value||'?'})`).join('; ');
+  const myTopAtSurplus = me.players
+    .filter(p => me.surplus.includes(p.pos))
+    .slice(0,3)
+    .map(p => `${p.name} (${p.pos}, ${p.value||'?'})`)
+    .join('; ');
+
+  const context = `Building offer for ${them.manager} in ${leagueName}.\n` +
+    `Their window: ${them.window}. Their needs: ${theirNeeds}.\n` +
+    `My surplus positions: ${mySurplus}.\n` +
+    `Their top assets: ${theirTopPlayers}.\n` +
+    `My best assets at their needed positions: ${myTopAtSurplus}.\n` +
+    `Propose a realistic trade that addresses their needs using my surplus.`;
+
+  // Switch to Trade tab
+  document.querySelectorAll('.page').forEach(p => { p.classList.remove('active'); p.style.display = ''; });
+  document.querySelectorAll('.ni').forEach(n => n.classList.remove('active'));
+  const tradePage = document.getElementById('page-trade');
+  const tradeNav  = document.querySelector('[data-page="trade"]');
+  if (tradePage) tradePage.classList.add('active');
+  if (tradeNav)  tradeNav.classList.add('active');
+
+  // Switch to Analyze Trade mode
+  document.querySelectorAll('.trade-mode-btn').forEach(b => {
+    b.classList.remove('active','btn-p'); b.classList.add('btn-s');
+  });
+  const analyzeBtn = document.querySelector('[data-mode="analyze"]');
+  if (analyzeBtn) { analyzeBtn.classList.remove('btn-s'); analyzeBtn.classList.add('btn-p','active'); }
+  document.getElementById('trade-analyze-panel').style.display = '';
+  document.getElementById('trade-block-panel').style.display   = 'none';
+
+  // Set league and context
+  const leagueSel = document.getElementById('trade-league');
+  if (leagueSel) {
+    for (let opt of leagueSel.options) {
+      if (opt.value === leagueName) { leagueSel.value = leagueName; break; }
+    }
+  }
+  const ctxInp = document.getElementById('trade-context-inp');
+  if (ctxInp) ctxInp.value = context;
+
+  // Scroll to top of trade tab
+  window.scrollTo(0, 0);
 }
 
 // ── COMPOSITE RANKINGS ──
@@ -1745,7 +1821,14 @@ function renderManage(el) {
     '<div id="values-result" style="font-size:11px;margin-top:6px;"></div>' +
     '</div>' +
 
-    // ── REFRESH KTC TIERS ─────────────────────────────────────────────────
+    // ── DEBUG UPLOAD ──────────────────────────────────────────────────────────
+    '<div class="card" style="margin-bottom:10px;border:1px solid var(--b2);">' +
+    '<div style="font-size:11px;font-weight:700;margin-bottom:4px;color:var(--t2);">🔍 Debug Spreadsheet Parser</div>' +
+    '<div style="font-size:10px;color:var(--t2);margin-bottom:8px;">Shows exactly what columns the parser detects. Use if values aren\'t loading after upload.</div>' +
+    '<input type="file" id="debug-file-input" accept=".xlsx,.xls" style="display:none;">' +
+    '<button class="btn btn-s btn-sm" id="debug-upload-btn" style="width:100%;margin-bottom:6px;">🔍 Debug My Spreadsheet</button>' +
+    '<div id="debug-result" style="font-size:10px;font-family:monospace;background:var(--s3);border-radius:6px;padding:8px;overflow:auto;max-height:200px;display:none;white-space:pre-wrap;color:var(--tx);"></div>' +
+    '</div>';
     '<div class="card" style="margin-bottom:10px;">' +
     '<div style="font-size:13px;font-weight:700;margin-bottom:6px;">Refresh KTC Tiers</div>' +
     '<div style="font-size:11px;color:var(--t2);margin-bottom:10px;">Re-applies KTC tier data using fuzzy name matching. Does NOT wipe comparison history.</div>' +
@@ -1821,6 +1904,42 @@ function renderManage(el) {
       resultEl.innerHTML = '<span style="color:var(--rd);">Connection error.</span>';
     }
     this.textContent = '↻ Update Values'; this.disabled = false;
+  });
+
+  // Debug upload
+  document.getElementById('debug-upload-btn').addEventListener('click', function() {
+    document.getElementById('debug-file-input').click();
+  });
+  document.getElementById('debug-file-input').addEventListener('change', async function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const resultEl = document.getElementById('debug-result');
+    resultEl.style.display = 'block';
+    resultEl.textContent = 'Reading file...';
+    const reader = new FileReader();
+    reader.onload = async ev => {
+      try {
+        const r = await fetch('/api/values/debug_upload', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({file_data:{name:file.name, data:ev.target.result}})
+        });
+        const d = await r.json();
+        if (d.error) { resultEl.textContent = 'Error: ' + d.error; return; }
+        let out = '';
+        d.sheets.forEach(s => {
+          out += `\n=== ${s.name} (${s.max_row} rows × ${s.max_col} cols) ===\n`;
+          s.first_4_rows.forEach((row, i) => {
+            out += `Row ${i+1}: ${row.slice(0,10).join(' | ')}\n`;
+          });
+        });
+        resultEl.textContent = out;
+      } catch(err) {
+        resultEl.textContent = 'Error: ' + err.message;
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
   });
 
   // Refresh tiers
