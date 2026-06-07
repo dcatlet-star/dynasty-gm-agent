@@ -1353,7 +1353,10 @@ def _do_refresh_ktc_tiers():
         return 17
 
     def normalize(name):
-        return re.sub(r"[^a-z0-9]", "", name.lower())
+        import re as _re
+        name = _re.sub(r"[^a-z0-9\s]", "", name.lower()).strip()
+        name = _re.sub(r'\b(jr|sr|ii|iii|iv)\b', '', name).strip()
+        return _re.sub(r'\s+', '', name)
 
     ktc_normalized = {normalize(name): rank_to_ktc_tier(rank) for name, rank in ktc_rows}
 
@@ -2914,7 +2917,10 @@ def get_tiers():
     """
 
     def normalize(name):
-        return re.sub(r"[^a-z0-9]", "", name.lower())
+        import re as _re
+        name = _re.sub(r"[^a-z0-9\s]", "", name.lower()).strip()
+        name = _re.sub(r'\b(jr|sr|ii|iii|iv)\b', '', name).strip()
+        return _re.sub(r'\s+', '', name)
 
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -4853,7 +4859,11 @@ def get_board(league_key):
 
     def norm(s):
         import re as _re
-        return _re.sub(r"[^a-z0-9]", "", s.lower()) if s else ""
+        # Remove punctuation, lowercase
+        s = _re.sub(r"[^a-z0-9\s]", "", s.lower()).strip()
+        # Normalize suffixes: jr, sr, ii, iii, iv
+        s = _re.sub(r'\s+(jr|sr|ii|iii|iv)$', '', s)
+        return _re.sub(r'\s+', '', s)  # remove all spaces
 
     val_exact = {r[0].lower(): r[1] for r in pv}      # my_value
     val_norm  = {norm(r[0]): r[1] for r in pv}
