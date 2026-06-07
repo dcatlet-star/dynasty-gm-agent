@@ -4857,11 +4857,14 @@ def board_debug():
 
 @app.route('/api/board/<league_key>', methods=['GET'])
 def get_board(league_key):
-    """
-    The Board — full league value grid with auto-inferred windows and needs.
-    Returns every manager's roster valued by MY composite, plus computed
-    competitive window and positional surplus/deficit.
-    """
+    try:
+        return _get_board_inner(league_key)
+    except Exception as e:
+        import traceback
+        return jsonify({"success": False, "error": str(e), "trace": traceback.format_exc()[-500:]})
+
+
+def _get_board_inner(league_key):
     # Resolve display name → sleeper key
     name_map = {
         'velvet_spade': 'velvet_spade', 'gentlemans_dynasty': 'gentlemans_dynasty',
