@@ -4910,6 +4910,9 @@ def board_summary(league_key):
 
 
 
+
+
+def _get_board_inner(league_key):
     # Resolve display name → sleeper key
     name_map = {
         'velvet_spade': 'velvet_spade', 'gentlemans_dynasty': 'gentlemans_dynasty',
